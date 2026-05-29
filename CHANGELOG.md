@@ -52,6 +52,9 @@ All notable changes to this project are documented in this file.
   outside-click; currency is chosen from a list showing symbols. Client-side
   input validation surfaces friendly inline errors instead of opaque backend
   deserialization failures. Documented resetting the local dev database.
+- `LICENSE` (MIT) and a `justfile` of common tasks (dev/build/test/lint/gate,
+  sqlx-prepare, reset-db) including a `crap` recipe for CRAP coverage diagnosis
+  (`cargo llvm-cov` + `cargo crap`).
 
 ### Fixed
 
