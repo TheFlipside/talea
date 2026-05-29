@@ -121,6 +121,23 @@ sqlx database create && sqlx migrate run --source src-tauri/migrations
 cargo sqlx prepare --workspace          # then commit the updated .sqlx/
 ```
 
+### Resetting local data
+
+The app stores its SQLite database in the OS app-data directory under the
+identifier `app.talea.budget`. Deleting it gives a clean first run (which
+auto-creates a default account):
+
+```bash
+# Linux
+rm -f ~/.local/share/app.talea.budget/talea.sqlite3*
+# macOS
+rm -f ~/Library/Application\ Support/app.talea.budget/talea.sqlite3*
+# Windows (PowerShell)
+Remove-Item "$env:APPDATA\app.talea.budget\talea.sqlite3*"
+```
+
+(The `talea.sqlite3*` glob also removes the `-wal`/`-shm` WAL sidecar files.)
+
 ## Roadmap (selected)
 
 - [x] Decide the budgeting model (monthly cashflow ledger with carry-over).

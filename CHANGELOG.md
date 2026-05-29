@@ -45,6 +45,13 @@ All notable changes to this project are documented in this file.
   stays a string end-to-end (parsed only for display); dates use native ISO date
   inputs. Vitest unit tests for the pure money/month/entry helpers. (Category,
   recurring-rule, and stats screens are the next phase.)
+- First-run now auto-creates a default account (currency from the system locale,
+  fallback USD); the create-account form is reachable via the account switcher.
+  Custom styled dropdown (`Select`) and calendar date picker replace the native
+  `<select>`/`<input type=date>` so they match the theme and dismiss on
+  outside-click; currency is chosen from a list showing symbols. Client-side
+  input validation surfaces friendly inline errors instead of opaque backend
+  deserialization failures. Documented resetting the local dev database.
 
 ### Fixed
 

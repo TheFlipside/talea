@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatMoney, parseMoneyForDisplay } from '../money';
+import { formatMoney, isMoneyInput, parseMoneyForDisplay } from '../money';
+
+describe('isMoneyInput', () => {
+  it('accepts decimal strings, with optional sign', () => {
+    expect(isMoneyInput('0')).toBe(true);
+    expect(isMoneyInput('12.34')).toBe(true);
+    expect(isMoneyInput('-5.00')).toBe(true);
+    expect(isMoneyInput(' 7 ')).toBe(true);
+  });
+
+  it('rejects empty and non-numeric input', () => {
+    expect(isMoneyInput('')).toBe(false);
+    expect(isMoneyInput('abc')).toBe(false);
+    expect(isMoneyInput('1,5')).toBe(false);
+    expect(isMoneyInput('1.')).toBe(false);
+  });
+});
 
 describe('formatMoney', () => {
   it('formats a known currency', () => {

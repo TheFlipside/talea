@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -16,6 +17,13 @@ interface ModalProps {
  */
 export function Modal({ label, onClose, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Hold the latest onClose in a ref so the setup effect can run mount-only and
+  // not re-fire (which would steal focus) when the parent passes a new inline
+  // onClose on every render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -32,7 +40,7 @@ export function Modal({ label, onClose, children }: ModalProps) {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') {
@@ -59,9 +67,13 @@ export function Modal({ label, onClose, children }: ModalProps) {
       document.removeEventListener('keydown', onKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+    // Mount-only: every value used is a ref or module constant, so the effect is
+    // stable and won't re-fire (and steal focus) on parent re-renders.
+  }, []);
 
-  return (
+  // Portal to <body> so the modal always stacks above the app content,
+  // regardless of where in the tree it is rendered from.
+  return createPortal(
     <div
       className="modal-backdrop"
       onMouseDown={(event) => {
@@ -73,6 +85,7 @@ export function Modal({ label, onClose, children }: ModalProps) {
       <div className="modal" role="dialog" aria-modal="true" aria-label={label} ref={dialogRef} tabIndex={-1}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

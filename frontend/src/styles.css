@@ -1,5 +1,8 @@
 :root {
-  color-scheme: light dark;
+  /* Dark-only for now; a light theme + toggle is a planned settings feature.
+     Setting this (rather than `light dark`) makes native controls — <select>,
+     <input type="date"> — render dark instead of an unreadable white. */
+  color-scheme: dark;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   font-synthesis: none;
@@ -278,9 +281,10 @@ button {
 .modal-backdrop {
   position: fixed;
   inset: 0;
+  z-index: 1000;
   background: rgb(0 0 0 / 0.5);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   padding: 1rem;
 }
@@ -320,8 +324,9 @@ button {
   font-size: 0.85rem;
 }
 
-.field input,
-.account-switcher select {
+.field input {
+  width: 100%;
+  min-width: 0;
   padding: 0.6rem 0.7rem;
   border-radius: 0.5rem;
   border: 1px solid var(--accent-track);
@@ -336,7 +341,8 @@ button {
 }
 
 .field--narrow {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0; /* allow the input to shrink instead of overflowing the row */
 }
 
 .field--inline {
@@ -411,4 +417,155 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+/* ---- Custom select (styled dropdown) ---- */
+.select {
+  position: relative;
+  width: 100%;
+}
+
+.select__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--accent-track);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1rem;
+  text-align: left;
+}
+
+.select__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select__caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.select__list {
+  position: absolute;
+  z-index: 1100; /* above the modal backdrop so it works inside dialogs too */
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--accent-track);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+
+.select__option {
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.select__option--active {
+  background: var(--accent-track);
+}
+
+.select__option[aria-selected='true'] {
+  color: var(--accent);
+}
+
+.currency-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.currency-option__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.currency-option__symbol {
+  min-width: 1.25rem;
+  text-align: center;
+}
+
+.currency-option__code {
+  font-weight: 600;
+}
+
+.currency-option__name {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* ---- Date picker ---- */
+.datepicker {
+  position: relative;
+  width: 100%;
+}
+
+.datepicker__popup {
+  position: absolute;
+  z-index: 1100;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  padding: 0.5rem;
+  background: var(--surface-2);
+  border: 1px solid var(--accent-track);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+
+.datepicker__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.datepicker__label {
+  font-weight: 600;
+}
+
+.datepicker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+}
+
+.datepicker__weekday {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.datepicker__day {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.datepicker__day:hover {
+  background: var(--accent-track);
+}
+
+.datepicker__day--selected {
+  background: var(--accent);
+  color: #06231d;
+  font-weight: 600;
 }

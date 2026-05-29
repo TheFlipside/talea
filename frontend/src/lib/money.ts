@@ -9,6 +9,16 @@
 
 import type { Money } from '../api/types';
 
+/**
+ * Whether `text` is a well-formed decimal money string (optional leading `-`,
+ * digits, optional fractional part). Used to catch invalid input in the UI
+ * before it reaches the backend — where a bad value would otherwise fail at the
+ * deserialization layer and surface as an opaque error.
+ */
+export function isMoneyInput(text: string): boolean {
+  return /^-?\d+(\.\d+)?$/.test(text.trim());
+}
+
 const formatterCache = new Map<string, Intl.NumberFormat>();
 
 function currencyFormatter(currency: string): Intl.NumberFormat | null {

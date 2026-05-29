@@ -349,6 +349,29 @@ async fn reading_a_corrupt_row_is_an_error() {
 }
 
 #[tokio::test]
+async fn create_account_from_frontend_shaped_json() {
+    // Mirrors exactly what the frontend sends for `create_account`'s `account`
+    // argument; confirms the NewAccount payload deserializes, validates, and
+    // persists (so an "unexpected error" in the UI is a client-side input
+    // problem, not this path).
+    let (_dir, pool) = fixture().await;
+    let json = r#"{
+        "name": "Personal",
+        "icon": "💰",
+        "currency": "USD",
+        "opening_balance": "0.00",
+        "anchor": { "year": 2026, "month": 5 }
+    }"#;
+    let draft = serde_json::from_str::<crate::dto::NewAccount>(json)
+        .expect("NewAccount deserializes")
+        .build()
+        .expect("draft validates");
+    let saved = repo::account::insert(&pool, &draft).await.unwrap();
+    assert_eq!(saved.currency().code(), "USD");
+    assert_eq!(saved.name(), "Personal");
+}
+
+#[tokio::test]
 async fn migrations_are_idempotent() {
     let dir = tempfile::tempdir().unwrap();
     let _first = db::init_pool(dir.path()).await.unwrap();

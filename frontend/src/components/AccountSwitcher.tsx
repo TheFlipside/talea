@@ -4,31 +4,37 @@ import type { Account } from '../api/types';
 import { useActiveAccount } from '../state/contexts';
 import { AccountOnboarding } from './AccountOnboarding';
 import { Modal } from './Modal';
+import { Select } from './Select';
 
 export function AccountSwitcher({ accounts }: { accounts: Account[] }) {
   const { activeAccountId, setActiveAccountId } = useActiveAccount();
   const [adding, setAdding] = useState(false);
 
+  const options = accounts.map((account) => ({
+    value: String(account.id),
+    label: (
+      <span>
+        {account.icon} {account.name}{' '}
+        <span className="muted">({account.currency})</span>
+      </span>
+    ),
+  }));
+
   return (
     <div className="account-switcher">
-      <label className="field field--inline">
-        <span className="visually-hidden">Active account</span>
-        <select
-          value={activeAccountId ?? ''}
-          onChange={(e) => {
-            const id = Number(e.currentTarget.value);
+      <div className="field field--inline">
+        <Select
+          value={String(activeAccountId ?? accounts[0]?.id ?? '')}
+          options={options}
+          onChange={(value) => {
+            const id = Number(value);
             if (Number.isInteger(id) && id > 0) {
               setActiveAccountId(id);
             }
           }}
-        >
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.icon} {account.name} ({account.currency})
-            </option>
-          ))}
-        </select>
-      </label>
+          ariaLabel="Active account"
+        />
+      </div>
       <button type="button" className="btn btn--ghost" onClick={() => setAdding(true)}>
         + Account
       </button>

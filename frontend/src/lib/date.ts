@@ -23,6 +23,26 @@ export function isoMonthOf(iso: IsoDate): Month {
   return { year: Number(year), month: Number(month) };
 }
 
+/** The day-of-month component of an ISO date. */
+export function isoDayOf(iso: IsoDate): number {
+  return Number(iso.split('-')[2]);
+}
+
+/** Builds an ISO `YYYY-MM-DD` from numeric parts (month 1..=12). */
+export function isoDate(year: number, month: number, day: number): IsoDate {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+/** A full human label for a date, e.g. "9 May 2026". */
+export function formatFullDate(iso: IsoDate): string {
+  const { year, month } = isoMonthOf(iso);
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, isoDayOf(iso)));
+}
+
 /**
  * A sensible default entry date for the month being viewed: today if it is the
  * current month, otherwise the first day of that month (so the new entry is

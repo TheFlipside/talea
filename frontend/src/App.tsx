@@ -1,41 +1,61 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { useAccounts } from './api/hooks';
-import { AccountOnboarding } from './components/AccountOnboarding';
+import { useAccounts, useCreateAccount } from './api/hooks';
 import { AccountSwitcher } from './components/AccountSwitcher';
 import { ErrorBanner } from './components/ErrorBanner';
 import { Spinner } from './components/Spinner';
 import { MonthScreen } from './screens/MonthScreen';
+import { defaultCurrency } from './lib/locale';
+import { currentMonth } from './lib/month';
 import { useActiveAccount } from './state/contexts';
 
 function App() {
   const { data: accounts, isPending, error } = useAccounts();
   const { activeAccountId, setActiveAccountId } = useActiveAccount();
+  const bootstrap = useCreateAccount();
+  const bootstrapMutate = bootstrap.mutate;
+  const bootstrapStarted = useRef(false);
 
-  // Reconcile the persisted active account against the live list: if it was
-  // deleted (or never set), fall back to the first account, or none.
+  // First run: create a ready-to-use default account (currency from the system
+  // locale) so the user lands straight in the app. Additional accounts are made
+  // via the switcher. Guarded so it fires exactly once.
   useEffect(() => {
-    if (!accounts) {
+    if (!accounts || accounts.length > 0 || bootstrapStarted.current) {
+      return;
+    }
+    bootstrapStarted.current = true;
+    bootstrapMutate(
+      {
+        name: 'Personal',
+        icon: '💰',
+        currency: defaultCurrency(),
+        opening_balance: '0.00',
+        anchor: currentMonth(),
+      },
+      { onSuccess: (account) => setActiveAccountId(account.id) },
+    );
+  }, [accounts, bootstrapMutate, setActiveAccountId]);
+
+  // Reconcile the persisted active account against the live list.
+  useEffect(() => {
+    if (!accounts || accounts.length === 0) {
       return;
     }
     const exists = activeAccountId !== null && accounts.some((a) => a.id === activeAccountId);
     if (!exists) {
-      setActiveAccountId(accounts[0]?.id ?? null);
+      setActiveAccountId(accounts[0].id);
     }
   }, [accounts, activeAccountId, setActiveAccountId]);
 
-  if (isPending) {
-    return <Spinner />;
-  }
   if (error) {
     return <ErrorBanner error={error} />;
   }
-  if (accounts.length === 0) {
-    return (
-      <div className="onboarding">
-        <AccountOnboarding />
-      </div>
-    );
+  if (bootstrap.error) {
+    return <ErrorBanner error={bootstrap.error} />;
+  }
+  // Loading accounts, or creating the first one.
+  if (isPending || !accounts || accounts.length === 0) {
+    return <Spinner label="Setting up…" />;
   }
 
   const active = accounts.find((a) => a.id === activeAccountId) ?? accounts[0];

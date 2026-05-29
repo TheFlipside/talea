@@ -1,8 +1,33 @@
 import { useState } from 'react';
 
 import { useCreateAccount } from '../api/hooks';
+import { COMMON_CURRENCIES, currencySymbol } from '../lib/currencies';
+import { defaultCurrency } from '../lib/locale';
+import { isMoneyInput } from '../lib/money';
 import { currentMonth } from '../lib/month';
 import { useActiveAccount } from '../state/contexts';
+import { Select } from './Select';
+
+const CURRENCY_OPTIONS = COMMON_CURRENCIES.map((c) => {
+  const head = (
+    <span className="currency-option__head">
+      <span className="currency-option__symbol">{currencySymbol(c.code)}</span>
+      <span className="currency-option__code">{c.code}</span>
+    </span>
+  );
+  return {
+    value: c.code,
+    // Two rows in the list: "$ USD" over "US Dollar".
+    label: (
+      <span className="currency-option">
+        {head}
+        <span className="currency-option__name">{c.name}</span>
+      </span>
+    ),
+    // Compact single line for the closed trigger.
+    triggerLabel: head,
+  };
+});
 
 interface AccountOnboardingProps {
   /** Show a cancel button (when adding an account, not on first run). */
@@ -16,17 +41,38 @@ export function AccountOnboarding({ allowCancel = false, onDone }: AccountOnboar
 
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('💰');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState(defaultCurrency);
   const [openingBalance, setOpeningBalance] = useState('0.00');
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const errorMessage = localError ?? create.error?.message ?? null;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const trimmedName = name.trim();
+    const code = currency.trim().toUpperCase();
+    const balance = openingBalance.trim() === '' ? '0' : openingBalance.trim();
+
+    if (trimmedName === '') {
+      setLocalError('Please enter a name.');
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(code)) {
+      setLocalError('Currency must be a 3-letter code, e.g. USD.');
+      return;
+    }
+    if (!isMoneyInput(balance)) {
+      setLocalError('Enter a valid opening balance, e.g. 0.00.');
+      return;
+    }
+    setLocalError(null);
+
     create.mutate(
       {
-        name: name.trim(),
-        icon: icon.trim(),
-        currency: currency.trim().toUpperCase(),
-        opening_balance: openingBalance.trim(),
+        name: trimmedName,
+        icon: icon.trim() === '' ? '💰' : icon.trim(),
+        currency: code,
+        opening_balance: balance,
         anchor: currentMonth(),
       },
       {
@@ -53,15 +99,15 @@ export function AccountOnboarding({ allowCancel = false, onDone }: AccountOnboar
             <span>Icon</span>
             <input value={icon} onChange={(e) => setIcon(e.currentTarget.value)} maxLength={8} />
           </label>
-          <label className="field field--narrow">
+          <div className="field field--narrow">
             <span>Currency</span>
-            <input
+            <Select
               value={currency}
-              onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
-              maxLength={3}
-              required
+              onChange={setCurrency}
+              options={CURRENCY_OPTIONS}
+              ariaLabel="Currency"
             />
-          </label>
+          </div>
         </div>
 
         <label className="field">
@@ -74,7 +120,7 @@ export function AccountOnboarding({ allowCancel = false, onDone }: AccountOnboar
           />
         </label>
 
-        {create.error && <p className="field-error">{create.error.message}</p>}
+        {errorMessage && <p className="field-error">{errorMessage}</p>}
 
         <div className="modal__actions">
           <span className="modal__spacer" />

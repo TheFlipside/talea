@@ -3,7 +3,9 @@ import { useState } from 'react';
 import type { AccountId, Entry, EntryKind } from '../api/types';
 import { useCreateEntry, useDeleteEntry, useUpdateEntry } from '../api/hooks';
 import { defaultDateForMonth } from '../lib/date';
+import { isMoneyInput } from '../lib/money';
 import { useSelectedMonth } from '../state/contexts';
+import { DatePicker } from './DatePicker';
 import { Modal } from './Modal';
 
 interface EntryFormProps {
@@ -24,12 +26,20 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
   const [kind, setKind] = useState<EntryKind>(editing?.kind ?? 'expense');
   const [date, setDate] = useState(editing?.date ?? defaultDateForMonth(month));
   const [note, setNote] = useState(editing?.note ?? '');
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const error = create.error ?? update.error ?? remove.error;
+  const mutationError = create.error ?? update.error ?? remove.error;
+  const errorMessage = localError ?? mutationError?.message ?? null;
   const busy = create.isPending || update.isPending || remove.isPending;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const trimmedAmount = amount.trim();
+    if (!isMoneyInput(trimmedAmount) || Number(trimmedAmount) <= 0) {
+      setLocalError('Enter a positive amount, e.g. 12.34.');
+      return;
+    }
+    setLocalError(null);
     const trimmedNote = note.trim();
     const noteValue = trimmedNote === '' ? null : trimmedNote;
     if (editing) {
@@ -83,17 +93,17 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
           />
         </label>
 
-        <label className="field">
+        <div className="field">
           <span>Date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.currentTarget.value)} required />
-        </label>
+          <DatePicker value={date} onChange={setDate} ariaLabel="Date" />
+        </div>
 
         <label className="field">
           <span>Note (optional)</span>
           <input value={note} onChange={(e) => setNote(e.currentTarget.value)} placeholder="e.g. Groceries" />
         </label>
 
-        {error && <p className="field-error">{error.message}</p>}
+        {errorMessage && <p className="field-error">{errorMessage}</p>}
 
         <div className="modal__actions">
           {editing && (
