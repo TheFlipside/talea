@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+// `vitest/config` re-exports Vite's `defineConfig` with the `test` field typed.
+import { defineConfig } from 'vitest/config';
 
 // Allow mobile dev: when set, Vite binds to the LAN host the device reaches.
 // SECURITY: setting TAURI_DEV_HOST exposes the dev server + HMR socket to the
@@ -19,5 +20,10 @@ export default defineConfig({
     hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
     // The Rust side is watched by Cargo, not Vite.
     watch: { ignored: ['**/src-tauri/**'] },
+  },
+  // Pure helpers only — no DOM needed, so the lighter `node` environment.
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
 });

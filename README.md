@@ -6,9 +6,10 @@ loop. Talea targets **Android and iOS** first, with the desktop build used for
 day-to-day development.
 
 > **Status:** Early development. The **`core` domain model** (a monthly cashflow
-> ledger with carry-over) and the **SQLite persistence layer + typed Tauri
-> command surface** are implemented and tested. The UI is still the smoke screen;
-> building the real screens is the next milestone — see
+> ledger with carry-over), the **SQLite persistence layer + typed Tauri command
+> surface**, and the **Phase-1 UI core loop** (accounts, the month screen with a
+> budget ring, entry CRUD, month navigation) are implemented and tested. Next:
+> category / recurring-rule management and the stats screen — see
 > [The budgeting model](#the-budgeting-model).
 
 ## Why "local-first"
@@ -126,8 +127,9 @@ cargo sqlx prepare --workspace          # then commit the updated .sqlx/
 - [x] Core domain logic + full unit tests (money, entries, recurrence, ledger).
 - [x] SQLite schema + persistence layer in `src-tauri` (sqlx + migrations).
 - [x] Typed Tauri commands exposing the domain to the frontend.
-- [ ] Main screen (month bar + entry list), entry CRUD, accounts, categories,
-      recurring-entry management, and the stats screen.
+- [x] Phase-1 UI: account onboarding/switch, month screen (income/expenses/
+      available + budget ring), entry CRUD, prev/next + swipe month navigation.
+- [ ] Category management, recurring-entry management, and the stats screen.
 - [ ] Optional biometric app lock.
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the
       actual figures stay in-app behind the biometric lock. *(Later milestone.)*

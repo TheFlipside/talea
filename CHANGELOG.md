@@ -38,6 +38,13 @@ All notable changes to this project are documented in this file.
   and `SQLX_OFFLINE=true` (`.cargo/config.toml`), so a fresh checkout builds with
   no database. `src-tauri` integration tests (temp DB) cover round-trips, FK
   behavior, the ledger query, corruption detection, and migration idempotency.
+- Frontend core loop (Phase 1): a typed `invoke` layer + TanStack Query hooks, an
+  account onboarding/switcher, and a month screen showing income / expenses /
+  available-to-end-of-month with a hand-rolled SVG budget ring, the month's entry
+  list, add/edit/delete entry forms, and prev/next + swipe month navigation. Money
+  stays a string end-to-end (parsed only for display); dates use native ISO date
+  inputs. Vitest unit tests for the pure money/month/entry helpers. (Category,
+  recurring-rule, and stats screens are the next phase.)
 
 ### Fixed
 

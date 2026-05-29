@@ -1,0 +1,78 @@
+import { useEffect, useRef, type ReactNode } from 'react';
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+interface ModalProps {
+  label: string;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+/**
+ * An accessible modal dialog: focus is moved in on open, trapped while open
+ * (Tab/Shift+Tab cycle within), restored to the trigger on close, and Escape or
+ * a backdrop click closes it.
+ */
+export function Modal({ label, onClose, children }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+
+    // Prefer an explicitly marked field, else the first focusable, else the dialog.
+    const preferred = dialog.querySelector<HTMLElement>('[data-autofocus]');
+    (preferred ?? focusable()[0] ?? dialog).focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') {
+        return;
+      }
+      const items = focusable();
+      if (items.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="modal" role="dialog" aria-modal="true" aria-label={label} ref={dialogRef} tabIndex={-1}>
+        {children}
+      </div>
+    </div>
+  );
+}

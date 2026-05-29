@@ -8,11 +8,13 @@
 
   --bg: #0f2027;
   --surface: #12303a;
+  --surface-2: #173a46;
   --text: #e6f1f0;
   --muted: #9fc0bd;
   --accent: #40c9a2;
   --accent-track: #28505c;
   --error: #ff8080;
+  --radius: 0.75rem;
 }
 
 * {
@@ -29,4 +31,384 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---- App shell ---- */
+.app {
+  max-width: 30rem;
+  margin: 0 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.app__title {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Buttons ---- */
+.btn {
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: #06231d;
+  font-weight: 600;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--accent-track);
+}
+
+.btn--danger {
+  background: var(--error);
+  color: #2a0000;
+}
+
+/* ---- Month navigation ---- */
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 1rem;
+}
+
+.month-nav__arrow {
+  background: var(--surface);
+  color: var(--text);
+  border: none;
+  border-radius: 0.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.month-nav__label {
+  font-weight: 600;
+}
+
+/* ---- Summary + ring ---- */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.budget-ring {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 auto;
+}
+
+.budget-ring__track {
+  fill: none;
+  stroke: var(--accent-track);
+  stroke-width: 10;
+}
+
+.budget-ring__value {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
+
+.budget-ring__pct {
+  fill: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.summary__figures {
+  margin: 0;
+  flex: 1;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.summary__figures div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.summary__figures dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.summary__figures dd {
+  margin: 0;
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.amount--income {
+  color: var(--accent);
+}
+
+.amount--expense {
+  color: var(--text);
+}
+
+.amount--total {
+  font-size: 1.05rem;
+}
+
+.amount--negative {
+  color: var(--error);
+}
+
+/* ---- Entry list ---- */
+.month-screen {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 5rem;
+}
+
+.month-screen__list {
+  flex: 1;
+}
+
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.5rem;
+}
+
+.entry-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.entry-row:hover {
+  background: var(--surface);
+}
+
+.entry-row__main {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-row__date {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.entry-list__empty {
+  color: var(--muted);
+  text-align: center;
+  margin-top: 2rem;
+}
+
+/* ---- Floating add button ---- */
+.fab {
+  position: fixed;
+  right: max(1rem, calc(50% - 14rem));
+  bottom: 1.25rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #06231d;
+  font-size: 2rem;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+}
+
+/* ---- Forms / modal ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  width: 100%;
+  max-width: 28rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.modal h2 {
+  margin: 0 0 0.75rem;
+}
+
+.modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.modal__spacer {
+  flex: 1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.field > span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.field input,
+.account-switcher select {
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--accent-track);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.field--narrow {
+  flex: 1;
+}
+
+.field--inline {
+  margin: 0;
+  flex: 1;
+}
+
+.field-error {
+  color: var(--error);
+  margin: 0 0 0.5rem;
+}
+
+/* ---- Segmented control ---- */
+.segmented {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--surface-2);
+  border-radius: 0.5rem;
+  padding: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.segmented__option {
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.segmented__option--active {
+  background: var(--accent);
+  color: #06231d;
+}
+
+/* ---- Account switcher + onboarding ---- */
+.account-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.onboarding {
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.card,
+.account-form {
+  width: 100%;
+  max-width: 26rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+/* ---- Misc ---- */
+.spinner {
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.error-banner {
+  margin: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--error) 18%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
