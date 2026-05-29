@@ -5,9 +5,10 @@ device in a local SQLite database — no account, no cloud, no sync server in th
 loop. Talea targets **Android and iOS** first, with the desktop build used for
 day-to-day development.
 
-> **Status:** Scaffold. The app builds and runs a minimal smoke screen. The
-> budgeting domain model and the SQLite schema are intentionally *not* finalized
-> yet — see [Deliberate open decisions](#deliberate-open-decisions).
+> **Status:** Early development. The app builds and runs a minimal smoke screen,
+> and the **`core` domain model is implemented and unit-tested** (a monthly
+> cashflow ledger with carry-over). The SQLite schema/persistence is the next
+> milestone — see [The budgeting model](#the-budgeting-model).
 
 ## Why "local-first"
 
@@ -53,18 +54,23 @@ the shell ever change.
 | Money           | `rust_decimal` — **never f64**  | Exact base-10 arithmetic; floating point is forbidden for monetary values.|
 | Domain location | pure `core` crate               | Logic stays IO-free and unit-tested, isolated from the shell.             |
 
-## Deliberate open decisions
+## The budgeting model
 
-These are **design choices to be made before** the schema is written, not
-oversights:
+Talea is a **monthly cashflow ledger with carry-over** — not envelope budgeting
+and not per-category limits:
 
-- **Budgeting model:** envelope vs. flexible (or a hybrid). This shapes the
-  `month` / `category` / `budget` / `transaction` relationships and therefore
-  the entire schema.
-- **SQLite schema:** not finalized until the above is decided.
+- Each month's *available to end of month* = `carry_in + income − expenses`
+  (ad-hoc entries **plus** expanded recurring rules). A month's ending balance
+  **carries into** the next, per account.
+- **Accounts** each hold a fixed currency and an opening balance; **categories**
+  are a global, descriptive list (label + icon/emoji); **entries** are signed by
+  kind (income/expense); **recurring rules** expand into per-month occurrences
+  (weekly/monthly/yearly, every-N, with month-end/leap-day clamping).
 
-The domain model in `core` is currently **stubbed** with these questions called
-out inline and in [`docs/DESIGN.md`](docs/DESIGN.md).
+This is implemented and unit-tested in `core`. Full rationale and the remaining
+details live in [`docs/DESIGN.md`](docs/DESIGN.md).
+
+**Still open:** the SQLite schema/persistence (now unblocked) and per-screen UI.
 
 ## Prerequisites
 
@@ -100,12 +106,16 @@ npm --prefix frontend run build    # tsc + vite build
 
 ## Roadmap (selected)
 
-- [ ] Decide the budgeting model and finalize the SQLite schema.
-- [ ] Persistence layer in `src-tauri` (sqlx + migrations).
-- [ ] Core budgeting logic + full unit tests.
+- [x] Decide the budgeting model (monthly cashflow ledger with carry-over).
+- [x] Core domain logic + full unit tests (money, entries, recurrence, ledger).
+- [ ] Finalize the SQLite schema and the persistence layer in `src-tauri`
+      (sqlx + migrations).
+- [ ] Tauri commands exposing the domain to the frontend.
+- [ ] Main screen (month bar + entry list), entry CRUD, accounts, categories,
+      recurring-entry management, and the stats screen.
+- [ ] Optional biometric app lock.
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the
-      actual figures stay in-app behind a biometric lock. *(Later milestone,
-      not part of this scaffold.)*
+      actual figures stay in-app behind the biometric lock. *(Later milestone.)*
 
 ## License
 

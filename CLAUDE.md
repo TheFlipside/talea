@@ -43,18 +43,32 @@ never depend on Tauri, the filesystem, or SQL.
 - **Persistence is local SQLite via `sqlx`**, owned exclusively by `src-tauri`.
   `core` receives data through plain types, never a connection.
 
-## Open Design Decisions — DO NOT skip
+## Product Model — DECIDED (see docs/DESIGN.md)
 
-Deliberately unresolved; **must be decided before the SQLite schema is written**.
-Do not finalize the schema or invent these on the fly.
+Talea is a **month-focused cashflow ledger** — NOT envelope budgeting, NOT
+per-category limits.
 
-- **Budgeting model:** envelope vs. flexible vs. hybrid. Drives the
-  `month` / `category` / `budget` / `transaction` relationships.
-- **SQLite schema:** blocked on the above.
+- **Available to end of month** = `carry-in + Σ income − Σ expenses` for the
+  month (ad-hoc entries **and** expanded recurring rules). **Carry-over is on**:
+  each month's ending balance chains into the next (per account).
+- **Entities:** `Account` (per-account fixed currency + opening balance),
+  `Category` (global, label + icon/emoji; descriptive only), `Entry`
+  (account, positive `amount`, `Income|Expense`, date, optional note + category),
+  `RecurringRule` (dateless entry template + `start`/`end`/frequency, expanded
+  per month). A "month" is a **derived view**, never a stored row.
+- **Recurrence:** configurable weekly/monthly/yearly + every-N (mind month-end
+  clamping). **Currency:** per-account, no conversion, no cross-account totals.
 
-The `core` domain model is currently **stubbed** with these questions marked
-inline (`DESIGN DECISION:` / `TODO`) and tracked in `docs/DESIGN.md`. When asked
-to work on the model or schema, surface these decisions first.
+Full rationale and the few remaining details (opening-balance anchor, schema
+shape, validation) live in `docs/DESIGN.md`. The `core` domain is still a
+**stub** pending implementation of this model.
+
+### Still open / next
+
+- **SQLite schema** (`src-tauri`, `sqlx`): now unblocked — write from the model
+  above. `core` never sees a connection.
+- **Domain validation** (DESIGN.md §8): validated constructors, private id/month
+  fields, string-length caps — add while modeling, before persistence.
 
 ## Later Milestones (not in this scaffold)
 

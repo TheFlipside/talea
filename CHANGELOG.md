@@ -10,8 +10,16 @@ All notable changes to this project are documented in this file.
   `frontend/`, plus `README.md` and architecture/decisions in `CLAUDE.md`.
 - `core` crate: `Money` newtype over `rust_decimal::Decimal` (no floating
   point), with construction/formatting helpers and unit tests.
-- Stubbed domain model in `core` with the budgeting-model design decision
-  deliberately deferred and tracked in `docs/DESIGN.md`.
+- `core` domain model implementing the decided monthly cashflow ledger:
+  `Account` (per-account `Currency`, opening balance + anchor month),
+  global `Category`/`CategoryIcon`, `Entry`/`EntryKind`, and `RecurringRule`
+  with configurable `Frequency` (weekly/monthly/yearly + every-N) and
+  `RuleEnd`. Recurrence expansion clamps month-end/leap-day dates without
+  drift; the `ledger` module computes carry-over `MonthSummary`s
+  (`month_summary`/`summaries_for_range`/`balance_at_end_of`). Validated
+  constructors with `serde(try_from)` so malformed input is rejected at the
+  boundary; dates cross as ISO `YYYY-MM-DD` strings, money as strings.
+  Added the `time` dependency (pure date math). 54 unit tests.
 - Minimal Tauri 2 + React/TypeScript (Vite) smoke screen bridging `core` to the
   frontend via a typed `invoke` command.
 - Quality gates pass clean from the first commit: `cargo clippy -W

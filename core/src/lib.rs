@@ -6,14 +6,18 @@
 //! on nothing platform-specific.
 //!
 //! - [`money`] — exact, never-floating-point monetary values.
-//! - [`domain`] — the budgeting domain model. **Currently stubbed**: the
-//!   budgeting paradigm (envelope vs. flexible vs. hybrid) and the `SQLite` schema
-//!   are open design decisions tracked in `docs/DESIGN.md`.
+//! - [`domain`] — the budgeting domain model: a monthly cashflow ledger with
+//!   carry-over ([`Account`], [`Category`], [`Entry`], [`RecurringRule`], and the
+//!   [`domain::ledger`] summaries). See `docs/DESIGN.md`.
 
 pub mod domain;
 pub mod money;
 
-pub use domain::{Budget, BudgetingModel, Category, Id, Month, Transaction};
+pub use domain::{
+    balance_at_end_of, month_summary, summaries_for_range, Account, AccountId, Category,
+    CategoryIcon, CategoryId, Currency, DomainError, Entry, EntryId, EntryKind, FreqUnit,
+    Frequency, Month, MonthSummary, RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
+};
 pub use money::{Money, MoneyError};
 
 /// The crate version, surfaced so the shell can display a build identifier in

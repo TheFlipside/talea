@@ -18,6 +18,7 @@ pedantic = { level = "warn", priority = -1 }
 rust_decimal.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 # Only used by unit tests (the `dec!` literal macro); kept out of the binary.
