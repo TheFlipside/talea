@@ -66,13 +66,19 @@ Category (1) ─── (N) RecurringRule   # categories are GLOBAL (shared by ac
 
 ---
 
-## 3. SQLite schema — 🔴 NEXT (now unblocked by §1–§2)
+## 3. SQLite schema — 🟢 DONE (implemented in `src-tauri`)
 
-To be written in `src-tauri` (tables, keys, indices, `sqlx` migrations) from the
-model above. `core` never sees a connection — it receives plain types. Expected
-tables: `account`, `category`, `entry`, `recurring_rule`. Money stored as **TEXT**
-(decimal string), dates as **TEXT** ISO-8601 (or integer epoch — to decide with
-the migration). Index `entry(account_id, date)` for month-window queries.
+`src-tauri/migrations/0001_init.sql` defines `STRICT` tables `account`,
+`category`, `entry`, `recurring_rule`. Money and dates are **TEXT** (decimal
+string; ISO-8601 `YYYY-MM-DD`); ids are `INTEGER PRIMARY KEY AUTOINCREMENT`;
+enum-likes are TEXT with `CHECK`s matching the domain's serde tokens. FKs:
+deleting an account cascades its entries/rules; deleting a category sets
+referencing `category_id`s to NULL. Index `entry(account_id, date)` for
+month-window queries. `core` never sees a connection — the `src-tauri` repository
+maps rows↔domain through the validating constructors. Persistence uses `sqlx`
+(bundled SQLite, WAL, `foreign_keys=ON`) with compile-time-checked queries
+(committed `.sqlx` offline cache). The domain is reachable from the frontend only
+through typed async Tauri commands.
 
 ---
 

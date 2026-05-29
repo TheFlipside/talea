@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE recurring_rule\n           SET account_id = ?, amount = ?, kind = ?, note = ?, category_id = ?,\n               start_date = ?, end_kind = ?, end_date = ?, freq_unit = ?, freq_interval = ?\n           WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "370ab1b5d836ec7c5dd290b50e32d6e95662fa47bbaf220da1e95d860cc7bcfc"
+}

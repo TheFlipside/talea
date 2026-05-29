@@ -5,10 +5,11 @@ device in a local SQLite database — no account, no cloud, no sync server in th
 loop. Talea targets **Android and iOS** first, with the desktop build used for
 day-to-day development.
 
-> **Status:** Early development. The app builds and runs a minimal smoke screen,
-> and the **`core` domain model is implemented and unit-tested** (a monthly
-> cashflow ledger with carry-over). The SQLite schema/persistence is the next
-> milestone — see [The budgeting model](#the-budgeting-model).
+> **Status:** Early development. The **`core` domain model** (a monthly cashflow
+> ledger with carry-over) and the **SQLite persistence layer + typed Tauri
+> command surface** are implemented and tested. The UI is still the smoke screen;
+> building the real screens is the next milestone — see
+> [The budgeting model](#the-budgeting-model).
 
 ## Why "local-first"
 
@@ -70,7 +71,8 @@ and not per-category limits:
 This is implemented and unit-tested in `core`. Full rationale and the remaining
 details live in [`docs/DESIGN.md`](docs/DESIGN.md).
 
-**Still open:** the SQLite schema/persistence (now unblocked) and per-screen UI.
+**Still open:** the per-screen UI (the domain is persisted and reachable through
+typed Tauri commands).
 
 ## Prerequisites
 
@@ -104,13 +106,26 @@ npm --prefix frontend run lint     # eslint --max-warnings=0
 npm --prefix frontend run build    # tsc + vite build
 ```
 
+SQL in `src-tauri` is compile-time checked by `sqlx::query!` against a committed
+`.sqlx/` offline cache (`SQLX_OFFLINE=true` in `.cargo/config.toml`), so the
+gates build with **no database**. After changing any query, regenerate the cache
+and commit it:
+
+```bash
+# one-time: a matching sqlx-cli
+cargo install sqlx-cli --version ^0.9 --no-default-features --features sqlite
+# regenerate .sqlx against a scratch DB migrated from src-tauri/migrations
+export DATABASE_URL="sqlite:///tmp/talea-prepare.sqlite3"
+sqlx database create && sqlx migrate run --source src-tauri/migrations
+cargo sqlx prepare --workspace          # then commit the updated .sqlx/
+```
+
 ## Roadmap (selected)
 
 - [x] Decide the budgeting model (monthly cashflow ledger with carry-over).
 - [x] Core domain logic + full unit tests (money, entries, recurrence, ledger).
-- [ ] Finalize the SQLite schema and the persistence layer in `src-tauri`
-      (sqlx + migrations).
-- [ ] Tauri commands exposing the domain to the frontend.
+- [x] SQLite schema + persistence layer in `src-tauri` (sqlx + migrations).
+- [x] Typed Tauri commands exposing the domain to the frontend.
 - [ ] Main screen (month bar + entry list), entry CRUD, accounts, categories,
       recurring-entry management, and the stats screen.
 - [ ] Optional biometric app lock.

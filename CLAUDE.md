@@ -63,12 +63,26 @@ Full rationale and the few remaining details (opening-balance anchor, schema
 shape, validation) live in `docs/DESIGN.md`. The `core` domain is still a
 **stub** pending implementation of this model.
 
-### Still open / next
+### Status / next
 
-- **SQLite schema** (`src-tauri`, `sqlx`): now unblocked — write from the model
-  above. `core` never sees a connection.
-- **Domain validation** (DESIGN.md §8): validated constructors, private id/month
-  fields, string-length caps — add while modeling, before persistence.
+- **Done:** core domain (DESIGN.md §1–§2), SQLite schema + `sqlx` persistence +
+  typed async Tauri commands (DESIGN.md §3). `core` never sees a connection; the
+  `src-tauri` repository maps rows↔domain via the validating constructors.
+- **Next:** the per-screen UI (main month bar + entry list, CRUD, accounts,
+  categories, recurring rules, stats), then the biometric lock and widget.
+
+### sqlx offline cache (binding)
+
+SQL is compile-time checked via `sqlx::query!` against the committed `.sqlx/`
+cache; `SQLX_OFFLINE=true` (`.cargo/config.toml`) lets the gates build with no
+DB. **After changing any `query!`, regenerate and commit the cache**, or CI will
+fail to build:
+
+```bash
+export DATABASE_URL="sqlite:///tmp/talea-prepare.sqlite3"
+sqlx database create && sqlx migrate run --source src-tauri/migrations
+cargo sqlx prepare --workspace   # commit the updated .sqlx/
+```
 
 ## Later Milestones (not in this scaffold)
 

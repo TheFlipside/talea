@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE category SET label = ?, icon_kind = ?, icon_value = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "500375a177faff217d1f656d064bfb26a9af1ee087183afe1046ecd453ff0a86"
+}

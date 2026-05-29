@@ -296,6 +296,42 @@ impl RecurringRule {
         self.frequency
     }
 
+    /// The positive magnitude applied on each occurrence.
+    #[must_use]
+    pub const fn amount(&self) -> Money {
+        self.amount
+    }
+
+    /// Whether occurrences are income or expense.
+    #[must_use]
+    pub const fn kind(&self) -> EntryKind {
+        self.kind
+    }
+
+    /// Free-text memo, if any.
+    #[must_use]
+    pub fn note(&self) -> Option<&str> {
+        self.note.as_deref()
+    }
+
+    /// The category occurrences are classified under, if any.
+    #[must_use]
+    pub const fn category_id(&self) -> Option<CategoryId> {
+        self.category_id
+    }
+
+    /// The cadence anchor (first possible occurrence).
+    #[must_use]
+    pub const fn start_date(&self) -> Date {
+        self.start_date
+    }
+
+    /// When the rule stops recurring.
+    #[must_use]
+    pub const fn end(&self) -> RuleEnd {
+        self.end
+    }
+
     /// The dates on which this rule fires within `month`, ascending.
     ///
     /// Bounded by the month window; never iterates unboundedly. Empty if the

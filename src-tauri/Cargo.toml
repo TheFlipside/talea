@@ -25,3 +25,17 @@ talea-core = { path = "../core" }
 tauri = { version = "2", features = [] }
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+log = "0.4"
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "sqlite-bundled",
+    "macros",
+    "migrate",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

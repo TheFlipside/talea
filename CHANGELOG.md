@@ -25,6 +25,19 @@ All notable changes to this project are documented in this file.
 - Quality gates pass clean from the first commit: `cargo clippy -W
   clippy::pedantic -D warnings`, `cargo fmt --check`, and
   `eslint --max-warnings=0`.
+- SQLite persistence in `src-tauri` via `sqlx` (bundled SQLite): `STRICT` schema
+  (`account`/`category`/`entry`/`recurring_rule`) with FK cascade/set-null,
+  migrations run on startup, a WAL connection pool in Tauri state, and a
+  repository mapping rows↔domain through the validating constructors (a failing
+  read is reported as corruption, not user error). Money/dates stored as TEXT.
+- Typed async Tauri command surface: CRUD for accounts, categories, entries, and
+  recurring rules, plus `month_summary`/`summaries_for_range` that load an
+  account and call the pure `core` ledger. Errors cross as `{code, message}`;
+  internal details are logged, not exposed.
+- Compile-time-checked SQL: `sqlx::query!` with a committed `.sqlx` offline cache
+  and `SQLX_OFFLINE=true` (`.cargo/config.toml`), so a fresh checkout builds with
+  no database. `src-tauri` integration tests (temp DB) cover round-trips, FK
+  behavior, the ledger query, corruption detection, and migration idempotency.
 
 ### Fixed
 

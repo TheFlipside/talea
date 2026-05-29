@@ -1,0 +1,7 @@
+# Build the sqlx `query!` macros against the committed `.sqlx/` offline cache
+# instead of a live database. This lets a fresh checkout (and CI) compile with
+# no database and no network. Regenerate the cache after changing any query:
+#   DATABASE_URL=sqlite://<scratch>.sqlite3 cargo sqlx prepare --workspace
+# (with a scratch DB migrated via `sqlx migrate run --source src-tauri/migrations`).
+[env]
+SQLX_OFFLINE = "true"

@@ -6,7 +6,18 @@
 //! here — it belongs in `talea-core`.
 
 use serde::Serialize;
+use tauri::Manager;
+
 use talea_core::Money;
+
+mod commands;
+mod db;
+mod dto;
+mod error;
+mod repo;
+
+#[cfg(test)]
+mod tests;
 
 /// Payload for the smoke-screen command, proving the `core → shell → frontend`
 /// bridge end to end. Note `sample_amount` is a [`Money`], which serializes as a
@@ -48,12 +59,43 @@ fn smoke_check(name: &str) -> SmokeInfo {
 ///
 /// # Panics
 ///
-/// Panics if the Tauri runtime fails to build or start (for example, a missing
-/// or invalid generated context). This is a fatal, unrecoverable startup error.
+/// Panics if the Tauri runtime fails to build or start, or if the database
+/// cannot be opened/migrated in the `setup` hook. These are fatal, unrecoverable
+/// startup errors — the app refuses to run rather than operate on a broken
+/// database.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![smoke_check])
+        .setup(|app| {
+            // Open (creating if needed) and migrate the on-device database, then
+            // share the pool with all commands. Async work is driven on Tauri's
+            // runtime; failure aborts startup.
+            let app_data_dir = app.path().app_data_dir()?;
+            let pool = tauri::async_runtime::block_on(db::init_pool(&app_data_dir))?;
+            app.manage(pool);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            smoke_check,
+            commands::create_account,
+            commands::list_accounts,
+            commands::update_account,
+            commands::delete_account,
+            commands::create_category,
+            commands::list_categories,
+            commands::update_category,
+            commands::delete_category,
+            commands::create_entry,
+            commands::list_entries,
+            commands::update_entry,
+            commands::delete_entry,
+            commands::create_rule,
+            commands::list_rules,
+            commands::update_rule,
+            commands::delete_rule,
+            commands::month_summary,
+            commands::summaries_for_range,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO recurring_rule\n               (account_id, amount, kind, note, category_id, start_date,\n                end_kind, end_date, freq_unit, freq_interval)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "recurring_rule",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1c631bf9197e95fbb67fb0e6934b32486a728c7071a27a2320a89a392f1ed301"
+}

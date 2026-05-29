@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM recurring_rule WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b4d4232d14d9ff9b768e9eb30c69310bcae35e820c85f66b4c34b898b7ffa220"
+}
