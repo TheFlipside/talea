@@ -1,0 +1,27 @@
+[package]
+name = "talea"
+description = "Talea — the Tauri shell that bridges the core domain to the UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+# The library is what the mobile (Android/iOS) entry points link against; the
+# binary is the desktop entry point. Both call into `talea_lib::run`.
+[lib]
+name = "talea_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+talea-core = { path = "../core" }
+tauri = { version = "2", features = [] }
+serde.workspace = true
+serde_json.workspace = true

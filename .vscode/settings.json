@@ -1,0 +1,6 @@
+{
+  "//": "Pin Even Better TOML to the current SchemaStore Cargo schema. The extension's bundled schema is stale and rejects the canonical `[lints]` group form `pedantic = { level = \"warn\", priority = -1 }`, which Cargo accepts. This restores correct validation.",
+  "evenBetterToml.schema.associations": {
+    "Cargo\\.toml$": "https://www.schemastore.org/cargo.json"
+  }
+}

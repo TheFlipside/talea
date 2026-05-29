@@ -1,0 +1,28 @@
+# Claude
+**/.claude/settings.local.json
+
+# Rust / Cargo
+/target
+**/*.rs.bk
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Tauri generated
+src-tauri/target/
+src-tauri/gen/
+
+# Local databases / env
+*.sqlite
+*.sqlite-*
+*.db
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
