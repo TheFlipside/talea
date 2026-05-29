@@ -233,7 +233,7 @@ pub async fn delete_rule(
 
 // ---- Ledger queries ---------------------------------------------------------
 
-async fn load_account_data(
+pub(crate) async fn load_account_data(
     pool: &SqlitePool,
     account_id: AccountId,
 ) -> Result<(Account, Vec<Entry>, Vec<RecurringRule>), CommandError> {

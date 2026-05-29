@@ -12,6 +12,7 @@ use talea_core::{
 };
 
 use crate::db;
+use crate::error::{CommandError, RepoError};
 use crate::repo;
 
 /// A migrated temp-file database. The `TempDir` must be kept alive for the
@@ -377,4 +378,170 @@ async fn migrations_are_idempotent() {
     let _first = db::init_pool(dir.path()).await.unwrap();
     // Re-opening the same database re-runs the migrator, which must no-op.
     let _second = db::init_pool(dir.path()).await.unwrap();
+}
+
+#[tokio::test]
+async fn load_account_data_loads_or_reports_not_found() {
+    let (_dir, pool) = fixture().await;
+
+    // Missing account -> NotFound.
+    let missing = crate::commands::load_account_data(&pool, AccountId::new(9999)).await;
+    assert!(matches!(missing, Err(CommandError::NotFound)));
+
+    // Existing account -> its account + entries + rules, in one snapshot.
+    let account = seed_account(&pool).await;
+    repo::entry::insert(
+        &pool,
+        &Entry::new(
+            EntryId::new(0),
+            account.id(),
+            Money::from_minor_units(100, 2),
+            EntryKind::Expense,
+            date(2026, TMonth::January, 2),
+            None,
+            None,
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    repo::rule::insert(
+        &pool,
+        &RecurringRule::new(
+            RecurringRuleId::new(0),
+            account.id(),
+            Money::from_minor_units(100, 2),
+            EntryKind::Income,
+            None,
+            None,
+            date(2026, TMonth::January, 1),
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let (loaded, entries, rules) = crate::commands::load_account_data(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded.id(), account.id());
+    assert_eq!(entries.len(), 1);
+    assert_eq!(rules.len(), 1);
+}
+
+#[test]
+fn command_error_maps_and_serializes() {
+    // Domain validation failures (user input) become Validation.
+    let from_domain: CommandError = talea_core::DomainError::MonthOutOfRange(13).into();
+    assert!(matches!(from_domain, CommandError::Validation(_)));
+
+    // Repo errors map to the right boundary codes.
+    assert!(matches!(
+        CommandError::from(RepoError::InvalidId(42)),
+        CommandError::Validation(_)
+    ));
+    assert!(matches!(
+        CommandError::from(RepoError::Corrupt("bad".to_owned())),
+        CommandError::Corrupt
+    ));
+    assert!(matches!(
+        CommandError::from(RepoError::Sqlx(sqlx::Error::RowNotFound)),
+        CommandError::Database
+    ));
+    assert!(matches!(
+        CommandError::from(RepoError::Io(std::io::Error::other("disk"))),
+        CommandError::Database
+    ));
+
+    // Serializes as { code, message }; internal detail is not leaked.
+    let value: serde_json::Value = serde_json::from_str(
+        &serde_json::to_string(&CommandError::Validation("nope".to_owned())).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(value["code"], "validation");
+    assert_eq!(value["message"], "nope");
+
+    let db_json = serde_json::to_string(&CommandError::Database).unwrap();
+    assert!(db_json.contains(r#""code":"database""#));
+    assert!(!db_json.to_lowercase().contains("sql"));
+}
+
+#[tokio::test]
+async fn entry_update_persists_changes() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let saved = repo::entry::insert(
+        &pool,
+        &Entry::new(
+            EntryId::new(0),
+            account.id(),
+            Money::from_minor_units(500, 2),
+            EntryKind::Expense,
+            date(2026, TMonth::January, 5),
+            None,
+            None,
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let updated = Entry::new(
+        saved.id(),
+        account.id(),
+        Money::from_minor_units(750, 2),
+        EntryKind::Income,
+        date(2026, TMonth::January, 6),
+        Some("revised".to_owned()),
+        None,
+    )
+    .unwrap();
+    assert!(repo::entry::update(&pool, &updated).await.unwrap());
+    assert_eq!(
+        repo::entry::for_account(&pool, account.id()).await.unwrap(),
+        vec![updated]
+    );
+}
+
+#[tokio::test]
+async fn rule_update_persists_changes() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let saved = repo::rule::insert(
+        &pool,
+        &RecurringRule::new(
+            RecurringRuleId::new(0),
+            account.id(),
+            Money::from_minor_units(1000, 2),
+            EntryKind::Expense,
+            None,
+            None,
+            date(2026, TMonth::January, 1),
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let updated = RecurringRule::new(
+        saved.id(),
+        account.id(),
+        Money::from_minor_units(2000, 2),
+        EntryKind::Income,
+        Some("raise".to_owned()),
+        None,
+        date(2026, TMonth::January, 1),
+        RuleEnd::Until(date(2027, TMonth::January, 1)),
+        Frequency::new(FreqUnit::Weekly, 2).unwrap(),
+    )
+    .unwrap();
+    assert!(repo::rule::update(&pool, &updated).await.unwrap());
+    assert_eq!(
+        repo::rule::for_account(&pool, account.id()).await.unwrap(),
+        vec![updated]
+    );
 }
