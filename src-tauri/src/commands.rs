@@ -217,7 +217,8 @@ pub async fn create_transfer(
         ));
     }
 
-    // The counterpart side: opposite kind, same amount/date/note, uncategorized.
+    // The counterpart side mirrors the entry: opposite kind, same amount, date,
+    // note, and category (a transfer keeps one classification on both sides).
     // The id is a placeholder; the DB assigns the real one on insert.
     let counter = Entry::new(
         EntryId::new(0),
@@ -226,7 +227,7 @@ pub async fn create_transfer(
         primary.kind().opposite(),
         primary.date(),
         primary.note().map(str::to_owned),
-        None,
+        primary.category_id(),
     )?;
 
     let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;

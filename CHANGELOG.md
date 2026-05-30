@@ -105,7 +105,8 @@ All notable changes to this project are documented in this file.
 
 - Account transfers: when adding an entry and more than one same-currency
   account exists, a toggle offers to mirror it onto another account as the
-  opposite kind ("also record as income/expense on …"). A new atomic
+  opposite kind ("also record as income/expense on …"), keeping the same
+  amount, date, note, and category on both sides. A new atomic
   `create_transfer` command writes both entries in one transaction (no currency
   conversion — only same-currency accounts are offered). The two entries are
   independent afterward. Adds `EntryKind::opposite`.
