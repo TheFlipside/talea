@@ -195,13 +195,22 @@ pub async fn create_transfer(
     entry: NewEntry,
     counter_account_id: AccountId,
 ) -> Result<(Entry, Entry), CommandError> {
+    transfer(state.inner(), entry, counter_account_id).await
+}
+
+/// The transfer logic, separated from the Tauri command so it's directly
+/// testable against a pool (the command is a thin wrapper).
+pub(crate) async fn transfer(
+    pool: &SqlitePool,
+    entry: NewEntry,
+    counter_account_id: AccountId,
+) -> Result<(Entry, Entry), CommandError> {
     let primary = entry.build()?;
     if primary.account_id() == counter_account_id {
         return Err(CommandError::Validation(
             "a transfer needs two different accounts".to_owned(),
         ));
     }
-    let pool = state.inner();
 
     // Validate (read-only) before opening a write transaction: both accounts must
     // exist and share a currency (there is no conversion).
@@ -311,7 +320,7 @@ pub(crate) async fn load_account_data(
 /// Loads an account's recurring rules with their skips attached (verifying the
 /// account exists), without reading entries — used by `month_occurrences`, which
 /// only expands rules.
-async fn load_account_rules(
+pub(crate) async fn load_account_rules(
     pool: &SqlitePool,
     account_id: AccountId,
 ) -> Result<Vec<RecurringRule>, CommandError> {

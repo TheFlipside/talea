@@ -13,6 +13,7 @@ use talea_core::{
 };
 
 use crate::db;
+use crate::dto::NewEntry;
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
@@ -668,4 +669,140 @@ async fn rule_update_persists_changes() {
         repo::rule::for_account(&pool, account.id()).await.unwrap(),
         vec![updated]
     );
+}
+
+fn account_with(currency: &str, name: &str) -> Account {
+    Account::new(
+        AccountId::new(0),
+        name.to_owned(),
+        "💰".to_owned(),
+        Currency::new(currency).unwrap(),
+        Money::zero(),
+        Month::new(2026, 1).unwrap(),
+    )
+    .unwrap()
+}
+
+fn new_entry(account_id: AccountId, minor: i64, kind: EntryKind) -> NewEntry {
+    NewEntry {
+        account_id,
+        amount: Money::from_minor_units(minor, 2),
+        kind,
+        date: date(2026, TMonth::March, 3),
+        note: Some("move".to_owned()),
+        category_id: None,
+    }
+}
+
+#[tokio::test]
+async fn transfer_mirrors_entry_onto_the_other_account() {
+    let (_dir, pool) = fixture().await;
+    let from = seed_account(&pool).await; // USD
+    let to = repo::account::insert(&pool, &account_with("USD", "Savings"))
+        .await
+        .unwrap();
+
+    let (primary, counter) = crate::commands::transfer(
+        &pool,
+        new_entry(from.id(), 5_000, EntryKind::Expense),
+        to.id(),
+    )
+    .await
+    .unwrap();
+
+    // The counterpart mirrors the entry on the other account with the opposite kind.
+    assert_eq!(primary.account_id(), from.id());
+    assert_eq!(primary.kind(), EntryKind::Expense);
+    assert_eq!(counter.account_id(), to.id());
+    assert_eq!(counter.kind(), EntryKind::Income);
+    assert_eq!(counter.amount(), primary.amount());
+    assert_eq!(counter.date(), primary.date());
+    // One entry persisted per account.
+    assert_eq!(
+        repo::entry::for_account(&pool, from.id())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        repo::entry::for_account(&pool, to.id())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn transfer_rejects_bad_pairings() {
+    let (_dir, pool) = fixture().await;
+    let usd = seed_account(&pool).await;
+    let eur = repo::account::insert(&pool, &account_with("EUR", "Euro"))
+        .await
+        .unwrap();
+
+    // Different currencies (no conversion).
+    assert!(matches!(
+        crate::commands::transfer(
+            &pool,
+            new_entry(usd.id(), 1_000, EntryKind::Expense),
+            eur.id()
+        )
+        .await,
+        Err(CommandError::Validation(_))
+    ));
+    // Same account on both sides.
+    assert!(matches!(
+        crate::commands::transfer(
+            &pool,
+            new_entry(usd.id(), 1_000, EntryKind::Expense),
+            usd.id()
+        )
+        .await,
+        Err(CommandError::Validation(_))
+    ));
+    // Missing counterpart account.
+    assert!(matches!(
+        crate::commands::transfer(
+            &pool,
+            new_entry(usd.id(), 1_000, EntryKind::Expense),
+            AccountId::new(9999)
+        )
+        .await,
+        Err(CommandError::NotFound)
+    ));
+}
+
+#[tokio::test]
+async fn load_account_rules_returns_rules_or_not_found() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    repo::rule::insert(
+        &pool,
+        &RecurringRule::new(
+            RecurringRuleId::new(0),
+            account.id(),
+            Money::from_minor_units(1_000, 2),
+            EntryKind::Income,
+            None,
+            None,
+            date(2026, TMonth::January, 1),
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let rules = crate::commands::load_account_rules(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(rules.len(), 1);
+
+    assert!(matches!(
+        crate::commands::load_account_rules(&pool, AccountId::new(9999)).await,
+        Err(CommandError::NotFound)
+    ));
 }
