@@ -79,6 +79,7 @@
     "label": "Label",
     "labelPlaceholder": "e.g. Groceries",
     "icon": "Icon",
+    "chooseIcon": "Choose an icon",
     "create": "Create category",
     "save": "Save changes",
     "errorLabel": "Please enter a label."

@@ -51,7 +51,7 @@ export function CategoryForm({ mode, category, onDone }: CategoryFormProps) {
           <EmojiPicker
             value={emoji}
             onChange={(picked) => setIcon({ emoji: picked })}
-            ariaLabel={t('category.icon')}
+            ariaLabel={t('category.chooseIcon')}
           />
         </div>
         <label className="field field--grow">

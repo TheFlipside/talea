@@ -1,8 +1,12 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// Stack of open modal ids so that, when modals nest, only the topmost responds
+// to Escape / Tab (the others ignore the key so they don't all close at once).
+const modalStack: string[] = [];
 
 interface ModalProps {
   label: string;
@@ -17,6 +21,7 @@ interface ModalProps {
  */
 export function Modal({ label, onClose, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const id = useId();
   // Hold the latest onClose in a ref so the setup effect can run mount-only and
   // not re-fire (which would steal focus) when the parent passes a new inline
   // onClose on every render.
@@ -24,6 +29,16 @@ export function Modal({ label, onClose, children }: ModalProps) {
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    modalStack.push(id);
+    return () => {
+      const index = modalStack.lastIndexOf(id);
+      if (index !== -1) {
+        modalStack.splice(index, 1);
+      }
+    };
+  }, [id]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -38,6 +53,10 @@ export function Modal({ label, onClose, children }: ModalProps) {
     (preferred ?? focusable()[0] ?? dialog).focus();
 
     function onKeyDown(event: KeyboardEvent) {
+      // Only the topmost modal handles keys, so nested modals don't all react.
+      if (modalStack[modalStack.length - 1] !== id) {
+        return;
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         onCloseRef.current();
@@ -67,9 +86,9 @@ export function Modal({ label, onClose, children }: ModalProps) {
       document.removeEventListener('keydown', onKeyDown);
       previouslyFocused?.focus?.();
     };
-    // Mount-only: every value used is a ref or module constant, so the effect is
-    // stable and won't re-fire (and steal focus) on parent re-renders.
-  }, []);
+    // `id` is stable (useId), so this runs once on mount — it does not re-fire
+    // and steal focus on parent re-renders.
+  }, [id]);
 
   // Portal to <body> so the modal always stacks above the app content,
   // regardless of where in the tree it is rendered from.

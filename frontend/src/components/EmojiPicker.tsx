@@ -1,53 +1,29 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useState } from 'react';
 
 import { CATEGORY_EMOJIS } from '../lib/categories';
+import { Modal } from './Modal';
 
 interface EmojiPickerProps {
   value: string;
   onChange: (emoji: string) => void;
+  /** Accessible label / dialog title, e.g. "Choose an icon". */
   ariaLabel: string;
 }
 
-/** A compact emoji picker: a trigger showing the current emoji and a popup grid.
- * Closes on outside-click or Escape (without closing an enclosing modal). */
+/** A trigger showing the current emoji that opens a modal with a grid of
+ * emojis to choose from. */
 export function EmojiPicker({ value, onChange, ariaLabel }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    // Move focus into the grid so keyboard users can reach the emojis.
-    popupRef.current?.querySelector('button')?.focus();
-    function onDocMouseDown(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [open]);
-
-  function onKeyDown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && open) {
-      event.stopPropagation();
-      event.nativeEvent.stopImmediatePropagation();
-      event.preventDefault();
-      setOpen(false);
-    }
-  }
 
   return (
-    <div className="emoji-picker" ref={rootRef} onKeyDown={onKeyDown}>
+    <>
       <button
         type="button"
         className="select__trigger"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(true)}
       >
         <span className="emoji-picker__current">{value}</span>
         <span className="select__caret" aria-hidden="true">
@@ -56,13 +32,14 @@ export function EmojiPicker({ value, onChange, ariaLabel }: EmojiPickerProps) {
       </button>
 
       {open && (
-        <div className="emoji-picker__popup" role="dialog" aria-label={ariaLabel} ref={popupRef}>
-          <div className="emoji-picker__grid">
+        <Modal label={ariaLabel} onClose={() => setOpen(false)}>
+          <h2>{ariaLabel}</h2>
+          <div className="emoji-grid">
             {CATEGORY_EMOJIS.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
-                className={`emoji-picker__item${emoji === value ? ' emoji-picker__item--selected' : ''}`}
+                className={`emoji-grid__item${emoji === value ? ' emoji-grid__item--selected' : ''}`}
                 aria-pressed={emoji === value}
                 onClick={() => {
                   onChange(emoji);
@@ -73,8 +50,8 @@ export function EmojiPicker({ value, onChange, ariaLabel }: EmojiPickerProps) {
               </button>
             ))}
           </div>
-        </div>
+        </Modal>
       )}
-    </div>
+    </>
   );
 }

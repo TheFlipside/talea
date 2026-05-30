@@ -763,51 +763,34 @@ button {
   font-weight: 600;
 }
 
-/* ---- Emoji picker ---- */
-.emoji-picker {
-  position: relative;
-  width: 100%;
-}
-
+/* ---- Emoji picker (trigger + grid modal) ---- */
 .emoji-picker__current {
   font-size: 1.3rem;
 }
 
-.emoji-picker__popup {
-  position: absolute;
-  z-index: 1100;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  right: 0;
-  padding: 0.5rem;
-  background: var(--surface-2);
-  border: 1px solid var(--accent-track);
-  border-radius: 0.5rem;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
-}
-
-.emoji-picker__grid {
+.emoji-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 0.15rem;
-  max-height: 13rem;
+  grid-template-columns: repeat(auto-fill, minmax(2.6rem, 1fr));
+  gap: 0.3rem;
+  max-height: 60vh;
   overflow-y: auto;
+  margin-top: 0.5rem;
 }
 
-.emoji-picker__item {
+.emoji-grid__item {
   aspect-ratio: 1;
   border: none;
-  border-radius: 0.4rem;
-  background: transparent;
-  font-size: 1.3rem;
+  border-radius: 0.5rem;
+  background: var(--surface-2);
+  font-size: 1.6rem;
   line-height: 1;
 }
 
-.emoji-picker__item:hover {
+.emoji-grid__item:hover {
   background: var(--accent-track);
 }
 
-.emoji-picker__item--selected {
+.emoji-grid__item--selected {
   background: var(--accent);
 }
 
