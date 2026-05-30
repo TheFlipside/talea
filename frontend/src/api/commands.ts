@@ -21,6 +21,10 @@ import type {
   NewAccount,
   NewCategory,
   NewEntry,
+  NewRule,
+  Occurrence,
+  RecurringRule,
+  RecurringRuleId,
 } from './types';
 
 export const listAccounts = (): Promise<Account[]> => call('list_accounts');
@@ -64,3 +68,18 @@ export const updateCategory = (category: Category): Promise<Category> =>
 
 export const deleteCategory = (id: CategoryId): Promise<void> =>
   call('delete_category', { id });
+
+export const listRules = (accountId: AccountId): Promise<RecurringRule[]> =>
+  call('list_rules', { accountId });
+
+export const createRule = (rule: NewRule): Promise<RecurringRule> =>
+  call('create_rule', { rule });
+
+export const updateRule = (rule: RecurringRule): Promise<RecurringRule> =>
+  call('update_rule', { rule });
+
+export const deleteRule = (id: RecurringRuleId): Promise<void> =>
+  call('delete_rule', { id });
+
+export const monthOccurrences = (accountId: AccountId, month: Month): Promise<Occurrence[]> =>
+  call('month_occurrences', { accountId, month });

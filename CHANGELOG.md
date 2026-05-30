@@ -78,6 +78,21 @@ All notable changes to this project are documented in this file.
   slice** (the `null` category bucket); the seeded defaults no longer include a
   real "Other" category, so it can't appear twice.
 
+- Recurring-rule manager: add / edit / delete recurring income/expense rules on
+  their own screen (cadence, start, end, category, note), per account. A rule's
+  occurrences now also appear as read-only 🔁 rows in the month list (previously
+  they only affected the totals). The account switcher is available on this
+  screen for quick per-account context, as on the month and stats screens.
+- **Effective-dated rule amounts.** A rule carries an *amount history* (a new
+  `core::AmountSegment`): the amount in effect is resolved per occurrence date,
+  so a change can apply **from a chosen month onward without rewriting the
+  past** — essential because the ledger chains carry-over and a retroactive
+  change would alter historical balances. Editing an amount offers "this month
+  onward" (adds a breakpoint) or "all months" (collapses to a single base). The
+  base amount stays on `recurring_rule`; later breakpoints live in a new
+  `rule_amount` child table (migration `0002`). `VirtualEntry` now carries its
+  `rule_id`, and a `month_occurrences` command expands a month's occurrences.
+
 ### Fixed
 
 - `index.html` favicon declared `type="image/png"` for an SVG asset; corrected

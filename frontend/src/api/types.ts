@@ -14,6 +14,7 @@
 export type AccountId = number;
 export type EntryId = number;
 export type CategoryId = number;
+export type RecurringRuleId = number;
 
 /** A decimal money amount as a string. Never a JS number. */
 export type Money = string;
@@ -76,6 +77,63 @@ export interface Category {
 export interface NewCategory {
   label: string;
   icon: CategoryIcon;
+}
+
+export type FreqUnit = 'weekly' | 'monthly' | 'yearly';
+
+/** A cadence: a unit repeated every `interval` units (`interval >= 1`). */
+export interface Frequency {
+  unit: FreqUnit;
+  interval: number;
+}
+
+/** When a recurring rule stops. Wire shape is internally tagged by `kind`. */
+export type RuleEnd = { kind: 'never' } | { kind: 'until'; date: IsoDate };
+
+/** One step in a rule's amount history: `amount` from `effective_from` onward. */
+export interface AmountSegment {
+  effective_from: IsoDate;
+  amount: Money;
+}
+
+export interface RecurringRule {
+  id: RecurringRuleId;
+  account_id: AccountId;
+  /** Amount history; the first segment is the base at `start_date`. Never empty. */
+  amounts: AmountSegment[];
+  kind: EntryKind;
+  note?: string | null;
+  category_id?: CategoryId | null;
+  start_date: IsoDate;
+  end: RuleEnd;
+  frequency: Frequency;
+}
+
+/** Create payload: a rule starts with a single base amount (effective at start). */
+export interface NewRule {
+  account_id: AccountId;
+  amount: Money;
+  kind: EntryKind;
+  note?: string | null;
+  category_id?: CategoryId | null;
+  start_date: IsoDate;
+  end: RuleEnd;
+  frequency: Frequency;
+}
+
+/**
+ * A recurring rule expanded into a single month occurrence (read-only; not
+ * stored). Mirrors the core `VirtualEntry`: it has no entry id, but carries the
+ * `rule_id` it came from.
+ */
+export interface Occurrence {
+  rule_id: RecurringRuleId;
+  account_id: AccountId;
+  amount: Money;
+  kind: EntryKind;
+  date: IsoDate;
+  note?: string | null;
+  category_id?: CategoryId | null;
 }
 
 export interface MonthSummary {

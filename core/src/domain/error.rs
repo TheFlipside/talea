@@ -11,6 +11,11 @@ pub const MAX_NOTE_LEN: usize = 1_000;
 /// Maximum length (in characters) of a category label.
 pub const MAX_LABEL_LEN: usize = 200;
 
+/// Maximum number of amount segments (the base plus later breakpoints) a single
+/// recurring rule may carry. Bounds untrusted IPC input so a crafted rule cannot
+/// inflate the `rule_amount` table or the per-occurrence amount lookup.
+pub const MAX_AMOUNT_SEGMENTS: usize = 100;
+
 /// Largest single amount accepted (one quadrillion). Far below
 /// `Decimal::MAX` (~7.9e28), so even pathological prefix-sums over the bounded
 /// month range cannot overflow the ledger's arithmetic.
@@ -88,6 +93,22 @@ pub enum DomainError {
     /// A recurrence interval was zero; it must be at least one.
     #[error("recurrence interval must be >= 1")]
     ZeroInterval,
+
+    /// A rule's amount segments were empty, out of order, or not anchored at the
+    /// rule's start date.
+    #[error(
+        "amount segments must be non-empty, start at the rule's start date, and ascend by date"
+    )]
+    InvalidAmountSegments,
+
+    /// A rule carried more amount segments than [`MAX_AMOUNT_SEGMENTS`].
+    #[error("amount history has {len} segments, exceeding the maximum of {max}")]
+    TooManyAmountSegments {
+        /// Number of segments supplied.
+        len: usize,
+        /// The enforced maximum.
+        max: usize,
+    },
 
     /// A recurring rule's `Until` end date preceded its start date.
     #[error("recurrence end date {end} is before its start date {start}")]

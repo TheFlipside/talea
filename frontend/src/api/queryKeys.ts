@@ -22,4 +22,15 @@ export const queryKeys = {
   /** Prefix matching every account's breakdowns (e.g. after a category delete,
    *  which re-buckets entries across accounts into "Other"). */
   expensesByCategoryAll: ['expensesByCategory'] as const,
+  /** An account's recurring rules. */
+  rules: (accountId: AccountId) => ['rules', accountId] as const,
+  /** Prefix matching every account's rules (e.g. after a category delete). */
+  rulesAll: ['rules'] as const,
+  /** A month's expanded rule occurrences for an account. */
+  occurrences: (accountId: AccountId, month: Month) =>
+    ['occurrences', accountId, month.year, month.month] as const,
+  /** Prefix matching every cached month's occurrences for an account. */
+  occurrencesByAccount: (accountId: AccountId) => ['occurrences', accountId] as const,
+  /** Prefix matching every account's occurrences (e.g. after a category delete). */
+  occurrencesAll: ['occurrences'] as const,
 };

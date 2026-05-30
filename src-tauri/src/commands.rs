@@ -11,7 +11,7 @@ use tauri::State;
 use talea_core::{
     expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
     summaries_for_range as core_summaries_for_range, Account, AccountId, Category, CategoryExpense,
-    CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule, RecurringRuleId,
+    CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
 use crate::dto::{NewAccount, NewCategory, NewEntry, NewRule};
@@ -249,6 +249,21 @@ pub(crate) async fn load_account_data(
     Ok((account, entries, rules))
 }
 
+/// Loads an account's recurring rules (verifying the account exists), without
+/// reading its entries — used by `month_occurrences`, which only expands rules.
+async fn load_account_rules(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<Vec<RecurringRule>, CommandError> {
+    let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;
+    repo::account::get(&mut *tx, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    let rules = repo::rule::for_account(&mut *tx, account_id).await?;
+    tx.commit().await.map_err(RepoError::Sqlx)?;
+    Ok(rules)
+}
+
 /// Number of months in `from..=to` (negative if `to` precedes `from`).
 fn month_span(from: Month, to: Month) -> i64 {
     i64::from(to.year() - from.year()) * 12 + i64::from(to.month()) - i64::from(from.month())
@@ -318,4 +333,23 @@ pub async fn expenses_by_category(
 ) -> Result<Vec<CategoryExpense>, CommandError> {
     let (_account, entries, rules) = load_account_data(state.inner(), account_id).await?;
     Ok(core_expenses_by_category(month, &entries, &rules))
+}
+
+/// Expands an account's recurring rules into their occurrences within `month`
+/// (read-only line items for the month view; they are not stored).
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist;
+/// [`CommandError::Database`] / [`CommandError::Corrupt`] on a database error.
+#[tauri::command]
+pub async fn month_occurrences(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    month: Month,
+) -> Result<Vec<VirtualEntry>, CommandError> {
+    let rules = load_account_rules(state.inner(), account_id).await?;
+    Ok(rules
+        .iter()
+        .flat_map(|rule| rule.expand_in(month))
+        .collect())
 }

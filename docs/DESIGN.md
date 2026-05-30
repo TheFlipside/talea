@@ -161,3 +161,10 @@ Accepted as known debt for the scaffold; revisit before a release:
   quadrillion — far below `Decimal::MAX`. If a stricter guarantee is ever wanted,
   convert the ledger functions to return `Result` with checked arithmetic. Note
   the ledger is O(history); the persistence layer may cache per-month aggregates.
+- **Update commands trust the payload's `account_id`.** `update_account`/
+  `update_entry`/`update_rule` locate the row by `id` and write the
+  client-supplied `account_id`, so a crafted IPC call could in principle move a
+  row between accounts. Harmless for a local single-user app (no privilege
+  boundary), but if a wider IPC/sync surface is ever added, scope the `WHERE` to
+  the owning account and stop writing `account_id` on update. Rule amount history
+  is already bounded (`MAX_AMOUNT_SEGMENTS`) alongside the note/amount caps.

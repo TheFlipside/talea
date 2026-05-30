@@ -15,9 +15,9 @@ pub mod money;
 
 pub use domain::{
     balance_at_end_of, expenses_by_category, month_summary, summaries_for_range, Account,
-    AccountId, Category, CategoryExpense, CategoryIcon, CategoryId, Currency, DomainError, Entry,
-    EntryId, EntryKind, FreqUnit, Frequency, Month, MonthSummary, RecurringRule, RecurringRuleId,
-    RuleEnd, VirtualEntry,
+    AccountId, AmountSegment, Category, CategoryExpense, CategoryIcon, CategoryId, Currency,
+    DomainError, Entry, EntryId, EntryKind, FreqUnit, Frequency, Month, MonthSummary,
+    RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
 };
 pub use money::{Money, MoneyError};
 

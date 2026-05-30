@@ -152,7 +152,9 @@ Remove-Item "$env:APPDATA\app.talea.budget\talea.sqlite3*"
 - [x] Category management (emoji picker, common defaults) wired into entries.
 - [x] Statistics screen: per-month expenses broken down by category (with
       uncategorized expenses folded into an "Other" slice).
-- [ ] Recurring-entry management.
+- [x] Recurring-rule management: add/edit/delete rules with effective-dated
+      amounts (a change applies forward without rewriting the past); occurrences
+      show read-only in the month list. *(Per-occurrence overrides are next.)*
 - [ ] Optional biometric app lock.
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the
       actual figures stay in-app behind the biometric lock. *(Later milestone.)*

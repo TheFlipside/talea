@@ -96,6 +96,7 @@ pub fn run() {
             commands::month_summary,
             commands::summaries_for_range,
             commands::expenses_by_category,
+            commands::month_occurrences,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

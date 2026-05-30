@@ -10,7 +10,7 @@ use time::{Date, Duration};
 
 use crate::domain::date::clamp_day_in_month;
 use crate::domain::entry::EntryKind;
-use crate::domain::error::{validate_amount, DomainError, MAX_NOTE_LEN};
+use crate::domain::error::{validate_amount, DomainError, MAX_AMOUNT_SEGMENTS, MAX_NOTE_LEN};
 use crate::domain::ids::{AccountId, CategoryId, RecurringRuleId};
 use crate::domain::month::Month;
 use crate::money::Money;
@@ -115,6 +115,71 @@ impl From<RuleEndRepr> for RuleEnd {
     }
 }
 
+/// One step in a rule's amount history: `amount` applies to occurrences dated on
+/// or after `effective_from`, until a later segment supersedes it.
+///
+/// A rule always has at least one segment — the base, anchored at its
+/// `start_date`. Additional segments let an amount change *going forward* (e.g.
+/// a raise) without rewriting past months, which is essential because the ledger
+/// chains carry-over and a retroactive change would alter historical balances.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "AmountSegmentRepr", into = "AmountSegmentRepr")]
+pub struct AmountSegment {
+    effective_from: Date,
+    amount: Money,
+}
+
+// (De)serialization mirror keeping the date in our ISO `YYYY-MM-DD` string form.
+#[derive(Serialize, Deserialize)]
+struct AmountSegmentRepr {
+    #[serde(with = "crate::domain::date::iso_date")]
+    effective_from: Date,
+    amount: Money,
+}
+
+impl From<AmountSegmentRepr> for AmountSegment {
+    // Infallible: the per-segment amount and the cross-segment ordering are
+    // validated when the owning `RecurringRule` is constructed.
+    fn from(repr: AmountSegmentRepr) -> Self {
+        Self {
+            effective_from: repr.effective_from,
+            amount: repr.amount,
+        }
+    }
+}
+
+impl From<AmountSegment> for AmountSegmentRepr {
+    fn from(seg: AmountSegment) -> Self {
+        Self {
+            effective_from: seg.effective_from,
+            amount: seg.amount,
+        }
+    }
+}
+
+impl AmountSegment {
+    /// Creates a segment (validation of the amount happens at rule construction).
+    #[must_use]
+    pub const fn new(effective_from: Date, amount: Money) -> Self {
+        Self {
+            effective_from,
+            amount,
+        }
+    }
+
+    /// The date from which `amount` takes effect.
+    #[must_use]
+    pub const fn effective_from(&self) -> Date {
+        self.effective_from
+    }
+
+    /// The positive magnitude applied from `effective_from` onward.
+    #[must_use]
+    pub const fn amount(&self) -> Money {
+        self.amount
+    }
+}
+
 /// An expanded occurrence of a [`RecurringRule`] within a month — shaped like an
 /// [`Entry`](crate::domain::Entry) but without an id (it is not persisted).
 ///
@@ -124,6 +189,7 @@ impl From<RuleEndRepr> for RuleEnd {
 /// the invariants its source rule guarantees.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VirtualEntry {
+    rule_id: RecurringRuleId,
     account_id: AccountId,
     amount: Money,
     kind: EntryKind,
@@ -136,6 +202,12 @@ pub struct VirtualEntry {
 }
 
 impl VirtualEntry {
+    /// The recurring rule that produced this occurrence.
+    #[must_use]
+    pub const fn rule_id(&self) -> RecurringRuleId {
+        self.rule_id
+    }
+
     /// The account this occurrence belongs to.
     #[must_use]
     pub const fn account_id(&self) -> AccountId {
@@ -179,7 +251,9 @@ impl VirtualEntry {
 pub struct RecurringRule {
     id: RecurringRuleId,
     account_id: AccountId,
-    amount: Money,
+    /// Amount history, sorted ascending by `effective_from`; the first segment
+    /// is the base, anchored at `start_date`. Never empty.
+    amounts: Vec<AmountSegment>,
     kind: EntryKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     note: Option<String>,
@@ -195,7 +269,7 @@ pub struct RecurringRule {
 struct RecurringRuleRepr {
     id: RecurringRuleId,
     account_id: AccountId,
-    amount: Money,
+    amounts: Vec<AmountSegment>,
     kind: EntryKind,
     #[serde(default)]
     note: Option<String>,
@@ -211,10 +285,10 @@ impl TryFrom<RecurringRuleRepr> for RecurringRule {
     type Error = DomainError;
 
     fn try_from(repr: RecurringRuleRepr) -> Result<Self, Self::Error> {
-        Self::new(
+        Self::new_with_amounts(
             repr.id,
             repr.account_id,
-            repr.amount,
+            repr.amounts,
             repr.kind,
             repr.note,
             repr.category_id,
@@ -226,7 +300,9 @@ impl TryFrom<RecurringRuleRepr> for RecurringRule {
 }
 
 impl RecurringRule {
-    /// Creates a recurring rule.
+    /// Creates a recurring rule with a single (base) amount effective from
+    /// `start_date`. Most rules are created this way; an amount that changes over
+    /// time is built with [`RecurringRule::new_with_amounts`].
     ///
     /// # Errors
     ///
@@ -247,7 +323,67 @@ impl RecurringRule {
         end: RuleEnd,
         frequency: Frequency,
     ) -> Result<Self, DomainError> {
-        validate_amount(amount)?;
+        Self::new_with_amounts(
+            id,
+            account_id,
+            vec![AmountSegment::new(start_date, amount)],
+            kind,
+            note,
+            category_id,
+            start_date,
+            end,
+            frequency,
+        )
+    }
+
+    /// Creates a recurring rule with an explicit amount history.
+    ///
+    /// `amounts` must be non-empty, strictly ascending by `effective_from`, with
+    /// the first segment anchored exactly at `start_date`; every segment amount
+    /// is validated like a single amount.
+    ///
+    /// # Errors
+    ///
+    /// - [`DomainError::InvalidAmountSegments`] if `amounts` is empty, not in
+    ///   ascending date order, or its first segment is not at `start_date`.
+    /// - [`DomainError::NonPositiveAmount`] / [`DomainError::AmountTooLarge`] for
+    ///   any segment amount outside the accepted range.
+    /// - [`DomainError::NoteTooLong`] / [`DomainError::EndBeforeStart`] as in
+    ///   [`RecurringRule::new`].
+    #[allow(clippy::too_many_arguments)] // a rule genuinely has these fields; a builder is overkill here
+    pub fn new_with_amounts(
+        id: RecurringRuleId,
+        account_id: AccountId,
+        amounts: Vec<AmountSegment>,
+        kind: EntryKind,
+        note: Option<String>,
+        category_id: Option<CategoryId>,
+        start_date: Date,
+        end: RuleEnd,
+        frequency: Frequency,
+    ) -> Result<Self, DomainError> {
+        let Some(first) = amounts.first() else {
+            return Err(DomainError::InvalidAmountSegments);
+        };
+        if amounts.len() > MAX_AMOUNT_SEGMENTS {
+            return Err(DomainError::TooManyAmountSegments {
+                len: amounts.len(),
+                max: MAX_AMOUNT_SEGMENTS,
+            });
+        }
+        if first.effective_from != start_date {
+            return Err(DomainError::InvalidAmountSegments);
+        }
+        // Strictly ascending effective dates (so each occurrence resolves to one
+        // amount) and every amount within the accepted range.
+        for pair in amounts.windows(2) {
+            if pair[0].effective_from >= pair[1].effective_from {
+                return Err(DomainError::InvalidAmountSegments);
+            }
+        }
+        for segment in &amounts {
+            validate_amount(segment.amount)?;
+        }
         if let Some(ref text) = note {
             let len = text.chars().count();
             if len > MAX_NOTE_LEN {
@@ -268,7 +404,7 @@ impl RecurringRule {
         Ok(Self {
             id,
             account_id,
-            amount,
+            amounts,
             kind,
             note,
             category_id,
@@ -296,10 +432,31 @@ impl RecurringRule {
         self.frequency
     }
 
-    /// The positive magnitude applied on each occurrence.
+    /// The base amount, effective from `start_date`.
     #[must_use]
-    pub const fn amount(&self) -> Money {
-        self.amount
+    pub fn base_amount(&self) -> Money {
+        self.amounts[0].amount
+    }
+
+    /// The full amount history (ascending by `effective_from`, never empty).
+    #[must_use]
+    pub fn amounts(&self) -> &[AmountSegment] {
+        &self.amounts
+    }
+
+    /// The amount in effect on `date`: the latest segment whose `effective_from`
+    /// is on or before `date` (the base for any date at/after `start_date`).
+    #[must_use]
+    pub fn amount_on(&self, date: Date) -> Money {
+        let mut amount = self.amounts[0].amount;
+        for segment in &self.amounts {
+            if segment.effective_from <= date {
+                amount = segment.amount;
+            } else {
+                break;
+            }
+        }
+        amount
     }
 
     /// Whether occurrences are income or expense.
@@ -367,8 +524,9 @@ impl RecurringRule {
         self.occurrences_in(month)
             .into_iter()
             .map(|date| VirtualEntry {
+                rule_id: self.id,
                 account_id: self.account_id,
-                amount: self.amount,
+                amount: self.amount_on(date),
                 kind: self.kind,
                 date,
                 note: self.note.clone(),
@@ -440,7 +598,7 @@ impl RecurringRule {
 
 #[cfg(test)]
 mod tests {
-    use super::{FreqUnit, Frequency, RecurringRule, RuleEnd};
+    use super::{AmountSegment, FreqUnit, Frequency, RecurringRule, RuleEnd};
     use crate::domain::entry::EntryKind;
     use crate::domain::error::DomainError;
     use crate::domain::ids::{AccountId, RecurringRuleId};
@@ -663,7 +821,157 @@ mod tests {
         );
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains(r#""start_date":"2026-01-01""#));
-        assert!(json.contains(r#""amount":"10.00""#));
+        assert!(json.contains(r#""amounts":[{"effective_from":"2026-01-01","amount":"10.00"}]"#));
+        assert_eq!(serde_json::from_str::<RecurringRule>(&json).unwrap(), r);
+    }
+
+    fn rule_with_amounts(start: Date, amounts: Vec<AmountSegment>) -> RecurringRule {
+        RecurringRule::new_with_amounts(
+            RecurringRuleId::new(1),
+            AccountId::new(1),
+            amounts,
+            EntryKind::Income,
+            None,
+            None,
+            start,
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn amount_history_applies_per_occurrence_date() {
+        // Base 1000 from Jan 15; raised to 1200 from Jun 1.
+        let r = rule_with_amounts(
+            date(2026, TMonth::January, 15),
+            vec![
+                AmountSegment::new(
+                    date(2026, TMonth::January, 15),
+                    Money::from_minor_units(100_000, 2),
+                ),
+                AmountSegment::new(
+                    date(2026, TMonth::June, 1),
+                    Money::from_minor_units(120_000, 2),
+                ),
+            ],
+        );
+        // Before the raise → base; on/after → raised.
+        assert_eq!(
+            r.amount_on(date(2026, TMonth::May, 15)),
+            Money::from_minor_units(100_000, 2)
+        );
+        assert_eq!(
+            r.amount_on(date(2026, TMonth::June, 15)),
+            Money::from_minor_units(120_000, 2)
+        );
+        // The expansion picks the effective amount for the occurrence's date.
+        let may = r.expand_in(month(2026, 5));
+        assert_eq!(may[0].amount(), Money::from_minor_units(100_000, 2));
+        let june = r.expand_in(month(2026, 6));
+        assert_eq!(june[0].amount(), Money::from_minor_units(120_000, 2));
+        assert_eq!(june[0].rule_id(), RecurringRuleId::new(1));
+    }
+
+    #[test]
+    fn amount_segments_must_be_ordered_and_anchored() {
+        let start = date(2026, TMonth::January, 1);
+        let amt = Money::from_minor_units(1000, 2);
+        // Empty.
+        assert!(matches!(
+            RecurringRule::new_with_amounts(
+                RecurringRuleId::new(1),
+                AccountId::new(1),
+                vec![],
+                EntryKind::Income,
+                None,
+                None,
+                start,
+                RuleEnd::Never,
+                Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+            ),
+            Err(DomainError::InvalidAmountSegments)
+        ));
+        // First segment not anchored at start_date.
+        assert!(matches!(
+            RecurringRule::new_with_amounts(
+                RecurringRuleId::new(1),
+                AccountId::new(1),
+                vec![AmountSegment::new(date(2026, TMonth::February, 1), amt)],
+                EntryKind::Income,
+                None,
+                None,
+                start,
+                RuleEnd::Never,
+                Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+            ),
+            Err(DomainError::InvalidAmountSegments)
+        ));
+        // Out of order / duplicate dates.
+        assert!(matches!(
+            RecurringRule::new_with_amounts(
+                RecurringRuleId::new(1),
+                AccountId::new(1),
+                vec![
+                    AmountSegment::new(start, amt),
+                    AmountSegment::new(start, amt),
+                ],
+                EntryKind::Income,
+                None,
+                None,
+                start,
+                RuleEnd::Never,
+                Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+            ),
+            Err(DomainError::InvalidAmountSegments)
+        ));
+    }
+
+    #[test]
+    fn too_many_amount_segments_is_rejected() {
+        let start = date(2026, TMonth::January, 1);
+        let amt = Money::from_minor_units(1000, 2);
+        // One base + MAX breakpoints exceeds the cap by one.
+        let mut amounts = vec![AmountSegment::new(start, amt)];
+        for i in 1..=super::MAX_AMOUNT_SEGMENTS {
+            let offset = i64::try_from(i).unwrap();
+            amounts.push(AmountSegment::new(
+                start.saturating_add(time::Duration::days(offset)),
+                amt,
+            ));
+        }
+        assert!(matches!(
+            RecurringRule::new_with_amounts(
+                RecurringRuleId::new(1),
+                AccountId::new(1),
+                amounts,
+                EntryKind::Income,
+                None,
+                None,
+                start,
+                RuleEnd::Never,
+                Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+            ),
+            Err(DomainError::TooManyAmountSegments { .. })
+        ));
+    }
+
+    #[test]
+    fn amount_history_round_trips_through_json() {
+        let r = rule_with_amounts(
+            date(2026, TMonth::January, 1),
+            vec![
+                AmountSegment::new(
+                    date(2026, TMonth::January, 1),
+                    Money::from_minor_units(1000, 2),
+                ),
+                AmountSegment::new(
+                    date(2026, TMonth::July, 1),
+                    Money::from_minor_units(1500, 2),
+                ),
+            ],
+        );
+        let json = serde_json::to_string(&r).unwrap();
         assert_eq!(serde_json::from_str::<RecurringRule>(&json).unwrap(), r);
     }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", account_id AS \"account_id!\", amount AS \"amount!\",\n                  kind AS \"kind!\", note, category_id, start_date AS \"start_date!\",\n                  end_kind AS \"end_kind!\", end_date, freq_unit AS \"freq_unit!\",\n                  freq_interval AS \"freq_interval!\"\n           FROM recurring_rule WHERE account_id = ? ORDER BY id",
+  "query": "SELECT r.id AS \"id!\", r.account_id AS \"account_id!\", r.amount AS \"amount!\",\n                  r.kind AS \"kind!\", r.note, r.category_id, r.start_date AS \"start_date!\",\n                  r.end_kind AS \"end_kind!\", r.end_date, r.freq_unit AS \"freq_unit!\",\n                  r.freq_interval AS \"freq_interval!\",\n                  ra.effective_from AS \"seg_from?\", ra.amount AS \"seg_amount?\"\n           FROM recurring_rule r\n           LEFT JOIN rule_amount ra ON ra.rule_id = r.id\n           WHERE r.account_id = ?\n           ORDER BY r.id, ra.effective_from",
   "describe": {
     "columns": [
       {
@@ -123,6 +123,28 @@
             "name": "freq_interval"
           }
         }
+      },
+      {
+        "name": "seg_from?",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rule_amount",
+            "name": "effective_from"
+          }
+        }
+      },
+      {
+        "name": "seg_amount?",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rule_amount",
+            "name": "amount"
+          }
+        }
       }
     ],
     "parameters": {
@@ -139,8 +161,10 @@
       false,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "5ff632002bf6dc37f59ccf23a1138ae04869530d95748b265c5f9b0807c268b4"
+  "hash": "4ab9aa087dfeec6d99ee82368c3d0689c278054afc09a03e53a821d0630570d0"
 }

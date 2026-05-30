@@ -7,8 +7,9 @@ use tempfile::TempDir;
 use time::{Date, Month as TMonth};
 
 use talea_core::{
-    month_summary, Account, AccountId, Category, CategoryIcon, CategoryId, Currency, Entry,
-    EntryId, EntryKind, FreqUnit, Frequency, Money, Month, RecurringRule, RecurringRuleId, RuleEnd,
+    month_summary, Account, AccountId, AmountSegment, Category, CategoryIcon, CategoryId, Currency,
+    Entry, EntryId, EntryKind, FreqUnit, Frequency, Money, Month, RecurringRule, RecurringRuleId,
+    RuleEnd,
 };
 
 use crate::db;
@@ -177,6 +178,60 @@ async fn rule_round_trips_never_and_until() {
 
     let listed = repo::rule::for_account(&pool, account.id()).await.unwrap();
     assert_eq!(listed, vec![never, until]);
+}
+
+#[tokio::test]
+async fn rule_amount_history_round_trips_through_breakpoints() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+
+    let start = date(2026, TMonth::January, 15);
+    // Base 1000 from Jan 15, raised to 1200 from Jun 1.
+    let rule = RecurringRule::new_with_amounts(
+        RecurringRuleId::new(0),
+        account.id(),
+        vec![
+            AmountSegment::new(start, Money::from_minor_units(100_000, 2)),
+            AmountSegment::new(
+                date(2026, TMonth::June, 1),
+                Money::from_minor_units(120_000, 2),
+            ),
+        ],
+        EntryKind::Income,
+        Some("salary".to_owned()),
+        None,
+        start,
+        RuleEnd::Never,
+        Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+    )
+    .unwrap();
+    let saved = repo::rule::insert(&pool, &rule).await.unwrap();
+
+    let listed = repo::rule::for_account(&pool, account.id()).await.unwrap();
+    assert_eq!(listed, vec![saved.clone()]);
+    assert_eq!(listed[0].amounts().len(), 2);
+    assert_eq!(
+        listed[0].amount_on(date(2026, TMonth::June, 15)),
+        Money::from_minor_units(120_000, 2)
+    );
+
+    // Updating to a single base amount drops the breakpoint.
+    let collapsed = RecurringRule::new(
+        saved.id(),
+        account.id(),
+        Money::from_minor_units(130_000, 2),
+        EntryKind::Income,
+        Some("salary".to_owned()),
+        None,
+        start,
+        RuleEnd::Never,
+        Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+    )
+    .unwrap();
+    assert!(repo::rule::update(&pool, &collapsed).await.unwrap());
+    let relisted = repo::rule::for_account(&pool, account.id()).await.unwrap();
+    assert_eq!(relisted, vec![collapsed]);
+    assert_eq!(relisted[0].amounts().len(), 1);
 }
 
 #[tokio::test]

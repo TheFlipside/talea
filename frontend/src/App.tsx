@@ -16,7 +16,7 @@ import { currentMonth } from './lib/month';
 import { CategoryManagerScreen } from './screens/CategoryManagerScreen';
 import { ManageAccountsScreen } from './screens/ManageAccountsScreen';
 import { MonthScreen } from './screens/MonthScreen';
-import { PlaceholderScreen } from './screens/PlaceholderScreen';
+import { RecurringManagerScreen } from './screens/RecurringManagerScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { StatsScreen } from './screens/StatsScreen';
 import { useActiveAccount, useNavigation } from './state/contexts';
@@ -32,7 +32,7 @@ function CurrentScreen({ active }: { active: Account }) {
     case 'categories':
       return <CategoryManagerScreen />;
     case 'recurring':
-      return <PlaceholderScreen titleKey="placeholder.recurring" />;
+      return <RecurringManagerScreen account={active} />;
     case 'stats':
       return <StatsScreen account={active} />;
     default:
@@ -139,7 +139,9 @@ function App() {
           {t('app.title')}
         </button>
         <div className="app__header-actions">
-          {(screen === 'month' || screen === 'stats') && <AccountSwitcher accounts={accounts} />}
+          {(screen === 'month' || screen === 'stats' || screen === 'recurring') && (
+            <AccountSwitcher accounts={accounts} />
+          )}
           <button
             type="button"
             className={`icon-btn${screen === 'settings' ? ' icon-btn--active' : ''}`}

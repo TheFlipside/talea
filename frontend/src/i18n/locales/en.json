@@ -133,8 +133,46 @@
     "stats": "Stats",
     "settings": "Settings"
   },
-  "placeholder": {
-    "recurring": "Recurring records",
-    "body": "Coming soon."
+  "recurring": {
+    "title": "Recurring rules",
+    "add": "Add rule",
+    "empty": "No recurring rules yet.",
+    "new": "New recurring rule",
+    "edit": "Edit recurring rule",
+    "create": "Create rule",
+    "save": "Save changes",
+    "startDate": "Starts",
+    "every": "Every",
+    "frequency": "Frequency",
+    "unitWeekly": "Weeks",
+    "unitMonthly": "Months",
+    "unitYearly": "Years",
+    "end": "Ends",
+    "endNever": "Never",
+    "endUntil": "On date",
+    "endDate": "End date",
+    "endBeforeStart": "The end date can't be before the start date.",
+    "invalidInterval": "Enter a whole number of 1 or more.",
+    "amountCurrent": "Amount ({{currency}})",
+    "applyAmount": "Apply amount change to",
+    "fromMonth": "This month onward",
+    "allMonths": "All months",
+    "effectiveFrom": "Effective from",
+    "amountHistory": "Amount history",
+    "fromDate": "from {{date}}",
+    "occurrenceAria": "Recurring entry",
+    "fromRule": "From a recurring rule",
+    "deleteAria": "Delete {{name}}",
+    "deleteTitle": "Delete recurring rule?",
+    "deleteWarning": "This stops \"{{name}}\" from generating any further entries.",
+    "deleteConfirm": "Delete",
+    "cadence": {
+      "weekly_one": "Weekly",
+      "weekly_other": "Every {{count}} weeks",
+      "monthly_one": "Monthly",
+      "monthly_other": "Every {{count}} months",
+      "yearly_one": "Yearly",
+      "yearly_other": "Every {{count}} years"
+    }
   }
 }

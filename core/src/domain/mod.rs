@@ -37,5 +37,5 @@ pub use error::{DomainError, MAX_LABEL_LEN, MAX_NOTE_LEN};
 pub use ids::{AccountId, CategoryId, EntryId, RecurringRuleId};
 pub use ledger::{balance_at_end_of, month_summary, summaries_for_range, MonthSummary};
 pub use month::Month;
-pub use recurring::{FreqUnit, Frequency, RecurringRule, RuleEnd, VirtualEntry};
+pub use recurring::{AmountSegment, FreqUnit, Frequency, RecurringRule, RuleEnd, VirtualEntry};
 pub use stats::{expenses_by_category, CategoryExpense};

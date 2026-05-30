@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO rule_amount (rule_id, effective_from, amount) VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "30947e2d55a49d68c9f420a499bc820f5dcc1f7f6a86b6d4865e0c34350b29bb"
+}
