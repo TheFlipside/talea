@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import type { AccountId, Category, Entry } from '../api/types';
+import type { AccountId, Category, Entry, Occurrence } from '../api/types';
 import { useCategories, useEntries, useMonthOccurrences } from '../api/hooks';
 import { filterEntriesToMonth } from '../lib/entries';
 import { mergeMonthItems } from '../lib/monthItems';
@@ -14,9 +14,10 @@ interface EntryListProps {
   accountId: AccountId;
   currency: string;
   onEdit: (entry: Entry) => void;
+  onSelectOccurrence: (occurrence: Occurrence) => void;
 }
 
-export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
+export function EntryList({ accountId, currency, onEdit, onSelectOccurrence }: EntryListProps) {
   const { t } = useTranslation();
   const { month } = useSelectedMonth();
   const entries = useEntries(accountId);
@@ -61,6 +62,7 @@ export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
             occurrence={item.occurrence}
             currency={currency}
             category={category(item.occurrence.category_id)}
+            onSelect={onSelectOccurrence}
           />
         ),
       )}

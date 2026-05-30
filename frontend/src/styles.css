@@ -723,12 +723,24 @@ button {
   color: var(--muted);
 }
 
-/* Read-only occurrence rows in the month list are visually distinct from
-   editable entries (no hover/press affordance, a faint recurring tint). */
+/* Occurrence rows in the month list are tappable (open per-occurrence actions)
+   and faintly tinted to read as rule-derived rather than stored entries. */
 .entry-row--recurring {
   width: 100%;
-  cursor: default;
   opacity: 0.92;
+}
+
+/* Stacked primary actions in the occurrence dialog. */
+.occurrence-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.confirm-text {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
 }
 
 .recurring-badge {

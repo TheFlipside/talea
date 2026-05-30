@@ -93,6 +93,16 @@ All notable changes to this project are documented in this file.
   `rule_amount` child table (migration `0002`). `VirtualEntry` now carries its
   `rule_id`, and a `month_occurrences` command expands a month's occurrences.
 
+- Per-occurrence overrides for recurring rules. Tapping a 🔁 occurrence in the
+  month list offers **remove just this one** (a "skip" — the expansion omits that
+  date) or **edit just this one** (detaches it into a normal standalone entry
+  with the occurrence's values, then opens the editor; later rule changes no
+  longer affect it). Skips are stored in a new `rule_skip` child table (migration
+  `0003`) and attached to rules on load, so `core` expansion — and therefore the
+  totals, stats, and month list — all honour them with no signature changes.
+  Adds `skip_occurrence` / `detach_occurrence` commands (detach is one
+  transaction) and `RecurringRule::with_skips`.
+
 ### Fixed
 
 - `index.html` favicon declared `type="image/png"` for an SVG asset; corrected

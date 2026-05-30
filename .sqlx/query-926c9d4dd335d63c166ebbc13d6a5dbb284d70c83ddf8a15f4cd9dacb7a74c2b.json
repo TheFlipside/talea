@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO rule_skip (rule_id, occurrence_date) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "926c9d4dd335d63c166ebbc13d6a5dbb284d70c83ddf8a15f4cd9dacb7a74c2b"
+}

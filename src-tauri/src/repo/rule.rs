@@ -290,6 +290,28 @@ pub async fn update(pool: &SqlitePool, rule: &RecurringRule) -> Result<bool, Rep
     Ok(true)
 }
 
+/// Whether a rule with `id` exists and belongs to `account_id`. Used to scope
+/// per-occurrence commands to the calling account before they mutate.
+///
+/// # Errors
+/// [`RepoError`] on a database error.
+pub async fn belongs_to(
+    pool: &SqlitePool,
+    id: RecurringRuleId,
+    account_id: AccountId,
+) -> Result<bool, RepoError> {
+    let id = id_to_i64(id.get())?;
+    let account_id = id_to_i64(account_id.get())?;
+    let row = sqlx::query!(
+        r#"SELECT 1 AS "one!" FROM recurring_rule WHERE id = ? AND account_id = ?"#,
+        id,
+        account_id
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.is_some())
+}
+
 /// Deletes a recurring rule. Returns `true` if a row was deleted.
 ///
 /// # Errors

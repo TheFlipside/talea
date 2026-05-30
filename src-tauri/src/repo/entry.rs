@@ -37,9 +37,16 @@ fn row_to_entry(
 
 /// Inserts a validated draft entry and returns it with the assigned id.
 ///
+/// Generic over the executor so it can run on the pool or inside a transaction
+/// (e.g. the atomic "detach an occurrence" path, which inserts a skip and this
+/// entry together).
+///
 /// # Errors
 /// [`RepoError`] on a database error (e.g. a non-existent `account_id`).
-pub async fn insert(pool: &SqlitePool, draft: &Entry) -> Result<Entry, RepoError> {
+pub async fn insert<'e, E>(executor: E, draft: &Entry) -> Result<Entry, RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let account_id = id_to_i64(draft.account_id().get())?;
     let amount = draft.amount().to_string();
     let kind = kind_to_text(draft.kind());
@@ -61,7 +68,7 @@ pub async fn insert(pool: &SqlitePool, draft: &Entry) -> Result<Entry, RepoError
         note,
         category_id
     )
-    .fetch_one(pool)
+    .fetch_one(executor)
     .await?;
 
     row_to_entry(

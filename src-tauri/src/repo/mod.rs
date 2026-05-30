@@ -10,5 +10,6 @@ pub mod account;
 pub mod category;
 pub mod entry;
 pub mod rule;
+pub mod skip;
 
 mod map;

@@ -181,6 +181,75 @@ async fn rule_round_trips_never_and_until() {
 }
 
 #[tokio::test]
+async fn skip_and_detach_occurrence() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let rule = repo::rule::insert(
+        &pool,
+        &RecurringRule::new(
+            RecurringRuleId::new(0),
+            account.id(),
+            Money::from_minor_units(5_000, 2),
+            EntryKind::Expense,
+            None,
+            None,
+            date(2026, TMonth::January, 5),
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    // Skip the February occurrence.
+    repo::skip::add(&pool, rule.id(), date(2026, TMonth::February, 5))
+        .await
+        .unwrap();
+    let skips = repo::skip::for_account(&pool, account.id()).await.unwrap();
+    assert_eq!(skips, vec![(rule.id(), date(2026, TMonth::February, 5))]);
+
+    // load_account_data attaches the skip, so February expands to nothing while
+    // January (unaffected) still does.
+    let (_a, _e, rules) = crate::commands::load_account_data(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(rules[0].skips(), &[date(2026, TMonth::February, 5)]);
+    assert!(rules[0].expand_in(Month::new(2026, 2).unwrap()).is_empty());
+    assert_eq!(rules[0].expand_in(Month::new(2026, 1).unwrap()).len(), 1);
+
+    // Detaching the March occurrence inserts a standalone entry and a skip.
+    let draft = Entry::new(
+        EntryId::new(0),
+        account.id(),
+        Money::from_minor_units(7_000, 2),
+        EntryKind::Expense,
+        date(2026, TMonth::March, 5),
+        Some("higher this month".to_owned()),
+        None,
+    )
+    .unwrap();
+    let entry = repo::skip::detach(&pool, rule.id(), date(2026, TMonth::March, 5), &draft)
+        .await
+        .unwrap();
+    assert!(entry.id().get() > 0);
+    assert_eq!(
+        repo::entry::for_account(&pool, account.id())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        repo::skip::for_account(&pool, account.id())
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[tokio::test]
 async fn rule_amount_history_round_trips_through_breakpoints() {
     let (_dir, pool) = fixture().await;
     let account = seed_account(&pool).await;

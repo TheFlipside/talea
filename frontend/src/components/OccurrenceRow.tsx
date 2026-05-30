@@ -9,14 +9,15 @@ interface OccurrenceRowProps {
   occurrence: Occurrence;
   currency: string;
   category?: Category;
+  onSelect: (occurrence: Occurrence) => void;
 }
 
 /**
- * A read-only month-list row for a recurring-rule occurrence. Unlike an
- * [`EntryRow`](./EntryRow.tsx) it is not editable — it is derived from a rule,
- * marked with a 🔁 badge, and managed from the Recurring screen.
+ * A month-list row for a recurring-rule occurrence. It is derived from a rule
+ * (not a stored entry), marked with a 🔁 badge; tapping it opens actions to
+ * edit or remove that single occurrence.
  */
-export function OccurrenceRow({ occurrence, currency, category }: OccurrenceRowProps) {
+export function OccurrenceRow({ occurrence, currency, category, onSelect }: OccurrenceRowProps) {
   const { t } = useTranslation();
   const income = occurrence.kind === 'income';
   const sign = income ? '+' : '−';
@@ -24,7 +25,12 @@ export function OccurrenceRow({ occurrence, currency, category }: OccurrenceRowP
 
   return (
     <li>
-      <div className="entry-row entry-row--recurring" aria-label={t('recurring.occurrenceAria')}>
+      <button
+        type="button"
+        className="entry-row entry-row--recurring"
+        aria-label={t('recurring.occurrenceAria')}
+        onClick={() => onSelect(occurrence)}
+      >
         <span className="entry-row__icon" aria-hidden="true">
           {category ? categoryIconText(category.icon) : income ? '＋' : '－'}
         </span>
@@ -44,7 +50,7 @@ export function OccurrenceRow({ occurrence, currency, category }: OccurrenceRowP
           {sign}
           {formatMoney(occurrence.amount, currency)}
         </span>
-      </div>
+      </button>
     </li>
   );
 }

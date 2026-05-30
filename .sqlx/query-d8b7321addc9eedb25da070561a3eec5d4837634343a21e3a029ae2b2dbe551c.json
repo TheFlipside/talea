@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 1 AS \"one!\" FROM recurring_rule WHERE id = ? AND account_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "one!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d8b7321addc9eedb25da070561a3eec5d4837634343a21e3a029ae2b2dbe551c"
+}

@@ -12,6 +12,15 @@ use talea_core::{
 };
 use time::Date;
 
+/// Identifies a single occurrence of a recurring rule (the rule plus the
+/// occurrence's date), for the skip / detach commands.
+#[derive(Debug, Deserialize)]
+pub struct OccurrenceRef {
+    pub rule_id: RecurringRuleId,
+    #[serde(with = "iso_date")]
+    pub date: Date,
+}
+
 // Dates arrive from the frontend as ISO `YYYY-MM-DD` strings (the core's own
 // date serde module is crate-private and unreachable here).
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");

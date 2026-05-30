@@ -154,7 +154,8 @@ Remove-Item "$env:APPDATA\app.talea.budget\talea.sqlite3*"
       uncategorized expenses folded into an "Other" slice).
 - [x] Recurring-rule management: add/edit/delete rules with effective-dated
       amounts (a change applies forward without rewriting the past); occurrences
-      show read-only in the month list. *(Per-occurrence overrides are next.)*
+      show in the month list, where a single one can be removed (skipped) or
+      edited (detached into a standalone entry).
 - [ ] Optional biometric app lock.
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the
       actual figures stay in-app behind the biometric lock. *(Later milestone.)*

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT s.rule_id AS \"rule_id!\", s.occurrence_date AS \"occurrence_date!\"\n           FROM rule_skip s\n           JOIN recurring_rule r ON r.id = s.rule_id\n           WHERE r.account_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "rule_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "rule_skip",
+            "name": "rule_id"
+          }
+        }
+      },
+      {
+        "name": "occurrence_date!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rule_skip",
+            "name": "occurrence_date"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d3d85671f369d63b822c65eb47c6907256006d85512f96f9a62be70cd647ee20"
+}

@@ -263,6 +263,12 @@ pub struct RecurringRule {
     start_date: Date,
     end: RuleEnd,
     frequency: Frequency,
+    /// Occurrence dates the user has individually removed ("skipped"), so the
+    /// expansion omits them. Sorted ascending, unique. Internal only: skips are
+    /// attached from storage after load and never cross the IPC boundary
+    /// (`serde(skip)`), so an incoming rule never carries client-supplied skips.
+    #[serde(skip)]
+    skips: Vec<Date>,
 }
 
 #[derive(Deserialize)]
@@ -411,6 +417,7 @@ impl RecurringRule {
             start_date,
             end,
             frequency,
+            skips: Vec::new(),
         })
     }
 
@@ -442,6 +449,23 @@ impl RecurringRule {
     #[must_use]
     pub fn amounts(&self) -> &[AmountSegment] {
         &self.amounts
+    }
+
+    /// Returns the rule with the given occurrence dates marked as skipped
+    /// (sorted, de-duplicated). Used by the persistence layer to attach stored
+    /// per-occurrence removals; `expand_in` then omits these dates.
+    #[must_use]
+    pub fn with_skips(mut self, mut skips: Vec<Date>) -> Self {
+        skips.sort_unstable();
+        skips.dedup();
+        self.skips = skips;
+        self
+    }
+
+    /// The occurrence dates removed from this rule (sorted ascending).
+    #[must_use]
+    pub fn skips(&self) -> &[Date] {
+        &self.skips
     }
 
     /// The amount in effect on `date`: the latest segment whose `effective_from`
@@ -523,6 +547,8 @@ impl RecurringRule {
     pub fn expand_in(&self, month: Month) -> Vec<VirtualEntry> {
         self.occurrences_in(month)
             .into_iter()
+            // Omit occurrences the user has individually removed (skipped).
+            .filter(|date| self.skips.binary_search(date).is_err())
             .map(|date| VirtualEntry {
                 rule_id: self.id,
                 account_id: self.account_id,
@@ -598,7 +624,7 @@ impl RecurringRule {
 
 #[cfg(test)]
 mod tests {
-    use super::{AmountSegment, FreqUnit, Frequency, RecurringRule, RuleEnd};
+    use super::{AmountSegment, FreqUnit, Frequency, RecurringRule, RuleEnd, VirtualEntry};
     use crate::domain::entry::EntryKind;
     use crate::domain::error::DomainError;
     use crate::domain::ids::{AccountId, RecurringRuleId};
@@ -954,6 +980,45 @@ mod tests {
             ),
             Err(DomainError::TooManyAmountSegments { .. })
         ));
+    }
+
+    #[test]
+    fn skipped_occurrences_are_omitted_from_expansion() {
+        // Weekly rule in Jan 2026: 7, 14, 21, 28.
+        let r = rule(
+            date(2026, TMonth::January, 7),
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Weekly, 1).unwrap(),
+        )
+        .with_skips(vec![date(2026, TMonth::January, 14)]);
+        let dates: Vec<_> = r
+            .expand_in(month(2026, 1))
+            .iter()
+            .map(VirtualEntry::date)
+            .collect();
+        assert_eq!(
+            dates,
+            vec![
+                date(2026, TMonth::January, 7),
+                date(2026, TMonth::January, 21),
+                date(2026, TMonth::January, 28),
+            ]
+        );
+        // The raw cadence (occurrences_in) is unaffected by skips.
+        assert_eq!(r.occurrences_in(month(2026, 1)).len(), 4);
+        // with_skips sorts/dedups.
+        let messy = r.with_skips(vec![
+            date(2026, TMonth::January, 28),
+            date(2026, TMonth::January, 7),
+            date(2026, TMonth::January, 28),
+        ]);
+        assert_eq!(
+            messy.skips(),
+            &[
+                date(2026, TMonth::January, 7),
+                date(2026, TMonth::January, 28)
+            ]
+        );
     }
 
     #[test]

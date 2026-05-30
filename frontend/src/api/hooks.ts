@@ -18,6 +18,7 @@ import type {
   CommandError,
   Entry,
   EntryId,
+  IsoDate,
   Month,
   MonthSummary,
   NewAccount,
@@ -214,5 +215,37 @@ export function useDeleteRule(accountId: AccountId) {
   return useMutation<void, CommandError, RecurringRuleId>({
     mutationFn: api.deleteRule,
     onSuccess: () => invalidateRuleData(client, accountId),
+  });
+}
+
+/** Removing/editing a single occurrence changes the month's occurrences and the
+ *  ledger-derived figures (summary, stats), but not the rule list itself. */
+function invalidateOccurrenceData(client: QueryClient, accountId: AccountId): void {
+  void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
+}
+
+export function useSkipOccurrence(accountId: AccountId) {
+  const client = useQueryClient();
+  return useMutation<void, CommandError, { ruleId: RecurringRuleId; date: IsoDate }>({
+    mutationFn: ({ ruleId, date }) => api.skipOccurrence(accountId, ruleId, date),
+    onSuccess: () => invalidateOccurrenceData(client, accountId),
+  });
+}
+
+export function useDetachOccurrence(accountId: AccountId) {
+  const client = useQueryClient();
+  return useMutation<
+    Entry,
+    CommandError,
+    { ruleId: RecurringRuleId; date: IsoDate; entry: NewEntry }
+  >({
+    mutationFn: ({ ruleId, date, entry }) => api.detachOccurrence(accountId, ruleId, date, entry),
+    onSuccess: () => {
+      // A detach removes an occurrence AND adds a standalone entry.
+      invalidateAccountData(client, accountId);
+      void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
+    },
   });
 }

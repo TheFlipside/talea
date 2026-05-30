@@ -16,6 +16,7 @@ import type {
   CategoryId,
   Entry,
   EntryId,
+  IsoDate,
   Month,
   MonthSummary,
   NewAccount,
@@ -83,3 +84,18 @@ export const deleteRule = (id: RecurringRuleId): Promise<void> =>
 
 export const monthOccurrences = (accountId: AccountId, month: Month): Promise<Occurrence[]> =>
   call('month_occurrences', { accountId, month });
+
+export const skipOccurrence = (
+  accountId: AccountId,
+  ruleId: RecurringRuleId,
+  date: IsoDate,
+): Promise<void> =>
+  call('skip_occurrence', { accountId, occurrence: { rule_id: ruleId, date } });
+
+export const detachOccurrence = (
+  accountId: AccountId,
+  ruleId: RecurringRuleId,
+  date: IsoDate,
+  entry: NewEntry,
+): Promise<Entry> =>
+  call('detach_occurrence', { accountId, occurrence: { rule_id: ruleId, date }, entry });

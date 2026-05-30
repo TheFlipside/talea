@@ -14,7 +14,7 @@ use talea_core::{
     CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
-use crate::dto::{NewAccount, NewCategory, NewEntry, NewRule};
+use crate::dto::{NewAccount, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
@@ -245,12 +245,14 @@ pub(crate) async fn load_account_data(
         .ok_or(CommandError::NotFound)?;
     let entries = repo::entry::for_account(&mut *tx, account_id).await?;
     let rules = repo::rule::for_account(&mut *tx, account_id).await?;
+    let skips = repo::skip::for_account(&mut *tx, account_id).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;
-    Ok((account, entries, rules))
+    Ok((account, entries, attach_skips(rules, skips)))
 }
 
-/// Loads an account's recurring rules (verifying the account exists), without
-/// reading its entries — used by `month_occurrences`, which only expands rules.
+/// Loads an account's recurring rules with their skips attached (verifying the
+/// account exists), without reading entries — used by `month_occurrences`, which
+/// only expands rules.
 async fn load_account_rules(
     pool: &SqlitePool,
     account_id: AccountId,
@@ -260,8 +262,28 @@ async fn load_account_rules(
         .await?
         .ok_or(CommandError::NotFound)?;
     let rules = repo::rule::for_account(&mut *tx, account_id).await?;
+    let skips = repo::skip::for_account(&mut *tx, account_id).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;
-    Ok(rules)
+    Ok(attach_skips(rules, skips))
+}
+
+/// Attaches each rule's skipped occurrence dates so its expansion omits them.
+fn attach_skips(
+    rules: Vec<RecurringRule>,
+    skips: Vec<(RecurringRuleId, time::Date)>,
+) -> Vec<RecurringRule> {
+    use std::collections::HashMap;
+    let mut by_rule: HashMap<RecurringRuleId, Vec<time::Date>> = HashMap::new();
+    for (rule_id, date) in skips {
+        by_rule.entry(rule_id).or_default().push(date);
+    }
+    rules
+        .into_iter()
+        .map(|rule| {
+            let dates = by_rule.remove(&rule.id()).unwrap_or_default();
+            rule.with_skips(dates)
+        })
+        .collect()
 }
 
 /// Number of months in `from..=to` (negative if `to` precedes `from`).
@@ -352,4 +374,44 @@ pub async fn month_occurrences(
         .iter()
         .flat_map(|rule| rule.expand_in(month))
         .collect())
+}
+
+/// Removes a single occurrence of a recurring rule ("skip"), so the expansion
+/// omits that date. The rule and its other occurrences are unaffected.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the rule does not belong to `account_id`;
+/// [`CommandError::Database`] on a database error.
+#[tauri::command]
+pub async fn skip_occurrence(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    occurrence: OccurrenceRef,
+) -> Result<(), CommandError> {
+    if !repo::rule::belongs_to(state.inner(), occurrence.rule_id, account_id).await? {
+        return Err(CommandError::NotFound);
+    }
+    Ok(repo::skip::add(state.inner(), occurrence.rule_id, occurrence.date).await?)
+}
+
+/// "Detaches" a single occurrence into an editable standalone entry: records a
+/// skip for the occurrence and inserts `entry` (its edited values) in one
+/// transaction. The new entry is independent — later rule changes don't touch
+/// it.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the rule does not belong to `account_id`;
+/// [`CommandError::Validation`] on invalid entry input; [`CommandError::Database`].
+#[tauri::command]
+pub async fn detach_occurrence(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    occurrence: OccurrenceRef,
+    entry: NewEntry,
+) -> Result<Entry, CommandError> {
+    if !repo::rule::belongs_to(state.inner(), occurrence.rule_id, account_id).await? {
+        return Err(CommandError::NotFound);
+    }
+    let draft = entry.build()?;
+    Ok(repo::skip::detach(state.inner(), occurrence.rule_id, occurrence.date, &draft).await?)
 }
