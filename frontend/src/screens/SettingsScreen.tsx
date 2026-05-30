@@ -8,7 +8,7 @@ import { useSettings } from '../state/contexts';
 
 export function SettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { theme, setTheme, ringMode, setRingMode } = useSettings();
+  const { theme, setTheme, ringMode, setRingMode, appLock, setAppLock } = useSettings();
 
   const themeOptions = [
     { value: 'system', label: t('settings.themeSystem') },
@@ -54,6 +54,18 @@ export function SettingsScreen() {
           ariaLabel={t('settings.ring')}
         />
       </div>
+
+      <div className="settings-row">
+        <span>{t('settings.appLock')}</span>
+        <input
+          className="switch"
+          type="checkbox"
+          checked={appLock}
+          onChange={(e) => setAppLock(e.currentTarget.checked)}
+          aria-label={t('settings.appLock')}
+        />
+      </div>
+      <p className="settings-hint muted">{t('settings.appLockHint')}</p>
     </section>
   );
 }

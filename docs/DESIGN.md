@@ -118,10 +118,22 @@ part of the current scaffold.
 
 ---
 
-## 7. App lock — 🟢 DECIDED (later milestone)
+## 7. App lock — 🟢 DONE (implemented)
 
 Access to the app is **optionally** gated behind device biometrics. Whole-app
-lock (not per-screen). Later milestone.
+lock (not per-screen), toggled in Settings and applied **on launch** (`LockGate`
+wraps the app). Authentication uses `tauri-plugin-biometric`, a **mobile-only**
+plugin (Android/iOS), with the device PIN/passcode allowed as a fallback.
+
+- **Graceful degradation:** the plugin is not compiled into the desktop dev
+  binary and is gated to mobile in capabilities (`capabilities/mobile.json`,
+  `platforms: [android, iOS]`). Where biometrics are unavailable (desktop, or no
+  enrolled biometrics) the app does **not** lock the user out — there is no way
+  to authenticate, and desktop is a development target.
+- **Toggle timing:** enabling/disabling the lock takes effect on the **next
+  launch**, so flipping it on can't strand the user behind a prompt they cancel.
+- Lock-on-resume (re-locking when the app is backgrounded) is a possible later
+  refinement; the current lock is cold-start only.
 
 ---
 
@@ -161,6 +173,15 @@ Accepted as known debt for the scaffold; revisit before a release:
   quadrillion — far below `Decimal::MAX`. If a stricter guarantee is ever wanted,
   convert the ledger functions to return `Result` with checked arithmetic. Note
   the ledger is O(history); the persistence layer may cache per-month aggregates.
+- **The biometric app lock (§7) is a UI gate, not encryption.** The SQLite
+  database is not encrypted at rest, and the lock preference lives in
+  `localStorage`. The lock deters casual access on a running device; it does not
+  protect data against someone with filesystem access (root, ADB, an unencrypted
+  device backup) — they can read the DB regardless. It also auto-disengages where
+  biometrics are unavailable (by design, so the user is never locked out). Revisit
+  with at-rest encryption (e.g. SQLCipher) and OS-keystore-backed settings before
+  treating it as a confidentiality boundary. Lock-on-resume is a separate future
+  refinement (currently cold-start only).
 - **Update commands trust the payload's `account_id`.** `update_account`/
   `update_entry`/`update_rule` locate the row by `id` and write the
   client-supplied `account_id`, so a crafted IPC call could in principle move a

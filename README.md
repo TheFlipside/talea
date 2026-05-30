@@ -156,7 +156,9 @@ Remove-Item "$env:APPDATA\app.talea.budget\talea.sqlite3*"
       amounts (a change applies forward without rewriting the past); occurrences
       show in the month list, where a single one can be removed (skipped) or
       edited (detached into a standalone entry).
-- [ ] Optional biometric app lock.
+- [x] Optional biometric app lock (mobile; a Settings toggle gates the app on
+      launch via `tauri-plugin-biometric`, with graceful degradation where
+      biometrics are unavailable).
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the
       actual figures stay in-app behind the biometric lock. *(Later milestone.)*
 

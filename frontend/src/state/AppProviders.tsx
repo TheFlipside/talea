@@ -80,6 +80,16 @@ function SelectedMonthProvider({ children }: { children: ReactNode }) {
 
 const THEME_KEY = 'talea.theme';
 const RING_KEY = 'talea.ringMode';
+const LOCK_KEY = 'talea.appLock';
+
+function loadBool(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw === 'true';
+  } catch {
+    return fallback;
+  }
+}
 
 function loadString<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -107,6 +117,7 @@ const RING_MODES = ['spent', 'remaining'] as const;
 function SettingsProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemePref>(() => loadString(THEME_KEY, THEME_PREFS, 'system'));
   const [ringMode, setRingModeState] = useState<RingMode>(() => loadString(RING_KEY, RING_MODES, 'spent'));
+  const [appLock, setAppLockState] = useState<boolean>(() => loadBool(LOCK_KEY, false));
 
   // Apply the resolved theme to the document, and track OS changes while on
   // "system". Touches the DOM only (no React state) so it's effect-safe.
@@ -134,9 +145,14 @@ function SettingsProvider({ children }: { children: ReactNode }) {
     persist(RING_KEY, next);
   }, []);
 
+  const setAppLock = useCallback((next: boolean) => {
+    setAppLockState(next);
+    persist(LOCK_KEY, String(next));
+  }, []);
+
   const value = useMemo<SettingsValue>(
-    () => ({ theme, setTheme, ringMode, setRingMode }),
-    [theme, setTheme, ringMode, setRingMode],
+    () => ({ theme, setTheme, ringMode, setRingMode, appLock, setAppLock }),
+    [theme, setTheme, ringMode, setRingMode, appLock, setAppLock],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

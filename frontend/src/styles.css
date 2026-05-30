@@ -659,6 +659,43 @@ button {
   max-width: 14rem;
 }
 
+/* Explanatory line under a settings row (e.g. the app-lock hint). */
+.settings-hint {
+  margin: -0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+/* A simple checkbox toggle used for boolean settings. */
+.switch {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--accent);
+}
+
+/* ---- App lock screen ---- */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--bg);
+}
+
+.lock-screen__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.lock-screen__icon {
+  font-size: 3rem;
+}
+
 /* ---- Manage accounts ---- */
 .account-list {
   list-style: none;

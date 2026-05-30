@@ -44,6 +44,9 @@ export interface SettingsValue {
   setTheme: (theme: ThemePref) => void;
   ringMode: RingMode;
   setRingMode: (mode: RingMode) => void;
+  /** Whether to require a biometric unlock on launch (mobile; see `LockGate`). */
+  appLock: boolean;
+  setAppLock: (on: boolean) => void;
 }
 
 export const SettingsContext = createContext<SettingsValue | null>(null);

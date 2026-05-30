@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App';
+import { LockGate } from './components/LockGate';
 import './i18n';
 import { AppProviders } from './state/AppProviders';
 import './styles.css';
@@ -27,7 +28,9 @@ ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AppProviders>
-        <App />
+        <LockGate>
+          <App />
+        </LockGate>
       </AppProviders>
     </QueryClientProvider>
   </React.StrictMode>,

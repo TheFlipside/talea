@@ -113,6 +113,14 @@ All notable changes to this project are documented in this file.
 - A **Home** button is now the leftmost icon in the navigation bar, switching
   back to the month view.
 
+- Optional **biometric app lock**: a Settings toggle ("Require biometric
+  unlock") that gates the app on launch behind device biometrics (or the device
+  PIN as fallback), via the mobile-only `tauri-plugin-biometric`. A `LockGate`
+  wraps the app; the lock applies from the next launch. Where biometrics are
+  unavailable (the desktop dev build, or no enrolled biometrics) the app does
+  not lock — the plugin is gated to mobile in `capabilities/mobile.json` and not
+  compiled into the desktop binary.
+
 ### Changed
 
 - The date picker's calendar now renders in normal flow rather than as an

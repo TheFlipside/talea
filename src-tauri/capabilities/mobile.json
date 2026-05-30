@@ -1,0 +1,7 @@
+{
+  "identifier": "mobile",
+  "description": "Mobile-only (Android/iOS) capability: the biometric app lock.",
+  "platforms": ["android", "iOS"],
+  "windows": ["main"],
+  "permissions": ["biometric:default"]
+}

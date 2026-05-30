@@ -65,7 +65,12 @@ fn smoke_check(name: &str) -> SmokeInfo {
 /// database.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // The biometric app lock is mobile-only; the plugin isn't built into the
+    // desktop binary (see Cargo.toml), so the frontend just sees it unavailable.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_biometric::init());
+    builder
         .setup(|app| {
             // Open (creating if needed) and migrate the on-device database, then
             // share the pool with all commands. Async work is driven on Tauri's

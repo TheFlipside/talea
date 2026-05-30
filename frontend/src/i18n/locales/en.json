@@ -125,7 +125,15 @@
     "language": "Language",
     "ring": "Budget ring shows",
     "ringSpent": "Spent so far",
-    "ringRemaining": "Remaining"
+    "ringRemaining": "Remaining",
+    "appLock": "Require biometric unlock",
+    "appLockHint": "Locks the app on launch using device biometrics (or your device PIN). Guards against casual access — your data isn't encrypted on disk. Takes effect next launch."
+  },
+  "lock": {
+    "reason": "Unlock Talea",
+    "prompt": "Authenticate to unlock your data.",
+    "unlock": "Unlock",
+    "authenticating": "Authenticating…"
   },
   "nav": {
     "sections": "Sections",
