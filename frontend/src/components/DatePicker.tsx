@@ -61,8 +61,10 @@ export function DatePicker({ value, onChange, ariaLabel }: DatePickerProps) {
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape' && open) {
-      // Don't let the modal also handle Escape and close itself.
+      // Close only the calendar — not an enclosing modal (whose listener is on
+      // `document`, so stop the native event from reaching it).
       event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
       event.preventDefault();
       setOpen(false);
     }

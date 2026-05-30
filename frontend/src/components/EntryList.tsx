@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 import type { AccountId, Entry } from '../api/types';
 import { useEntries } from '../api/hooks';
 import { filterEntriesToMonth, sortEntriesForDisplay } from '../lib/entries';
@@ -13,11 +15,12 @@ interface EntryListProps {
 }
 
 export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
+  const { t } = useTranslation();
   const { month } = useSelectedMonth();
   const { data: entries, isPending, error } = useEntries(accountId);
 
   if (isPending) {
-    return <Spinner label="Loading entries…" />;
+    return <Spinner label={t('entry.loading')} />;
   }
   if (error) {
     return <ErrorBanner error={error} />;
@@ -26,7 +29,7 @@ export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
   const monthEntries = sortEntriesForDisplay(filterEntriesToMonth(entries, month));
 
   if (monthEntries.length === 0) {
-    return <p className="entry-list__empty">No entries this month.</p>;
+    return <p className="entry-list__empty">{t('entry.empty')}</p>;
   }
 
   return (

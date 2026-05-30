@@ -1,14 +1,21 @@
 /** Provider components for app-wide UI state. */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { AccountId } from '../api/types';
 import { currentMonth, nextMonth, prevMonth } from '../lib/month';
+import type { RingMode } from '../lib/ring';
+import { resolveTheme, systemPrefersLight, type ThemePref } from '../lib/theme';
 import {
   ActiveAccountContext,
+  NavigationContext,
   SelectedMonthContext,
+  SettingsContext,
   type ActiveAccountValue,
+  type NavigationValue,
+  type Screen,
   type SelectedMonthValue,
+  type SettingsValue,
 } from './contexts';
 
 const STORAGE_KEY = 'talea.activeAccountId';
@@ -71,10 +78,87 @@ function SelectedMonthProvider({ children }: { children: ReactNode }) {
   return <SelectedMonthContext.Provider value={value}>{children}</SelectedMonthContext.Provider>;
 }
 
+const THEME_KEY = 'talea.theme';
+const RING_KEY = 'talea.ringMode';
+
+function loadString<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw && (allowed as readonly string[]).includes(raw)) {
+      return raw as T;
+    }
+  } catch {
+    // Ignore; use fallback.
+  }
+  return fallback;
+}
+
+function persist(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+const THEME_PREFS = ['system', 'light', 'dark'] as const;
+const RING_MODES = ['spent', 'remaining'] as const;
+
+function SettingsProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<ThemePref>(() => loadString(THEME_KEY, THEME_PREFS, 'system'));
+  const [ringMode, setRingModeState] = useState<RingMode>(() => loadString(RING_KEY, RING_MODES, 'spent'));
+
+  // Apply the resolved theme to the document, and track OS changes while on
+  // "system". Touches the DOM only (no React state) so it's effect-safe.
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      root.dataset.theme = resolveTheme(theme, systemPrefersLight());
+    };
+    apply();
+    if (theme !== 'system' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, [theme]);
+
+  const setTheme = useCallback((next: ThemePref) => {
+    setThemeState(next);
+    persist(THEME_KEY, next);
+  }, []);
+
+  const setRingMode = useCallback((next: RingMode) => {
+    setRingModeState(next);
+    persist(RING_KEY, next);
+  }, []);
+
+  const value = useMemo<SettingsValue>(
+    () => ({ theme, setTheme, ringMode, setRingMode }),
+    [theme, setTheme, ringMode, setRingMode],
+  );
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+}
+
+function NavigationProvider({ children }: { children: ReactNode }) {
+  const [screen, setScreen] = useState<Screen>('month');
+  const navigate = useCallback((next: Screen) => {
+    setScreen(next);
+  }, []);
+  const value = useMemo<NavigationValue>(() => ({ screen, navigate }), [screen, navigate]);
+  return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
+}
+
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <ActiveAccountProvider>
-      <SelectedMonthProvider>{children}</SelectedMonthProvider>
-    </ActiveAccountProvider>
+    <SettingsProvider>
+      <NavigationProvider>
+        <ActiveAccountProvider>
+          <SelectedMonthProvider>{children}</SelectedMonthProvider>
+        </ActiveAccountProvider>
+      </NavigationProvider>
+    </SettingsProvider>
   );
 }

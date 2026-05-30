@@ -1,7 +1,10 @@
+import { useTranslation } from 'react-i18next';
+
 import type { AccountId } from '../api/types';
 import { useMonthSummary } from '../api/hooks';
-import { formatMoney, parseMoneyForDisplay } from '../lib/money';
-import { useSelectedMonth } from '../state/contexts';
+import { formatMoney } from '../lib/money';
+import { ringView } from '../lib/ring';
+import { useSelectedMonth, useSettings } from '../state/contexts';
 import { BudgetRing } from './BudgetRing';
 import { ErrorBanner } from './ErrorBanner';
 import { Spinner } from './Spinner';
@@ -12,41 +15,39 @@ interface SummaryBarProps {
 }
 
 export function SummaryBar({ accountId, currency }: SummaryBarProps) {
+  const { t } = useTranslation();
   const { month } = useSelectedMonth();
+  const { ringMode } = useSettings();
   const { data: summary, isPending, error } = useMonthSummary(accountId, month);
 
   if (isPending) {
-    return <Spinner label="Loading summary…" />;
+    return <Spinner label={t('summary.loading')} />;
   }
   if (error) {
     return <ErrorBanner error={error} />;
   }
 
-  // Display-only ratio: spent vs. funds available before spending.
-  const funds = parseMoneyForDisplay(summary.carry_in) + parseMoneyForDisplay(summary.income);
-  const spent = parseMoneyForDisplay(summary.expenses);
-  const spentFraction = funds > 0 ? spent / funds : 0;
-  const overspent = parseMoneyForDisplay(summary.available) < 0;
+  const ring = ringView(summary, ringMode);
 
   return (
     <section className="summary">
       <BudgetRing
-        spentFraction={spentFraction}
-        overspent={overspent}
-        label={`${Math.round(Math.min(Math.max(spentFraction, 0), 1) * 100)}% of this month's funds spent`}
+        spentFraction={ring.fraction}
+        overspent={ring.overspent}
+        label={t(ring.labelKey, { percent: ring.percent })}
       />
       <dl className="summary__figures">
         <div>
-          <dt>Income</dt>
+          <dt>{t('summary.income')}</dt>
           <dd className="amount amount--income">{formatMoney(summary.income, currency)}</dd>
         </div>
         <div>
-          <dt>Expenses</dt>
+          <dt>{t('summary.expenses')}</dt>
           <dd className="amount amount--expense">{formatMoney(summary.expenses, currency)}</dd>
         </div>
         <div>
-          <dt>Available to end of month</dt>
-          <dd className={`amount amount--total${overspent ? ' amount--negative' : ''}`}>
+          <dt>{t('summary.available')}</dt>
+          <dd className={`amount amount--total${ring.overspent ? ' amount--negative' : ''}`}>
             {formatMoney(summary.available, currency)}
           </dd>
         </div>

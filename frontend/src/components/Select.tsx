@@ -92,8 +92,10 @@ export function Select({ value, options, onChange, ariaLabel }: SelectProps) {
         choose(activeIndex);
         break;
       case 'Escape':
-        // Don't let an enclosing modal also handle Escape and close itself.
+        // Close only this dropdown — not an enclosing modal. The modal's
+        // listener is on `document`, so stop the native event there too.
         event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
         event.preventDefault();
         setOpen(false);
         break;

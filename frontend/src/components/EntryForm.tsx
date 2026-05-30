@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { AccountId, Entry, EntryKind } from '../api/types';
 import { useCreateEntry, useDeleteEntry, useUpdateEntry } from '../api/hooks';
@@ -17,6 +18,7 @@ interface EntryFormProps {
 }
 
 export function EntryForm({ accountId, currency, editing, onClose }: EntryFormProps) {
+  const { t } = useTranslation();
   const { month } = useSelectedMonth();
   const create = useCreateEntry(accountId);
   const update = useUpdateEntry(accountId);
@@ -36,7 +38,7 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
     event.preventDefault();
     const trimmedAmount = amount.trim();
     if (!isMoneyInput(trimmedAmount) || Number(trimmedAmount) <= 0) {
-      setLocalError('Enter a positive amount, e.g. 12.34.');
+      setLocalError(t('entry.invalidAmount'));
       return;
     }
     setLocalError(null);
@@ -63,11 +65,11 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
   }
 
   return (
-    <Modal label={editing ? 'Edit entry' : 'New entry'} onClose={onClose}>
+    <Modal label={editing ? t('entry.edit') : t('entry.new')} onClose={onClose}>
       <form className="entry-form" onSubmit={handleSubmit}>
-        <h2>{editing ? 'Edit entry' : 'New entry'}</h2>
+        <h2>{editing ? t('entry.edit') : t('entry.new')}</h2>
 
-        <div className="segmented" role="group" aria-label="Entry kind">
+        <div className="segmented" role="group" aria-label={t('entry.kind')}>
           {(['expense', 'income'] as const).map((k) => (
             <button
               key={k}
@@ -76,31 +78,35 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
               aria-pressed={kind === k}
               onClick={() => setKind(k)}
             >
-              {k === 'expense' ? 'Expense' : 'Income'}
+              {k === 'expense' ? t('entry.expense') : t('entry.income')}
             </button>
           ))}
         </div>
 
         <label className="field">
-          <span>Amount ({currency})</span>
+          <span>{t('entry.amount', { currency })}</span>
           <input
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.currentTarget.value)}
-            placeholder="0.00"
+            placeholder={t('entry.amountPlaceholder')}
             required
             data-autofocus="true"
           />
         </label>
 
         <div className="field">
-          <span>Date</span>
-          <DatePicker value={date} onChange={setDate} ariaLabel="Date" />
+          <span>{t('entry.date')}</span>
+          <DatePicker value={date} onChange={setDate} ariaLabel={t('entry.date')} />
         </div>
 
         <label className="field">
-          <span>Note (optional)</span>
-          <input value={note} onChange={(e) => setNote(e.currentTarget.value)} placeholder="e.g. Groceries" />
+          <span>{t('entry.note')}</span>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.currentTarget.value)}
+            placeholder={t('entry.notePlaceholder')}
+          />
         </label>
 
         {errorMessage && <p className="field-error">{errorMessage}</p>}
@@ -115,15 +121,15 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
                 remove.mutate(editing.id, { onSuccess: onClose });
               }}
             >
-              Delete
+              {t('entry.delete')}
             </button>
           )}
           <span className="modal__spacer" />
           <button type="button" className="btn btn--ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" className="btn" disabled={busy}>
-            {editing ? 'Save' : 'Add'}
+            {editing ? t('entry.save') : t('entry.add')}
           </button>
         </div>
       </form>

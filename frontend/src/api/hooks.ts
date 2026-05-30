@@ -62,6 +62,27 @@ export function useCreateAccount() {
   });
 }
 
+export function useUpdateAccount() {
+  const client = useQueryClient();
+  return useMutation<Account, CommandError, Account>({
+    mutationFn: api.updateAccount,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.accounts });
+    },
+  });
+}
+
+export function useDeleteAccount() {
+  const client = useQueryClient();
+  return useMutation<void, CommandError, AccountId>({
+    mutationFn: api.deleteAccount,
+    onSuccess: (_data, accountId) => {
+      void client.invalidateQueries({ queryKey: queryKeys.accounts });
+      invalidateAccountData(client, accountId);
+    },
+  });
+}
+
 export function useCreateEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<Entry, CommandError, NewEntry>({

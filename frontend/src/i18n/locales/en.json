@@ -1,0 +1,100 @@
+{
+  "app": {
+    "title": "Talea",
+    "settingUp": "Setting up…"
+  },
+  "common": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "comingSoon": "Coming soon",
+    "back": "Back"
+  },
+  "errors": {
+    "validation": "Please check your input.",
+    "not_found": "That item no longer exists.",
+    "database": "Something went wrong reading your data.",
+    "corrupt": "Your data file appears to be corrupt."
+  },
+  "summary": {
+    "income": "Income",
+    "expenses": "Expenses",
+    "available": "Available to end of month",
+    "loading": "Loading summary…",
+    "ringSpent": "{{percent}}% of this month's funds spent",
+    "ringRemaining": "{{percent}}% of this month's funds remaining"
+  },
+  "month": {
+    "navigation": "Month navigation",
+    "previous": "Previous month",
+    "next": "Next month"
+  },
+  "entry": {
+    "new": "New entry",
+    "edit": "Edit entry",
+    "kind": "Entry kind",
+    "income": "Income",
+    "expense": "Expense",
+    "amount": "Amount ({{currency}})",
+    "amountPlaceholder": "0.00",
+    "date": "Date",
+    "note": "Note (optional)",
+    "notePlaceholder": "e.g. Groceries",
+    "add": "Add",
+    "save": "Save",
+    "delete": "Delete",
+    "empty": "No entries this month.",
+    "loading": "Loading entries…",
+    "invalidAmount": "Enter a positive amount, e.g. 12.34."
+  },
+  "account": {
+    "name": "Name",
+    "namePlaceholder": "Checking",
+    "icon": "Icon",
+    "currency": "Currency",
+    "openingBalance": "Opening balance ({{currency}})",
+    "startMonth": "Start month",
+    "new": "New account",
+    "edit": "Edit account",
+    "create": "Create account",
+    "save": "Save changes",
+    "active": "Active account",
+    "errorName": "Please enter a name.",
+    "errorCurrency": "Currency must be a 3-letter code, e.g. USD.",
+    "errorBalance": "Enter a valid opening balance, e.g. 0.00.",
+    "currencyChangeWarning": "Changing the currency relabels existing entries — their amounts are not converted."
+  },
+  "accounts": {
+    "title": "Accounts",
+    "add": "Add account",
+    "deleteAria": "Delete {{name}}",
+    "deleteTitle": "Delete account?",
+    "deleteWarning": "This permanently deletes \"{{name}}\" and all of its entries and recurring rules.",
+    "deleteConfirm": "Delete"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "language": "Language",
+    "ring": "Budget ring shows",
+    "ringSpent": "Spent so far",
+    "ringRemaining": "Remaining"
+  },
+  "nav": {
+    "sections": "Sections",
+    "home": "Home",
+    "accounts": "Accounts",
+    "categories": "Categories",
+    "recurring": "Recurring",
+    "stats": "Stats",
+    "settings": "Settings"
+  },
+  "placeholder": {
+    "categories": "Categories",
+    "recurring": "Recurring records",
+    "stats": "Statistics",
+    "body": "Coming soon."
+  }
+}

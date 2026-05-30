@@ -55,6 +55,14 @@ All notable changes to this project are documented in this file.
 - `LICENSE` (MIT) and a `justfile` of common tasks (dev/build/test/lint/gate,
   sqlx-prepare, reset-db) including a `crap` recipe for CRAP coverage diagnosis
   (`cargo llvm-cov` + `cargo crap`).
+- Phase-2 foundation: **internationalization** (react-i18next; all UI strings in
+  an English catalog, ready for more languages), a **Settings screen** (theme
+  light/dark/system with a light palette, language, and what the budget ring
+  shows — spent vs remaining), a **navigation restructure** (a settings cog
+  replaces the top-bar "+ Account"; an icon nav bar for the manager screens),
+  and a **Manage Accounts** screen (add / edit / delete, with a delete
+  confirmation that warns the cascade). The category / recurring / stats nav
+  icons route to "coming soon" placeholders.
 
 ### Fixed
 

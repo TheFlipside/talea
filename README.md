@@ -146,6 +146,9 @@ Remove-Item "$env:APPDATA\app.talea.budget\talea.sqlite3*"
 - [x] Typed Tauri commands exposing the domain to the frontend.
 - [x] Phase-1 UI: account onboarding/switch, month screen (income/expenses/
       available + budget ring), entry CRUD, prev/next + swipe month navigation.
+- [x] Phase-2 foundation: internationalization (react-i18next), a settings
+      screen (theme, language, budget-ring meaning), an icon navigation bar, and
+      a Manage Accounts screen (add/edit/delete).
 - [ ] Category management, recurring-entry management, and the stats screen.
 - [ ] Optional biometric app lock.
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the

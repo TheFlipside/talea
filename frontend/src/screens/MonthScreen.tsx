@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Account, Entry } from '../api/types';
 import { EntryForm } from '../components/EntryForm';
@@ -12,6 +13,7 @@ import { useSelectedMonth } from '../state/contexts';
 type FormState = { mode: 'closed' } | { mode: 'new' } | { mode: 'edit'; entry: Entry };
 
 export function MonthScreen({ account }: { account: Account }) {
+  const { t } = useTranslation();
   const { next, prev } = useSelectedMonth();
   const [form, setForm] = useState<FormState>({ mode: 'closed' });
 
@@ -19,7 +21,7 @@ export function MonthScreen({ account }: { account: Account }) {
   const swipe = useSwipe({ onSwipeLeft: next, onSwipeRight: prev });
 
   return (
-    <main className="month-screen" {...swipe}>
+    <div className="month-screen" {...swipe}>
       <MonthNav />
       <SummaryBar accountId={account.id} currency={account.currency} />
 
@@ -34,7 +36,7 @@ export function MonthScreen({ account }: { account: Account }) {
       <button
         type="button"
         className="fab"
-        aria-label="Add entry"
+        aria-label={t('entry.new')}
         onClick={() => setForm({ mode: 'new' })}
       >
         +
@@ -48,6 +50,6 @@ export function MonthScreen({ account }: { account: Account }) {
           onClose={() => setForm({ mode: 'closed' })}
         />
       )}
-    </main>
+    </div>
   );
 }
