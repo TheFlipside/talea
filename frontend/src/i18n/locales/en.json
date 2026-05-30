@@ -39,6 +39,8 @@
     "date": "Date",
     "note": "Note (optional)",
     "notePlaceholder": "e.g. Groceries",
+    "category": "Category",
+    "categoryNone": "None",
     "add": "Add",
     "save": "Save",
     "delete": "Delete",
@@ -70,6 +72,39 @@
     "deleteTitle": "Delete account?",
     "deleteWarning": "This permanently deletes \"{{name}}\" and all of its entries and recurring rules.",
     "deleteConfirm": "Delete"
+  },
+  "category": {
+    "new": "New category",
+    "edit": "Edit category",
+    "label": "Label",
+    "labelPlaceholder": "e.g. Groceries",
+    "icon": "Icon",
+    "create": "Create category",
+    "save": "Save changes",
+    "errorLabel": "Please enter a label."
+  },
+  "categories": {
+    "title": "Categories",
+    "add": "Add category",
+    "empty": "No categories yet.",
+    "deleteAria": "Delete {{name}}",
+    "deleteTitle": "Delete category?",
+    "deleteWarning": "Entries in \"{{name}}\" keep their amounts but lose this category.",
+    "deleteConfirm": "Delete"
+  },
+  "defaultCategories": {
+    "groceries": "Groceries",
+    "dining": "Dining",
+    "transport": "Transport",
+    "housing": "Housing",
+    "utilities": "Utilities",
+    "health": "Health",
+    "entertainment": "Entertainment",
+    "shopping": "Shopping",
+    "salary": "Salary",
+    "savings": "Savings",
+    "gifts": "Gifts",
+    "other": "Other"
   },
   "settings": {
     "title": "Settings",

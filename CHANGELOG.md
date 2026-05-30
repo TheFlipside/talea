@@ -63,6 +63,10 @@ All notable changes to this project are documented in this file.
   and a **Manage Accounts** screen (add / edit / delete, with a delete
   confirmation that warns the cascade). The category / recurring / stats nav
   icons route to "coming soon" placeholders.
+- Category manager: add / edit / delete global categories with an emoji picker,
+  prefilled on first run with a dozen common categories (labels localized).
+  Categories are selectable on entries and shown (icon + label) in the month
+  list. Deleting a category keeps the entries and just clears their category.
 
 ### Fixed
 

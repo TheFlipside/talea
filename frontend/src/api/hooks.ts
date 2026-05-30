@@ -12,12 +12,15 @@ import { queryKeys } from './queryKeys';
 import type {
   Account,
   AccountId,
+  Category,
+  CategoryId,
   CommandError,
   Entry,
   EntryId,
   Month,
   MonthSummary,
   NewAccount,
+  NewCategory,
   NewEntry,
 } from './types';
 
@@ -79,6 +82,45 @@ export function useDeleteAccount() {
     onSuccess: (_data, accountId) => {
       void client.invalidateQueries({ queryKey: queryKeys.accounts });
       invalidateAccountData(client, accountId);
+    },
+  });
+}
+
+export function useCategories() {
+  return useQuery<Category[], CommandError>({
+    queryKey: queryKeys.categories,
+    queryFn: api.listCategories,
+  });
+}
+
+export function useCreateCategory() {
+  const client = useQueryClient();
+  return useMutation<Category, CommandError, NewCategory>({
+    mutationFn: api.createCategory,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.categories });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const client = useQueryClient();
+  return useMutation<Category, CommandError, Category>({
+    mutationFn: api.updateCategory,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.categories });
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const client = useQueryClient();
+  return useMutation<void, CommandError, CategoryId>({
+    mutationFn: api.deleteCategory,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.categories });
+      // Deleting a category nulls it on referencing entries; refresh entry lists.
+      void client.invalidateQueries({ queryKey: queryKeys.entriesAll });
     },
   });
 }

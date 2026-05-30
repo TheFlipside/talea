@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import type { AccountId, Entry } from '../api/types';
-import { useEntries } from '../api/hooks';
+import type { AccountId, Category, Entry } from '../api/types';
+import { useCategories, useEntries } from '../api/hooks';
 import { filterEntriesToMonth, sortEntriesForDisplay } from '../lib/entries';
 import { useSelectedMonth } from '../state/contexts';
 import { EntryRow } from './EntryRow';
@@ -18,6 +18,7 @@ export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
   const { t } = useTranslation();
   const { month } = useSelectedMonth();
   const { data: entries, isPending, error } = useEntries(accountId);
+  const { data: categories } = useCategories();
 
   if (isPending) {
     return <Spinner label={t('entry.loading')} />;
@@ -26,6 +27,7 @@ export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
     return <ErrorBanner error={error} />;
   }
 
+  const byId = new Map<number, Category>((categories ?? []).map((c) => [c.id, c]));
   const monthEntries = sortEntriesForDisplay(filterEntriesToMonth(entries, month));
 
   if (monthEntries.length === 0) {
@@ -35,7 +37,13 @@ export function EntryList({ accountId, currency, onEdit }: EntryListProps) {
   return (
     <ul className="entry-list">
       {monthEntries.map((entry) => (
-        <EntryRow key={entry.id} entry={entry} currency={currency} onEdit={onEdit} />
+        <EntryRow
+          key={entry.id}
+          entry={entry}
+          currency={currency}
+          category={entry.category_id != null ? byId.get(entry.category_id) : undefined}
+          onEdit={onEdit}
+        />
       ))}
     </ul>
   );

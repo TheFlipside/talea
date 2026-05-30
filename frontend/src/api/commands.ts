@@ -11,11 +11,14 @@ import { call } from './client';
 import type {
   Account,
   AccountId,
+  Category,
+  CategoryId,
   Entry,
   EntryId,
   Month,
   MonthSummary,
   NewAccount,
+  NewCategory,
   NewEntry,
 } from './types';
 
@@ -44,3 +47,14 @@ export const deleteEntry = (id: EntryId): Promise<void> =>
 
 export const monthSummary = (accountId: AccountId, month: Month): Promise<MonthSummary> =>
   call('month_summary', { accountId, month });
+
+export const listCategories = (): Promise<Category[]> => call('list_categories');
+
+export const createCategory = (category: NewCategory): Promise<Category> =>
+  call('create_category', { category });
+
+export const updateCategory = (category: Category): Promise<Category> =>
+  call('update_category', { category });
+
+export const deleteCategory = (id: CategoryId): Promise<void> =>
+  call('delete_category', { id });

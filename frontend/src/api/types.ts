@@ -64,6 +64,20 @@ export interface NewEntry {
   category_id?: CategoryId | null;
 }
 
+/** A category's marker: a preset id or a literal emoji (UI uses emoji). */
+export type CategoryIcon = { preset: string } | { emoji: string };
+
+export interface Category {
+  id: CategoryId;
+  label: string;
+  icon: CategoryIcon;
+}
+
+export interface NewCategory {
+  label: string;
+  icon: CategoryIcon;
+}
+
 export interface MonthSummary {
   month: Month;
   carry_in: Money;

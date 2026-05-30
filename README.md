@@ -149,7 +149,8 @@ Remove-Item "$env:APPDATA\app.talea.budget\talea.sqlite3*"
 - [x] Phase-2 foundation: internationalization (react-i18next), a settings
       screen (theme, language, budget-ring meaning), an icon navigation bar, and
       a Manage Accounts screen (add/edit/delete).
-- [ ] Category management, recurring-entry management, and the stats screen.
+- [x] Category management (emoji picker, common defaults) wired into entries.
+- [ ] Recurring-entry management and the stats screen.
 - [ ] Optional biometric app lock.
 - [ ] **Home-screen widget:** an abstract ring / color indicator only — the
       actual figures stay in-app behind the biometric lock. *(Later milestone.)*

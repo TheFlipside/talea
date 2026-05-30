@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { AccountId, Entry, EntryKind } from '../api/types';
-import { useCreateEntry, useDeleteEntry, useUpdateEntry } from '../api/hooks';
+import { useCategories, useCreateEntry, useDeleteEntry, useUpdateEntry } from '../api/hooks';
+import { categoryIconText } from '../lib/categories';
 import { defaultDateForMonth } from '../lib/date';
 import { isMoneyInput } from '../lib/money';
 import { useSelectedMonth } from '../state/contexts';
 import { DatePicker } from './DatePicker';
 import { Modal } from './Modal';
+import { Select } from './Select';
 
 interface EntryFormProps {
   accountId: AccountId;
@@ -23,12 +25,28 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
   const create = useCreateEntry(accountId);
   const update = useUpdateEntry(accountId);
   const remove = useDeleteEntry(accountId);
+  const { data: categories } = useCategories();
 
   const [amount, setAmount] = useState(editing?.amount ?? '');
   const [kind, setKind] = useState<EntryKind>(editing?.kind ?? 'expense');
   const [date, setDate] = useState(editing?.date ?? defaultDateForMonth(month));
   const [note, setNote] = useState(editing?.note ?? '');
+  const [categoryId, setCategoryId] = useState(
+    editing?.category_id != null ? String(editing.category_id) : '',
+  );
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const categoryOptions = [
+    { value: '', label: t('entry.categoryNone') },
+    ...(categories ?? []).map((c) => ({
+      value: String(c.id),
+      label: (
+        <span>
+          {categoryIconText(c.icon)} {c.label}
+        </span>
+      ),
+    })),
+  ];
 
   const mutationError = create.error ?? update.error ?? remove.error;
   const errorMessage = localError ?? mutationError?.message ?? null;
@@ -44,9 +62,10 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
     setLocalError(null);
     const trimmedNote = note.trim();
     const noteValue = trimmedNote === '' ? null : trimmedNote;
+    const categoryValue = categoryId === '' ? null : Number(categoryId);
     if (editing) {
       update.mutate(
-        { ...editing, amount: amount.trim(), kind, date, note: noteValue },
+        { ...editing, amount: amount.trim(), kind, date, note: noteValue, category_id: categoryValue },
         { onSuccess: onClose },
       );
     } else {
@@ -57,7 +76,7 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
           kind,
           date,
           note: noteValue,
-          category_id: null,
+          category_id: categoryValue,
         },
         { onSuccess: onClose },
       );
@@ -98,6 +117,16 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
         <div className="field">
           <span>{t('entry.date')}</span>
           <DatePicker value={date} onChange={setDate} ariaLabel={t('entry.date')} />
+        </div>
+
+        <div className="field">
+          <span>{t('entry.category')}</span>
+          <Select
+            value={categoryId}
+            options={categoryOptions}
+            onChange={setCategoryId}
+            ariaLabel={t('entry.category')}
+          />
         </div>
 
         <label className="field">

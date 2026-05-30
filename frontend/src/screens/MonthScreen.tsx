@@ -44,6 +44,7 @@ export function MonthScreen({ account }: { account: Account }) {
 
       {form.mode !== 'closed' && (
         <EntryForm
+          key={form.mode === 'edit' ? form.entry.id : 'new'}
           accountId={account.id}
           currency={account.currency}
           editing={form.mode === 'edit' ? form.entry : null}
