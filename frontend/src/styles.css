@@ -334,11 +334,15 @@ button {
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  overscroll-behavior: contain;
 }
 
 .modal {
   width: 100%;
   max-width: 28rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border-radius: var(--radius);
   padding: 1.25rem;
@@ -515,6 +519,7 @@ button {
   list-style: none;
   max-height: 15rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface-2);
   border: 1px solid var(--accent-track);
   border-radius: 0.5rem;
@@ -774,6 +779,8 @@ button {
   gap: 0.3rem;
   max-height: 60vh;
   overflow-y: auto;
+  /* Don't chain scrolling to the modal/content behind when hitting the edge. */
+  overscroll-behavior: contain;
   margin-top: 0.5rem;
 }
 
