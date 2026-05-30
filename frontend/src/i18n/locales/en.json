@@ -110,6 +110,7 @@
     "title": "Statistics",
     "total": "Total expenses",
     "other": "Other",
+    "chartLabel": "Expenses by category",
     "empty": "No expenses this month."
   },
   "settings": {

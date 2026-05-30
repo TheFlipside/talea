@@ -5,7 +5,9 @@ import type { Account, Category, CategoryId, CommandError } from '../api/types';
 import { useCategories, useExpensesByCategory, useMonthSummary } from '../api/hooks';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { MonthNav } from '../components/MonthNav';
+import { PieChart } from '../components/PieChart';
 import { Spinner } from '../components/Spinner';
+import { assignSliceColors } from '../lib/chart';
 import { categoryIconText } from '../lib/categories';
 import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { useSwipe } from '../lib/swipe';
@@ -58,6 +60,7 @@ export function StatsScreen({ account }: { account: Account }) {
         resolve={resolve}
         emptyLabel={t('stats.empty')}
         totalLabel={t('stats.total')}
+        chartLabel={t('stats.chartLabel')}
       />
     </section>
   );
@@ -72,6 +75,7 @@ interface StatsBodyProps {
   resolve: (categoryId: CategoryId | null) => { icon: string; label: string };
   emptyLabel: string;
   totalLabel: string;
+  chartLabel: string;
 }
 
 function StatsBody({
@@ -83,6 +87,7 @@ function StatsBody({
   resolve,
   emptyLabel,
   totalLabel,
+  chartLabel,
 }: StatsBodyProps) {
   if (isPending) {
     return <Spinner />;
@@ -96,20 +101,35 @@ function StatsBody({
 
   // Display-only denominator for the bar/percent ratios (the audited chokepoint).
   // Summed from the rows themselves — not the separate `totalExpenses` query — so
-  // the bars are always internally consistent (each row's share is its fraction
-  // of the same data), with no transient mismatch while the two queries settle.
-  // This is a visual ratio only; the authoritative total is the money string.
+  // the bars and pie are always internally consistent (each row's share is its
+  // fraction of the same data), with no transient mismatch while the queries
+  // settle. This is a visual ratio only; the authoritative total is the string.
   const denominator = rows.reduce((sum, row) => sum + parseMoneyForDisplay(row.total), 0);
+
+  // One stable color per row, shared by the pie slice and that row's bar fill;
+  // resolve each row's icon/label once for both the pie and the bars.
+  const colors = assignSliceColors(rows);
+  const resolved = rows.map((row) => resolve(row.category_id));
 
   return (
     <>
+      <PieChart
+        label={chartLabel}
+        slices={rows.map((row, index) => ({
+          // Unique per row: category ids are distinct and there is one null bucket.
+          key: String(row.category_id ?? 'other'),
+          value: parseMoneyForDisplay(row.total),
+          color: colors[index],
+          icon: resolved[index].icon,
+        }))}
+      />
       <div className="stats__total">
         <span className="muted">{totalLabel}</span>
         <span className="amount amount--expense">{formatMoney(totalExpenses, currency)}</span>
       </div>
       <ul className="stats-list">
         {rows.map((row, index) => {
-          const { icon, label } = resolve(row.category_id);
+          const { icon, label } = resolved[index];
           const percent =
             denominator > 0 ? (parseMoneyForDisplay(row.total) / denominator) * 100 : 0;
           // category_id is unique per row (the backend merges by category, one
@@ -125,7 +145,10 @@ function StatsBody({
                 <span className="amount amount--expense">{formatMoney(row.total, currency)}</span>
               </div>
               <div className="stats-row__track">
-                <div className="stats-row__fill" style={{ width: `${percent}%` }} />
+                <div
+                  className="stats-row__fill"
+                  style={{ width: `${percent}%`, backgroundColor: colors[index] }}
+                />
                 <span className="stats-row__pct">{Math.round(percent)}%</span>
               </div>
             </li>

@@ -139,7 +139,7 @@ function App() {
           {t('app.title')}
         </button>
         <div className="app__header-actions">
-          {screen === 'month' && <AccountSwitcher accounts={accounts} />}
+          {(screen === 'month' || screen === 'stats') && <AccountSwitcher accounts={accounts} />}
           <button
             type="button"
             className={`icon-btn${screen === 'settings' ? ' icon-btn--active' : ''}`}

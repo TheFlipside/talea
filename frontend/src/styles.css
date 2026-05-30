@@ -706,6 +706,34 @@ button {
 }
 
 /* ---- Statistics ---- */
+.pie-chart {
+  display: block;
+  width: 11rem;
+  height: 11rem;
+  margin: 0.5rem auto 1rem;
+}
+
+/* In-slice labels: the category emoji and its share. The percent gets a thin
+   dark outline (paint-order) so white text stays legible on any slice color. */
+.pie-chart__label {
+  pointer-events: none;
+}
+
+.pie-chart__icon {
+  font-size: 14px;
+  dominant-baseline: central;
+}
+
+.pie-chart__pct {
+  font-size: 10px;
+  font-weight: 700;
+  fill: #fff;
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 2px;
+  paint-order: stroke;
+  dominant-baseline: central;
+}
+
 .stats__total {
   display: flex;
   align-items: baseline;

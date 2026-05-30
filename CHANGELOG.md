@@ -67,13 +67,16 @@ All notable changes to this project are documented in this file.
   prefilled on first run with a dozen common categories (labels localized).
   Categories are selectable on entries and shown (icon + label) in the month
   list. Deleting a category keeps the entries and just clears their category.
-- Statistics screen: a breakdown of the selected month's expenses by category
-  (proportional bars + share percentages), month-navigable like the month
-  screen. A new pure `core::expenses_by_category` aggregates a month's expenses
-  (ad-hoc entries + recurring expansions) grouped by category, with its own
-  `expenses_by_category` Tauri command. **Uncategorized expenses are folded into
-  a single "Other" slice** (the `null` category bucket); the seeded defaults no
-  longer include a real "Other" category, so it can't appear twice.
+- Statistics screen: a breakdown of the selected month's expenses by category —
+  a hand-rolled SVG pie chart (each slice labelled with the category emoji + its
+  share) above proportional bars, with slice and bar sharing one color per
+  category. Month-navigable like the month screen, and the account switcher is
+  available here too for quick per-account comparison. A new pure
+  `core::expenses_by_category` aggregates a month's expenses (ad-hoc entries +
+  recurring expansions) grouped by category, with its own `expenses_by_category`
+  Tauri command. **Uncategorized expenses are folded into a single "Other"
+  slice** (the `null` category bucket); the seeded defaults no longer include a
+  real "Other" category, so it can't appear twice.
 
 ### Fixed
 
