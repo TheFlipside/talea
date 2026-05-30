@@ -104,8 +104,13 @@
     "shopping": "Shopping",
     "salary": "Salary",
     "savings": "Savings",
-    "gifts": "Gifts",
-    "other": "Other"
+    "gifts": "Gifts"
+  },
+  "stats": {
+    "title": "Statistics",
+    "total": "Total expenses",
+    "other": "Other",
+    "empty": "No expenses this month."
   },
   "settings": {
     "title": "Settings",
@@ -128,9 +133,7 @@
     "settings": "Settings"
   },
   "placeholder": {
-    "categories": "Categories",
     "recurring": "Recurring records",
-    "stats": "Statistics",
     "body": "Coming soon."
   }
 }

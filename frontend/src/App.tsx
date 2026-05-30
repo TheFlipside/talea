@@ -18,6 +18,7 @@ import { ManageAccountsScreen } from './screens/ManageAccountsScreen';
 import { MonthScreen } from './screens/MonthScreen';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { StatsScreen } from './screens/StatsScreen';
 import { useActiveAccount, useNavigation } from './state/contexts';
 import type { Account } from './api/types';
 
@@ -33,7 +34,7 @@ function CurrentScreen({ active }: { active: Account }) {
     case 'recurring':
       return <PlaceholderScreen titleKey="placeholder.recurring" />;
     case 'stats':
-      return <PlaceholderScreen titleKey="placeholder.stats" />;
+      return <StatsScreen account={active} />;
     default:
       return <MonthScreen account={active} />;
   }

@@ -12,6 +12,7 @@ import type {
   Account,
   AccountId,
   Category,
+  CategoryExpense,
   CategoryId,
   Entry,
   EntryId,
@@ -47,6 +48,11 @@ export const deleteEntry = (id: EntryId): Promise<void> =>
 
 export const monthSummary = (accountId: AccountId, month: Month): Promise<MonthSummary> =>
   call('month_summary', { accountId, month });
+
+export const expensesByCategory = (
+  accountId: AccountId,
+  month: Month,
+): Promise<CategoryExpense[]> => call('expenses_by_category', { accountId, month });
 
 export const listCategories = (): Promise<Category[]> => call('list_categories');
 

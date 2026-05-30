@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-type PlaceholderKey = 'placeholder.categories' | 'placeholder.recurring' | 'placeholder.stats';
+type PlaceholderKey = 'placeholder.recurring';
 
 /** A "coming soon" placeholder for screens not yet built. */
 export function PlaceholderScreen({ titleKey }: { titleKey: PlaceholderKey }) {

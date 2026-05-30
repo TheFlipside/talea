@@ -86,6 +86,15 @@ export interface MonthSummary {
   available: Money;
 }
 
+/**
+ * One category's total expense within a month (a positive money string).
+ * `category_id` is `null` for uncategorized expenses (shown as "Other").
+ */
+export interface CategoryExpense {
+  category_id: CategoryId | null;
+  total: Money;
+}
+
 export type CommandErrorCode = 'validation' | 'not_found' | 'database' | 'corrupt';
 
 export interface CommandError {

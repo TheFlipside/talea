@@ -20,7 +20,13 @@ export const CATEGORY_EMOJIS: string[] = [
   '📱', '💻', '📶', '👶', '🐕', '🐈', '🎓', '🏷️',
 ];
 
-/** Categories seeded on first run. Labels are i18n keys (localized at seed). */
+/**
+ * Categories seeded on first run. Labels are i18n keys (localized at seed).
+ *
+ * There is deliberately no "Other" here: uncategorized expenses are *themselves*
+ * the "Other" bucket on the stats screen (see `stats.other`), so seeding a real
+ * "Other" category would create a confusing duplicate slice.
+ */
 export const DEFAULT_CATEGORIES: { labelKey: string; emoji: string }[] = [
   { labelKey: 'defaultCategories.groceries', emoji: '🛒' },
   { labelKey: 'defaultCategories.dining', emoji: '🍽️' },
@@ -33,5 +39,4 @@ export const DEFAULT_CATEGORIES: { labelKey: string; emoji: string }[] = [
   { labelKey: 'defaultCategories.salary', emoji: '💰' },
   { labelKey: 'defaultCategories.savings', emoji: '🏦' },
   { labelKey: 'defaultCategories.gifts', emoji: '🎁' },
-  { labelKey: 'defaultCategories.other', emoji: '🏷️' },
 ];

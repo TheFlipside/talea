@@ -95,6 +95,7 @@ pub fn run() {
             commands::delete_rule,
             commands::month_summary,
             commands::summaries_for_range,
+            commands::expenses_by_category,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

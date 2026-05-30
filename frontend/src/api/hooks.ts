@@ -13,6 +13,7 @@ import type {
   Account,
   AccountId,
   Category,
+  CategoryExpense,
   CategoryId,
   CommandError,
   Entry,
@@ -32,6 +33,7 @@ import type {
 function invalidateAccountData(client: QueryClient, accountId: AccountId): void {
   void client.invalidateQueries({ queryKey: queryKeys.entries(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
 }
 
 export function useAccounts() {
@@ -52,6 +54,13 @@ export function useMonthSummary(accountId: AccountId, month: Month) {
   return useQuery<MonthSummary, CommandError>({
     queryKey: queryKeys.monthSummary(accountId, month),
     queryFn: () => api.monthSummary(accountId, month),
+  });
+}
+
+export function useExpensesByCategory(accountId: AccountId, month: Month) {
+  return useQuery<CategoryExpense[], CommandError>({
+    queryKey: queryKeys.expensesByCategory(accountId, month),
+    queryFn: () => api.expensesByCategory(accountId, month),
   });
 }
 
@@ -119,8 +128,11 @@ export function useDeleteCategory() {
     mutationFn: api.deleteCategory,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.categories });
-      // Deleting a category nulls it on referencing entries; refresh entry lists.
+      // Deleting a category nulls it on referencing entries (across all
+      // accounts); refresh entry lists AND the stats breakdowns, where those
+      // entries move from the deleted category's slice into the "Other" bucket.
       void client.invalidateQueries({ queryKey: queryKeys.entriesAll });
+      void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryAll });
     },
   });
 }

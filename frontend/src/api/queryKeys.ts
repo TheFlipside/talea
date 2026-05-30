@@ -13,4 +13,13 @@ export const queryKeys = {
     ['monthSummary', accountId, month.year, month.month] as const,
   /** Prefix matching every cached month summary for an account. */
   monthSummaryByAccount: (accountId: AccountId) => ['monthSummary', accountId] as const,
+  /** Per-month category expense breakdown (stats screen). */
+  expensesByCategory: (accountId: AccountId, month: Month) =>
+    ['expensesByCategory', accountId, month.year, month.month] as const,
+  /** Prefix matching every cached breakdown for an account. */
+  expensesByCategoryByAccount: (accountId: AccountId) =>
+    ['expensesByCategory', accountId] as const,
+  /** Prefix matching every account's breakdowns (e.g. after a category delete,
+   *  which re-buckets entries across accounts into "Other"). */
+  expensesByCategoryAll: ['expensesByCategory'] as const,
 };

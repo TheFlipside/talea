@@ -9,9 +9,9 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use talea_core::{
-    month_summary as core_month_summary, summaries_for_range as core_summaries_for_range, Account,
-    AccountId, Category, CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule,
-    RecurringRuleId,
+    expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
+    summaries_for_range as core_summaries_for_range, Account, AccountId, Category, CategoryExpense,
+    CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule, RecurringRuleId,
 };
 
 use crate::dto::{NewAccount, NewCategory, NewEntry, NewRule};
@@ -302,4 +302,20 @@ pub async fn summaries_for_range(
         &entries,
         &rules,
     ))
+}
+
+/// Totals a month's expenses grouped by category for an account (descending by
+/// amount; uncategorized expenses bucket under a `null` category id).
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist;
+/// [`CommandError::Database`] / [`CommandError::Corrupt`] on a database error.
+#[tauri::command]
+pub async fn expenses_by_category(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    month: Month,
+) -> Result<Vec<CategoryExpense>, CommandError> {
+    let (_account, entries, rules) = load_account_data(state.inner(), account_id).await?;
+    Ok(core_expenses_by_category(month, &entries, &rules))
 }
