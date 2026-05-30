@@ -444,6 +444,15 @@ button {
   gap: 0.5rem;
 }
 
+/* Match the trigger to the icon button height (2.4rem) so the header keeps a
+   constant height — the switcher only shows on the month screen, and a taller
+   trigger would otherwise shift the layout when navigating away and back. */
+.account-switcher .select__trigger {
+  height: 2.4rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .onboarding {
   padding: 2rem 1rem;
   display: flex;
