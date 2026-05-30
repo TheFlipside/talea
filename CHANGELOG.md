@@ -129,6 +129,11 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- Respect mobile safe areas: the layout now honours `env(safe-area-inset-*)`
+  (via `viewport-fit=cover`) so the header clears the status bar / camera notch
+  (the settings cog was previously unreachable under the status bar), the FAB
+  and scrollable content clear the bottom gesture bar, and modals stay within
+  the safe area.
 - `index.html` favicon declared `type="image/png"` for an SVG asset; corrected
   to `image/svg+xml`.
 

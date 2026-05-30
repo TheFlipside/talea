@@ -71,7 +71,7 @@ just android-init        # → cargo tauri android init, creates src-tauri/gen/a
    app deliberately does **not** lock (so you can't get stranded), so without
    enrolment you'd never see the prompt.
 
-### Run it
+### Run it (live dev server)
 
 ```bash
 # Over the LAN — most reliable for a physical device. Pass your machine's LAN IP:
@@ -79,13 +79,39 @@ just android-dev-host 192.168.1.20
 
 # Or over USB (uses adb reverse to map the device's localhost to the host):
 just android-dev
-
-# Release APK/AAB (under src-tauri/gen/android):
-just android-build
 ```
+
+> **Firewall (important):** in LAN mode the device connects to the Vite dev
+> server on your machine, so a host firewall will block it and you get a blank
+> white screen. On Ubuntu with `ufw` active, allow the ports:
+>
+> ```bash
+> sudo ufw allow 1420/tcp     # Vite dev server
+> sudo ufw allow 1421/tcp     # Vite HMR (live reload)
+> ```
+>
+> This was the cause of the first white screen during bring-up. Revoke later
+> with `sudo ufw delete allow 1420/tcp` (and `1421/tcp`) if you prefer.
 
 The first run downloads Gradle dependencies and is slow; later runs are quick
 and hot-reload the frontend.
+
+### Run it (standalone APK — no dev server)
+
+To run without a live dev server (the frontend is bundled into the APK), build
+and install a release package. This also sidesteps the firewall/networking
+entirely, so it's a good way to confirm whether a blank screen is a dev-server
+connection problem:
+
+```bash
+just android-build
+adb install -r \
+  src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+```
+
+(If the packaged app renders but `android-dev*` doesn't, the issue is the dev
+server connection — see Troubleshooting. The exact APK path can vary by
+target/flavour; check the `cargo tauri android build` output.)
 
 ### Testing the biometric app lock
 
@@ -120,19 +146,28 @@ This almost always means the device's WebView can't reach the Vite dev server.
    with the device connected, click *inspect* on the Talea WebView, and look at
    the Console/Network tabs — that shows the real error (a refused connection to
    `:1420`, a CSP violation, or a JS error).
-2. **Prefer the LAN host path.** Run `just android-dev-host <your-LAN-IP>` and
-   make sure the phone and PC are on the **same network** and the host firewall
-   allows the port. This avoids relying on `adb reverse`.
-3. **If using USB (`just android-dev`),** confirm the reverse tunnel exists:
+2. **Open the firewall** (the most common cause). In LAN mode the device must
+   reach the dev server on your machine; `ufw` silently drops it:
+
+   ```bash
+   sudo ufw allow 1420/tcp    # Vite dev server
+   sudo ufw allow 1421/tcp    # Vite HMR
+   ```
+
+3. **Prefer the LAN host path.** Run `just android-dev-host <your-LAN-IP>` with
+   the phone and PC on the **same network**. This avoids relying on `adb reverse`.
+4. **If using USB (`just android-dev`),** confirm the reverse tunnel exists:
 
    ```bash
    adb reverse --list                      # expect: ... tcp:1420 tcp:1420
    adb reverse tcp:1420 tcp:1420           # (re)create it if missing, then relaunch
    ```
 
-4. **Confirm Vite is serving** — the `cargo tauri android dev` terminal should
+5. **Confirm Vite is serving** — the `cargo tauri android dev` terminal should
    show `VITE ready` and a local URL.
-5. **HMR over LAN.** The dev CSP is `connect-src 'self'`; the HMR socket on a
+6. **Still stuck?** Build a standalone APK (see "Run it (standalone APK)") — it
+   bundles the frontend and needs no dev server, isolating networking issues.
+7. **HMR over LAN.** The dev CSP is `connect-src 'self'`; the HMR socket on a
    separate port may be blocked, which breaks live-reload but not the initial
    render. A full re-run picks up changes if HMR is quiet.
 

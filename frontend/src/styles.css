@@ -67,7 +67,12 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  /* Clear the status bar / camera notch: the header background fills the inset
+     area (edge-to-edge) while its content sits below it. */
+  padding-top: calc(0.75rem + env(safe-area-inset-top));
+  padding-right: calc(1rem + env(safe-area-inset-right));
+  padding-bottom: 0.75rem;
+  padding-left: calc(1rem + env(safe-area-inset-left));
 }
 
 .app__header-actions {
@@ -91,6 +96,8 @@ button {
   flex: 1;
   display: flex;
   flex-direction: column;
+  /* Keep scrollable content clear of the bottom gesture bar. */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Square icon button (cog, delete, …). */
@@ -312,7 +319,7 @@ button {
 .fab {
   position: fixed;
   right: max(1rem, calc(50% - 14rem));
-  bottom: 1.25rem;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 50%;
@@ -333,14 +340,16 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  /* Keep modals within the safe area (status bar / notch / gesture bar). */
+  padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
   overscroll-behavior: contain;
 }
 
 .modal {
   width: 100%;
   max-width: 28rem;
-  max-height: calc(100vh - 2rem);
+  max-height: calc(100vh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface);
