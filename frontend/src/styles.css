@@ -116,6 +116,11 @@ button {
   cursor: not-allowed;
 }
 
+.icon-btn--active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ---- Buttons ---- */
 .btn {
   padding: 0.55rem 1rem;

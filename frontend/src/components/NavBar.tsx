@@ -26,7 +26,7 @@ export function NavBar() {
             className={`nav-bar__item${active ? ' nav-bar__item--active' : ''}`}
             aria-label={t(labelKey)}
             aria-current={active ? 'page' : undefined}
-            onClick={() => navigate(target)}
+            onClick={() => navigate(active ? 'month' : target)}
           >
             <Icon />
           </button>

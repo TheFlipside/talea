@@ -73,6 +73,22 @@ function App() {
     }
   }, [accounts, activeAccountId, setActiveAccountId]);
 
+  // Escape returns to the month screen from any sub-screen — unless a modal is
+  // open (its own Escape handler takes precedence).
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || screen === 'month') {
+        return;
+      }
+      if (document.querySelector('.modal-backdrop')) {
+        return;
+      }
+      navigate('month');
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [screen, navigate]);
+
   if (error) {
     return <ErrorBanner error={error} />;
   }
@@ -95,10 +111,10 @@ function App() {
           {screen === 'month' && <AccountSwitcher accounts={accounts} />}
           <button
             type="button"
-            className="icon-btn"
+            className={`icon-btn${screen === 'settings' ? ' icon-btn--active' : ''}`}
             aria-label={t('nav.settings')}
             aria-current={screen === 'settings' ? 'page' : undefined}
-            onClick={() => navigate('settings')}
+            onClick={() => navigate(screen === 'settings' ? 'month' : 'settings')}
           >
             <CogIcon />
           </button>
