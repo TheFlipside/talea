@@ -121,6 +121,13 @@ All notable changes to this project are documented in this file.
   not lock — the plugin is gated to mobile in `capabilities/mobile.json` and not
   compiled into the desktop binary.
 
+- Native status-bar theming: a small in-tree Tauri plugin
+  (`tauri-plugin-statusbar`) sets the OS status/navigation bar icon appearance
+  to match the **app's** theme on Android and iOS — light icons in dark mode,
+  dark icons in light mode — driven from the theme so it's correct regardless of
+  the device's own light/dark setting (a no-op on desktop). The frontend calls
+  it whenever the resolved theme changes.
+
 ### Changed
 
 - The date picker's calendar now renders in normal flow rather than as an

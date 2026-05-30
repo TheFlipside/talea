@@ -65,7 +65,9 @@ fn smoke_check(name: &str) -> SmokeInfo {
 /// database.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    // Status-bar theming works on all platforms (a no-op on desktop), so it's
+    // registered unconditionally.
+    let builder = tauri::Builder::default().plugin(tauri_plugin_statusbar::init());
     // The biometric app lock is mobile-only; the plugin isn't built into the
     // desktop binary (see Cargo.toml), so the frontend just sees it unavailable.
     #[cfg(mobile)]

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { AccountId } from '../api/types';
 import { currentMonth, nextMonth, prevMonth } from '../lib/month';
 import type { RingMode } from '../lib/ring';
+import { setStatusBarDark } from '../lib/statusbar';
 import { resolveTheme, systemPrefersLight, type ThemePref } from '../lib/theme';
 import {
   ActiveAccountContext,
@@ -124,7 +125,10 @@ function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     const apply = () => {
-      root.dataset.theme = resolveTheme(theme, systemPrefersLight());
+      const resolved = resolveTheme(theme, systemPrefersLight());
+      root.dataset.theme = resolved;
+      // Keep the native status/navigation bar icons legible against the theme.
+      void setStatusBarDark(resolved === 'dark');
     };
     apply();
     if (theme !== 'system' || typeof window.matchMedia !== 'function') {

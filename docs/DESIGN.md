@@ -135,6 +135,17 @@ plugin (Android/iOS), with the device PIN/passcode allowed as a fallback.
 - Lock-on-resume (re-locking when the app is backgrounded) is a possible later
   refinement; the current lock is cold-start only.
 
+### System bar theming — 🟢 DONE (implemented)
+
+The OS status/navigation bar icons can't be styled from the web layer, so an
+in-tree Tauri plugin (`tauri-plugin-statusbar`, a committed workspace crate)
+exposes a `set_dark` command that the frontend calls whenever the resolved theme
+changes. It sets the bar icons to match **Talea's** theme — light icons in dark,
+dark in light — so it's correct even when the device's own light/dark setting
+differs (Android: `WindowInsetsControllerCompat`; iOS: the window's
+`overrideUserInterfaceStyle`; desktop: no-op). The generated Android day/night
+themes also set `windowLightStatusBar` as a pre-load default.
+
 ---
 
 ## 8. Domain validation & input limits — 🟢 DONE (implemented in `core`)

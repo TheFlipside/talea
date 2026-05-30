@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Allows setting the system bar appearance to match the app theme."
+permissions = ["allow-set-dark"]

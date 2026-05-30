@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:image:deny-from-path",
-    "core:image:deny-from-bytes"
+    "core:image:deny-from-bytes",
+    "statusbar:default"
   ]
 }

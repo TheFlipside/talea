@@ -137,34 +137,24 @@ just android-reset       # → adb shell pm clear app.talea.budget
 ### System bar appearance (status / navigation bar icons)
 
 The app draws edge-to-edge, so the OS status/navigation bar icons sit over the
-header. Their colour is a **native** setting (not controllable from CSS/JS),
-driven by `android:windowLightStatusBar` / `android:windowLightNavigationBar` in
-the Android theme. Talea sets these per day/night variant so the icons follow the
-**system** dark mode (dark icons on a light bar, light icons on a dark bar):
+header. Their colour is a **native** setting (not controllable from CSS/JS).
+Talea handles it with an in-tree Tauri plugin, **`tauri-plugin-statusbar`**: the
+frontend calls it whenever the resolved theme changes
+([`lib/statusbar.ts`](../frontend/src/lib/statusbar.ts), from the theme effect in
+`AppProviders`), and the plugin sets the bar icons to match — light icons in
+Talea's dark theme, dark icons in light. This tracks **Talea's** theme, so it's
+correct even when the device's own light/dark setting differs.
 
-- `src-tauri/gen/android/app/src/main/res/values/themes.xml` (day):
-  both `true`.
-- `src-tauri/gen/android/app/src/main/res/values-night/themes.xml` (night):
-  both `false`.
+- Rust: `tauri-plugin-statusbar/src/lib.rs` (a `set_dark` command; no-op on
+  desktop). Android: `WindowInsetsControllerCompat` light-bar flags. iOS: the
+  window's `overrideUserInterfaceStyle`.
+- It's a normal committed crate (outside `gen/`), wired in `src-tauri`
+  (`tauri_plugin_statusbar::init()`) with the `statusbar:default` capability.
 
-```xml
-<!-- values/themes.xml (day) -->
-<item name="android:windowLightStatusBar">true</item>
-<item name="android:windowLightNavigationBar">true</item>
-<!-- values-night/themes.xml (night) -->
-<item name="android:windowLightStatusBar">false</item>
-<item name="android:windowLightNavigationBar">false</item>
-```
-
-Because `gen/android` is gitignored, **re-apply this after `just android-init`**,
-and rebuild for it to take effect.
-
-**Caveat:** Android picks day vs. night by the **OS** dark mode, independent of
-Talea's in-app theme toggle. With Talea's theme on **System** (the default) they
-always match. If you force Talea to Dark while the phone's OS is in Light mode,
-the system bar still shows light-mode (dark) icons — switch the phone to dark
-mode, or keep Talea on System. A fully in-app-theme-aware status bar would need a
-small native plugin (future enhancement).
+The generated `values/themes.xml` + `values-night/themes.xml` may also set
+`android:windowLightStatusBar` / `windowLightNavigationBar` (true in day, false
+in night) as a sensible default for the brief moment before the WebView loads,
+but the plugin is the authority once the app is running.
 
 ---
 
