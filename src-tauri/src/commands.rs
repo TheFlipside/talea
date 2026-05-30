@@ -455,10 +455,31 @@ pub async fn skip_occurrence(
     account_id: AccountId,
     occurrence: OccurrenceRef,
 ) -> Result<(), CommandError> {
-    if !repo::rule::belongs_to(state.inner(), occurrence.rule_id, account_id).await? {
-        return Err(CommandError::NotFound);
+    skip_occurrence_inner(state.inner(), account_id, occurrence).await
+}
+
+/// Confirms a rule belongs to `account_id` before a per-occurrence mutation,
+/// so a crafted call can't touch another account's rule.
+async fn require_rule_in_account(
+    pool: &SqlitePool,
+    rule_id: RecurringRuleId,
+    account_id: AccountId,
+) -> Result<(), CommandError> {
+    if repo::rule::belongs_to(pool, rule_id, account_id).await? {
+        Ok(())
+    } else {
+        Err(CommandError::NotFound)
     }
-    Ok(repo::skip::add(state.inner(), occurrence.rule_id, occurrence.date).await?)
+}
+
+/// The `skip_occurrence` logic, separated from the command so it's testable.
+pub(crate) async fn skip_occurrence_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    occurrence: OccurrenceRef,
+) -> Result<(), CommandError> {
+    require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
+    Ok(repo::skip::add(pool, occurrence.rule_id, occurrence.date).await?)
 }
 
 /// "Detaches" a single occurrence into an editable standalone entry: records a
@@ -476,9 +497,17 @@ pub async fn detach_occurrence(
     occurrence: OccurrenceRef,
     entry: NewEntry,
 ) -> Result<Entry, CommandError> {
-    if !repo::rule::belongs_to(state.inner(), occurrence.rule_id, account_id).await? {
-        return Err(CommandError::NotFound);
-    }
+    detach_occurrence_inner(state.inner(), account_id, occurrence, entry).await
+}
+
+/// The `detach_occurrence` logic, separated from the command so it's testable.
+pub(crate) async fn detach_occurrence_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    occurrence: OccurrenceRef,
+    entry: NewEntry,
+) -> Result<Entry, CommandError> {
+    require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
     let draft = entry.build()?;
-    Ok(repo::skip::detach(state.inner(), occurrence.rule_id, occurrence.date, &draft).await?)
+    Ok(repo::skip::detach(pool, occurrence.rule_id, occurrence.date, &draft).await?)
 }

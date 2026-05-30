@@ -13,7 +13,7 @@ use talea_core::{
 };
 
 use crate::db;
-use crate::dto::NewEntry;
+use crate::dto::{NewEntry, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
@@ -805,4 +805,96 @@ async fn load_account_rules_returns_rules_or_not_found() {
         crate::commands::load_account_rules(&pool, AccountId::new(9999)).await,
         Err(CommandError::NotFound)
     ));
+}
+
+#[tokio::test]
+async fn occurrence_commands_enforce_ownership_and_apply() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let other = repo::account::insert(&pool, &account_with("USD", "Other"))
+        .await
+        .unwrap();
+    let rule = repo::rule::insert(
+        &pool,
+        &RecurringRule::new(
+            RecurringRuleId::new(0),
+            account.id(),
+            Money::from_minor_units(5_000, 2),
+            EntryKind::Expense,
+            None,
+            None,
+            date(2026, TMonth::January, 5),
+            RuleEnd::Never,
+            Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+        )
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    let feb = || OccurrenceRef {
+        rule_id: rule.id(),
+        date: date(2026, TMonth::February, 5),
+    };
+    let mar = || OccurrenceRef {
+        rule_id: rule.id(),
+        date: date(2026, TMonth::March, 5),
+    };
+
+    // A rule not owned by the given account is rejected, with no skip written.
+    assert!(matches!(
+        crate::commands::skip_occurrence_inner(&pool, other.id(), feb()).await,
+        Err(CommandError::NotFound)
+    ));
+    assert!(repo::skip::for_account(&pool, account.id())
+        .await
+        .unwrap()
+        .is_empty());
+
+    // The owning account can skip the occurrence.
+    crate::commands::skip_occurrence_inner(&pool, account.id(), feb())
+        .await
+        .unwrap();
+    assert_eq!(
+        repo::skip::for_account(&pool, account.id())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Detach is likewise ownership-scoped; the owning account materializes a
+    // standalone entry plus a skip for that occurrence.
+    assert!(matches!(
+        crate::commands::detach_occurrence_inner(
+            &pool,
+            other.id(),
+            mar(),
+            new_entry(account.id(), 7_000, EntryKind::Expense)
+        )
+        .await,
+        Err(CommandError::NotFound)
+    ));
+    let entry = crate::commands::detach_occurrence_inner(
+        &pool,
+        account.id(),
+        mar(),
+        new_entry(account.id(), 7_000, EntryKind::Expense),
+    )
+    .await
+    .unwrap();
+    assert!(entry.id().get() > 0);
+    assert_eq!(
+        repo::entry::for_account(&pool, account.id())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        repo::skip::for_account(&pool, account.id())
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
 }
