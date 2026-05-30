@@ -2,9 +2,11 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useNavigation, type Screen } from '../state/contexts';
-import { AccountsIcon, CategoriesIcon, RecurringIcon, StatsIcon } from './icons';
+import { AccountsIcon, CategoriesIcon, HomeIcon, RecurringIcon, StatsIcon } from './icons';
 
 const ITEMS: { screen: Screen; labelKey: string; Icon: () => ReactElement }[] = [
+  // Home is leftmost so the reflexive "tap the far-left icon to go back" works.
+  { screen: 'month', labelKey: 'nav.home', Icon: HomeIcon },
   { screen: 'accounts', labelKey: 'nav.accounts', Icon: AccountsIcon },
   { screen: 'categories', labelKey: 'nav.categories', Icon: CategoriesIcon },
   { screen: 'recurring', labelKey: 'nav.recurring', Icon: RecurringIcon },

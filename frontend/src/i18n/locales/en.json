@@ -46,7 +46,10 @@
     "delete": "Delete",
     "empty": "No entries this month.",
     "loading": "Loading entries…",
-    "invalidAmount": "Enter a positive amount, e.g. 12.34."
+    "invalidAmount": "Enter a positive amount, e.g. 12.34.",
+    "transferToIncome": "Also record as income on another account",
+    "transferToExpense": "Also record as expense on another account",
+    "transferAccount": "Other account"
   },
   "account": {
     "name": "Name",

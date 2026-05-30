@@ -164,6 +164,20 @@ export function useCreateEntry(accountId: AccountId) {
   });
 }
 
+export function useCreateTransfer(accountId: AccountId) {
+  const client = useQueryClient();
+  return useMutation<[Entry, Entry], CommandError, { entry: NewEntry; counterAccountId: AccountId }>(
+    {
+      mutationFn: ({ entry, counterAccountId }) => api.createTransfer(entry, counterAccountId),
+      onSuccess: (_data, { counterAccountId }) => {
+        // A transfer writes an entry on each account; refresh both.
+        invalidateAccountData(client, accountId);
+        invalidateAccountData(client, counterAccountId);
+      },
+    },
+  );
+}
+
 export function useUpdateEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<Entry, CommandError, Entry>({

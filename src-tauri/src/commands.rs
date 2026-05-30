@@ -179,6 +179,63 @@ pub async fn delete_entry(state: State<'_, SqlitePool>, id: EntryId) -> Result<(
     require_found(repo::entry::delete(state.inner(), id).await?)
 }
 
+/// Records a transfer between two accounts as a pair of mirrored entries: the
+/// given `entry` on its own account, plus its opposite (income↔expense, same
+/// amount and date, same note, no category) on `counter_account_id`. Both are
+/// written in one transaction; the two accounts must share a currency (there is
+/// no conversion). The entries are independent thereafter.
+///
+/// # Errors
+/// [`CommandError::Validation`] on invalid input or a currency mismatch;
+/// [`CommandError::NotFound`] if either account is missing;
+/// [`CommandError::Database`] on a database error.
+#[tauri::command]
+pub async fn create_transfer(
+    state: State<'_, SqlitePool>,
+    entry: NewEntry,
+    counter_account_id: AccountId,
+) -> Result<(Entry, Entry), CommandError> {
+    let primary = entry.build()?;
+    if primary.account_id() == counter_account_id {
+        return Err(CommandError::Validation(
+            "a transfer needs two different accounts".to_owned(),
+        ));
+    }
+    let pool = state.inner();
+
+    // Validate (read-only) before opening a write transaction: both accounts must
+    // exist and share a currency (there is no conversion).
+    let from = repo::account::get(pool, primary.account_id())
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    let to = repo::account::get(pool, counter_account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    if from.currency().code() != to.currency().code() {
+        return Err(CommandError::Validation(
+            "a transfer needs both accounts in the same currency".to_owned(),
+        ));
+    }
+
+    // The counterpart side: opposite kind, same amount/date/note, uncategorized.
+    // The id is a placeholder; the DB assigns the real one on insert.
+    let counter = Entry::new(
+        EntryId::new(0),
+        counter_account_id,
+        primary.amount(),
+        primary.kind().opposite(),
+        primary.date(),
+        primary.note().map(str::to_owned),
+        None,
+    )?;
+
+    let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;
+    let saved_primary = repo::entry::insert(&mut *tx, &primary).await?;
+    let saved_counter = repo::entry::insert(&mut *tx, &counter).await?;
+    tx.commit().await.map_err(RepoError::Sqlx)?;
+    Ok((saved_primary, saved_counter))
+}
+
 // ---- Recurring rule ---------------------------------------------------------
 
 /// Creates a recurring rule.

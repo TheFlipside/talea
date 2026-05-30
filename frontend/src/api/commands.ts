@@ -45,6 +45,13 @@ export const listEntries = (accountId: AccountId): Promise<Entry[]> =>
 export const createEntry = (entry: NewEntry): Promise<Entry> =>
   call('create_entry', { entry });
 
+/** Records a transfer: `entry` on its account + its mirror on `counterAccountId`.
+ *  Returns the `[primary, counterpart]` entries. */
+export const createTransfer = (
+  entry: NewEntry,
+  counterAccountId: AccountId,
+): Promise<[Entry, Entry]> => call('create_transfer', { entry, counterAccountId });
+
 export const updateEntry = (entry: Entry): Promise<Entry> =>
   call('update_entry', { entry });
 

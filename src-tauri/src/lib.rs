@@ -89,6 +89,7 @@ pub fn run() {
             commands::list_entries,
             commands::update_entry,
             commands::delete_entry,
+            commands::create_transfer,
             commands::create_rule,
             commands::list_rules,
             commands::update_rule,

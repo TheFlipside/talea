@@ -705,6 +705,19 @@ button {
   margin: 0 0 0.75rem;
 }
 
+/* Transfer toggle in the entry form: a checkbox + its label on one line. */
+.transfer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.transfer-toggle input {
+  width: auto;
+  margin: 0;
+}
+
 /* ---- Recurring rules ---- */
 /* A rule list row: title + cadence sub-line on the left, amount on the right. */
 .rule-row {
@@ -867,17 +880,15 @@ button {
   width: 100%;
 }
 
+/* The calendar renders in normal flow (not an absolute popup) so an enclosing
+   modal grows to fit it and uses the available viewport height, instead of
+   clipping the calendar and forcing the user to scroll. */
 .datepicker__popup {
-  position: absolute;
-  z-index: 1100;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  right: 0;
+  margin-top: 0.35rem;
   padding: 0.5rem;
   background: var(--surface-2);
   border: 1px solid var(--accent-track);
   border-radius: 0.5rem;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
 }
 
 .datepicker__nav {

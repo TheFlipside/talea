@@ -27,6 +27,16 @@ impl EntryKind {
             Self::Expense => -amount,
         }
     }
+
+    /// The opposite kind (income ↔ expense) — e.g. the counterpart side of a
+    /// transfer, where an expense on one account is an income on the other.
+    #[must_use]
+    pub const fn opposite(self) -> Self {
+        match self {
+            Self::Income => Self::Expense,
+            Self::Expense => Self::Income,
+        }
+    }
 }
 
 /// A single recorded money movement on an account.
@@ -177,6 +187,12 @@ mod tests {
 
     fn date() -> Date {
         Date::from_calendar_date(2026, Month::May, 9).unwrap()
+    }
+
+    #[test]
+    fn opposite_kind_flips() {
+        assert_eq!(EntryKind::Income.opposite(), EntryKind::Expense);
+        assert_eq!(EntryKind::Expense.opposite(), EntryKind::Income);
     }
 
     #[test]

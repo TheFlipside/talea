@@ -103,6 +103,21 @@ All notable changes to this project are documented in this file.
   Adds `skip_occurrence` / `detach_occurrence` commands (detach is one
   transaction) and `RecurringRule::with_skips`.
 
+- Account transfers: when adding an entry and more than one same-currency
+  account exists, a toggle offers to mirror it onto another account as the
+  opposite kind ("also record as income/expense on …"). A new atomic
+  `create_transfer` command writes both entries in one transaction (no currency
+  conversion — only same-currency accounts are offered). The two entries are
+  independent afterward. Adds `EntryKind::opposite`.
+- A **Home** button is now the leftmost icon in the navigation bar, switching
+  back to the month view.
+
+### Changed
+
+- The date picker's calendar now renders in normal flow rather than as an
+  absolute popup, so the entry/rule modal grows to use the available viewport
+  height instead of clipping the calendar and forcing a scroll.
+
 ### Fixed
 
 - `index.html` favicon declared `type="image/png"` for an SVG asset; corrected
