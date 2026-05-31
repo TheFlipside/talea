@@ -1,5 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024">
+  <!-- Rounded dark tile: matches the in-app budget ring's surface. -->
   <rect width="100" height="100" rx="22" fill="#122e38" />
+  <!-- Spent/remaining ring (same geometry as components/BudgetRing). -->
   <circle cx="50" cy="50" r="30" fill="none" stroke="#28505c" stroke-width="11" />
   <circle
     cx="50"
@@ -12,6 +14,7 @@
     stroke-dasharray="132 188"
     transform="rotate(-90 50 50)"
   />
+  <!-- Calendar glyph centred in the ring: binding tabs, header, date grid. -->
   <rect x="43" y="38.5" width="3" height="5" rx="1.5" fill="#f4f7f6" />
   <rect x="54" y="38.5" width="3" height="5" rx="1.5" fill="#f4f7f6" />
   <rect x="37" y="41" width="26" height="22" rx="3" fill="#f4f7f6" />

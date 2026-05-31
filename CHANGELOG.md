@@ -128,6 +128,14 @@ All notable changes to this project are documented in this file.
   the device's own light/dark setting (a no-op on desktop). The frontend calls
   it whenever the resolved theme changes.
 
+- Tap the month/year label in the month navigation to jump straight back to the
+  current month; the current month is shown in bold so it's clear at a glance
+  when the view has drifted away from "now".
+
+- App logo: the budget ring now carries a small calendar glyph in its centre.
+  Regenerated all platform icons (desktop, Android, iOS, store logos) from a
+  single `src-tauri/icons/app-icon.svg` source, and matched the in-app favicon.
+
 ### Changed
 
 - The date picker's calendar now renders in normal flow rather than as an

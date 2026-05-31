@@ -178,7 +178,29 @@ button {
 }
 
 .month-nav__label {
-  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--text);
+  font-size: inherit;
+  /* Off-month: regular weight so the bolder current month stands out. */
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.month-nav__label:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+/* The selected month is the current calendar month: emphasize it and, since
+   there is nowhere to jump, the tap-to-return affordance is disabled. */
+.month-nav__label[data-current='true'] {
+  font-weight: 700;
+}
+
+.month-nav__label:disabled {
+  cursor: default;
 }
 
 /* ---- Summary + ring ---- */

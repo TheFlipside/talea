@@ -26,7 +26,8 @@
   "month": {
     "navigation": "Month navigation",
     "previous": "Previous month",
-    "next": "Next month"
+    "next": "Next month",
+    "goToCurrent": "Go to current month"
   },
   "entry": {
     "new": "New entry",
