@@ -52,6 +52,11 @@ All notable changes to this project are documented in this file.
 - iOS launcher icon shipped as the default Tauri logo for the same reason as
   Android (`ios init` scaffolds the stock icon). `just ios-init` now reapplies the
   branded icon via the icon manifest.
+- App Store upload rejected the icon ("Invalid large app icon … can't be
+  transparent or contain an alpha channel"): `cargo tauri icon` emits RGBA for the
+  iOS set. Added `scripts/flatten_ios_icons.py` (run by `just ios-init`) to
+  composite the iOS icons over the tile colour and rewrite them as opaque RGB;
+  desktop/Android/favicon keep their transparency.
 - Documented the real release-APK path (`…-release-unsigned.apk`) and the
   zipalign → apksigner signing flow in `docs/DEVELOPMENT.md` (the previous path
   assumed an auto-signed release).

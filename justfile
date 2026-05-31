@@ -134,11 +134,13 @@ android-reset:
 # Drive every build through the tauri-cli — never Xcode's Run button (that
 # bypasses the cli's WebSocket and fails). See docs/DEVELOPMENT.md.
 
-# `ios init` scaffolds default icons, so reapply the branded ones right after.
+# `ios init` scaffolds default icons, so reapply the branded ones right after,
+# then flatten the iOS set to opaque RGB (App Store rejects alpha on the icon).
 # Generate the native iOS project (one-time) and apply the branded icons.
 ios-init:
     cargo tauri ios init
     cargo tauri icon src-tauri/icons/icon-manifest.json
+    python3 scripts/flatten_ios_icons.py
 
 # Run live on a connected device / simulator (Vite dev server + HMR).
 ios-dev: _ensure-frontend

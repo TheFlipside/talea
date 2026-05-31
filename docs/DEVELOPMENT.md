@@ -243,11 +243,15 @@ category, version, and display name come from `tauri.conf.json`.
    `Apple Development`-signed IPA that App Store Connect rejects.
 3. **Generate the project + icons:**
    ```bash
-   just ios-init      # cargo tauri ios init  +  cargo tauri icon (branded icons)
+   just ios-init      # ios init  +  cargo tauri icon  +  flatten iOS icons to RGB
    ```
    Like `android init`, `ios init` scaffolds the **default Tauri icon**, so the
-   recipe reapplies the branded one from `src-tauri/icons/icon-manifest.json`. If
-   the home-screen icon ever shows the stock Tauri logo, re-run `just ios-init`.
+   recipe reapplies the branded one from `src-tauri/icons/icon-manifest.json`. It
+   then runs `scripts/flatten_ios_icons.py` to strip the alpha channel from the
+   iOS icons (App Store Connect rejects a 1024px marketing icon that has alpha,
+   even when fully opaque — `cargo tauri icon` emits RGBA). That step needs
+   **Pillow** (`python3 -m pip install Pillow`). If the home-screen icon ever
+   shows the stock Tauri logo, re-run `just ios-init`.
 
 ### Live testing on a device
 
@@ -316,6 +320,10 @@ dev-server issues entirely.
 - **IPA signed `Apple Development` / Transporter "not a distribution cert"**: you
   ran the bare build (development export) — use `just ios-release`, and ensure the
   Apple Distribution cert from the setup step exists.
+- **Transporter "Invalid large app icon … can't be transparent or contain an
+  alpha channel"**: the iOS icons still have alpha. Run
+  `python3 scripts/flatten_ios_icons.py` (needs Pillow) — `just ios-init` does
+  this automatically — then rebuild.
 
 > **Widget caveat:** the WidgetKit extension (`ios-widget/`) is a **second
 > target**. Because the Xcode project is regenerated from `project.yml`, a target
