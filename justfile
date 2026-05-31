@@ -17,12 +17,19 @@ default:
 install:
     npm --prefix frontend install
 
+# Install frontend deps only if missing, so a fresh clone's first `just dev`
+# (or build/test) doesn't fail on the not-yet-installed Vite toolchain.
+_ensure-frontend:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -d frontend/node_modules ] || npm --prefix frontend install
+
 # Run the desktop dev build (starts Vite, then the Tauri shell).
-dev:
+dev: _ensure-frontend
     cargo tauri dev
 
 # Production build.
-build:
+build: _ensure-frontend
     cargo tauri build
 
 # Format all Rust code.
@@ -30,19 +37,19 @@ fmt:
     cargo fmt --all
 
 # Run all tests (Rust workspace + frontend unit tests).
-test:
+test: _ensure-frontend
     cargo test --workspace
     npm --prefix frontend run test
 
 # Lint everything without mutating (Rust + frontend).
-lint:
+lint: _ensure-frontend
     cargo clippy --workspace --all-targets -- -W clippy::pedantic -D warnings
     cargo fmt --all -- --check
     npm --prefix frontend run typecheck
     npm --prefix frontend run lint
 
 # Full pre-commit gate: lint + tests + builds, exactly as CI expects.
-gate:
+gate: _ensure-frontend
     cargo clippy --workspace --all-targets -- -W clippy::pedantic -D warnings
     cargo fmt --all -- --check
     cargo test --workspace
@@ -86,7 +93,7 @@ android-init:
     cargo tauri icon src-tauri/icons/icon-manifest.json
 
 # Run on a connected device over USB (maps the device's localhost via adb reverse).
-android-dev:
+android-dev: _ensure-frontend
     #!/usr/bin/env bash
     set -euo pipefail
     export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
@@ -94,7 +101,7 @@ android-dev:
 
 # Run on a device over the LAN (most reliable for physical devices). Pass your
 # machine's LAN IP, e.g. `just android-dev-host 192.168.1.20`.
-android-dev-host ip:
+android-dev-host ip: _ensure-frontend
     #!/usr/bin/env bash
     set -euo pipefail
     export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
@@ -102,7 +109,7 @@ android-dev-host ip:
     cargo tauri android dev --host "{{ip}}"
 
 # Build a release APK/AAB (output under src-tauri/gen/android).
-android-build:
+android-build: _ensure-frontend
     #!/usr/bin/env bash
     set -euo pipefail
     export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"

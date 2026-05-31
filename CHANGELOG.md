@@ -28,6 +28,15 @@ All notable changes to this project are documented in this file.
 - `tauri-plugin-statusbar` ProGuard keep-rule still referenced the pre-rebrand
   package; updated to `com.luminaapps.talea.statusbar` so R8 can't strip the
   reflectively-loaded plugin class in release builds.
+- macOS/iOS build failed compiling the Apple-only `dispatch2` crate
+  (`recursion limit reached while expanding __bitflags_flag_name`): a `bitflags`
+  2.12.0 regression recurses per flag attribute, overrunning the default limit on
+  `dispatch2`'s heavily-documented flags. Pinned `bitflags` to 2.9.1 in
+  `Cargo.lock` (the 2.x line has no such macro).
+- A fresh clone's first `just dev` (or `build`/`test`/`android-*`) failed because
+  the frontend deps weren't installed yet. Those recipes now depend on a
+  `_ensure-frontend` guard that runs `npm install` only when `node_modules` is
+  missing.
 - Documented the real release-APK path (`…-release-unsigned.apk`) and the
   zipalign → apksigner signing flow in `docs/DEVELOPMENT.md` (the previous path
   assumed an auto-signed release).

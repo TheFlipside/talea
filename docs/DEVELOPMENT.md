@@ -286,6 +286,38 @@ The abstract budget-ring widget (DESIGN.md §6) has two iOS parts:
 
 ## Troubleshooting
 
+### First build: Vite/`npm` not installed
+
+A fresh clone has no `frontend/node_modules`, so a bare `cargo tauri dev/build`
+fails when it runs the Vite `beforeDevCommand`. The `just` recipes
+(`dev`, `build`, `test`, `lint`, `android-*`) depend on `_ensure-frontend`, which
+runs `npm --prefix frontend install` only when it's missing — so `just dev` works
+on a clean checkout. If you invoke `cargo tauri` directly, run `just install`
+(or `npm --prefix frontend install`) once first.
+
+### macOS/iOS build: "recursion limit reached" in `dispatch2`
+
+A macOS/iOS build can fail compiling the Apple-only `dispatch2` crate:
+
+```
+error: recursion limit reached while expanding `$crate::__bitflags_flag_name!`
+  --> .../dispatch2-0.3.1/src/generated/mod.rs
+```
+
+This is an upstream `bitflags` **2.12.0** regression: its `__bitflags_flag_name`
+macro recurses once per flag attribute, and `dispatch2`'s flags carry long
+doc-comments, so it overruns the default `recursion_limit` (128). `bitflags`
+2.9.1 has no such macro. The committed `Cargo.lock` therefore **pins `bitflags`
+to 2.9.1** (2.x line; the legacy 1.x is separate). If a future `cargo update`
+reintroduces 2.12.0+ and the error returns, re-pin:
+
+```bash
+cargo update -p bitflags@2.12.0 --precise 2.9.1   # adjust the from-version
+```
+
+(Do not bump `bitflags` 2.x past 2.9.x until `dispatch2` ships a
+`#![recursion_limit]` or the bitflags macro is fixed.)
+
 ### Blank / white screen on launch
 
 This almost always means the device's WebView can't reach the Vite dev server.
