@@ -237,7 +237,11 @@ category, version, and display name come from `tauri.conf.json`.
    or `export APPLE_DEVELOPMENT_TEAM=XXXXXXXXXX` in your shell (the `just ios-*`
    recipes inherit it). Find the 10-char Team ID in the Apple Developer portal →
    Membership.
-2. **Generate the project + icons:**
+2. **Distribution certificate** (App Store builds only; needs the paid Apple
+   Developer Program). Xcode → Settings → Accounts → your Apple ID → **Manage
+   Certificates → + → Apple Distribution**. A development cert alone yields an
+   `Apple Development`-signed IPA that App Store Connect rejects.
+3. **Generate the project + icons:**
    ```bash
    just ios-init      # cargo tauri ios init  +  cargo tauri icon (branded icons)
    ```
@@ -259,11 +263,24 @@ help).
 
 ### Building a publishable App Store archive
 
-No Xcode "Product → Archive" needed — the cli produces the signed IPA:
+No Xcode "Product → Archive" needed — the cli produces the **distribution**-signed
+IPA. Use the recipe (it passes the export method); a **bare `cargo tauri ios
+build` exports a *development*-signed IPA** that App Store Connect rejects:
 
 ```bash
 just ios-release    # cargo tauri ios build --export-method app-store-connect
 # → src-tauri/gen/apple/build/arm64/Talea.ipa
+```
+
+**Verify the signature before uploading** (note: `codesign` on the `.ipa` itself
+reports "not signed at all" — an IPA is just a zip; verify the `.app` inside):
+
+```bash
+# from the repo root:
+unzip -o src-tauri/gen/apple/build/arm64/Talea.ipa -d /tmp/talea-ipa
+codesign -dvvv /tmp/talea-ipa/Payload/Talea.app 2>&1 | grep Authority
+# the first Authority= line is the leaf cert — expect:
+#   Authority=Apple Distribution: <you> (<TEAMID>)
 ```
 
 Then upload `Talea.ipa` to App Store Connect:
@@ -276,9 +293,29 @@ Then upload `Talea.ipa` to App Store Connect:
   `~/.appstoreconnect/private_keys/`).
 
 The app record (matching bundle id `com.luminaapps.talea`) must already exist in
-App Store Connect. Automatic signing creates the distribution cert + provisioning
-profile on first build; if it can't, create an **App Store** provisioning profile
-for the bundle id in the Developer portal.
+App Store Connect.
+
+**Fallback — distribute via Xcode Organizer.** If the cli export can't create the
+App Store provisioning profile headlessly, use the archive the build already
+produced: double-click `src-tauri/gen/apple/build/talea_iOS.xcarchive` (opens in
+Organizer) → **Distribute App → App Store Connect → Upload**. Xcode re-signs
+using the Apple Distribution cert in your keychain and fetches/creates the App
+Store profile. This runs no Rust build phase, so it sidesteps the PATH /
+dev-server issues entirely.
+
+#### Signing troubleshooting
+
+- **`errSecInternalComponent` at CodeSign** (build from the cli): codesign can't
+  reach the signing key non-interactively. In **Keychain Access** → login → My
+  Certificates, expand the signing cert, double-click its **private key →
+  Access Control** and add `/usr/bin/codesign` (preferred — minimal grant;
+  "Allow all applications" also works but is a broader, less-restrictive grant).
+  Also confirm the **Apple WWDR** intermediate cert is present and unexpired
+  (reinstall from <https://www.apple.com/certificateauthority/>), and that the
+  login keychain isn't auto-locking mid-build.
+- **IPA signed `Apple Development` / Transporter "not a distribution cert"**: you
+  ran the bare build (development export) — use `just ios-release`, and ensure the
+  Apple Distribution cert from the setup step exists.
 
 > **Widget caveat:** the WidgetKit extension (`ios-widget/`) is a **second
 > target**. Because the Xcode project is regenerated from `project.yml`, a target

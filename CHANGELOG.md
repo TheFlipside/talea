@@ -10,8 +10,11 @@ All notable changes to this project are documented in this file.
   (live device/simulator), and `just ios-release` (signed App Store IPA via
   `--export-method app-store-connect`). The Apple development team is set once via
   `tauri.conf.json` `bundle.iOS.developmentTeam` or `APPLE_DEVELOPMENT_TEAM`, so
-  signing no longer needs the Xcode team picker. Documented end-to-end (including
-  IPA upload via Transporter) in `docs/DEVELOPMENT.md`.
+  signing no longer needs the Xcode team picker. Documented end-to-end in
+  `docs/DEVELOPMENT.md`, including the distribution-cert prerequisite, signature
+  verification, the `errSecInternalComponent` keychain fix, that a bare
+  `cargo tauri ios build` exports a *development*-signed IPA (use `just
+  ios-release`), and the Organizer fallback + Transporter upload.
 - Set the app `category` ("Finance") in `tauri.conf.json` so iOS gets a valid
   `LSApplicationCategoryType` (required for App Store).
 
