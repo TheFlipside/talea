@@ -159,8 +159,10 @@ Remove-Item "$env:APPDATA\com.luminaapps.talea\talea.sqlite3*"
 - [x] Optional biometric app lock (mobile; a Settings toggle gates the app on
       launch via `tauri-plugin-biometric`, with graceful degradation where
       biometrics are unavailable).
-- [ ] **Home-screen widget:** an abstract ring / color indicator only — the
-      actual figures stay in-app behind the biometric lock. *(Later milestone.)*
+- [x] **Home-screen widget:** an abstract ring + percentage only (configurable
+      per widget, one account each) — the actual figures stay in-app behind the
+      biometric lock. Android (in-tree plugin, merges into the app) and iOS
+      (WidgetKit extension; sources in `ios-widget/`, added in Xcode on macOS).
 
 ## License
 

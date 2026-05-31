@@ -1,7 +1,7 @@
 {
   "identifier": "mobile",
-  "description": "Mobile-only (Android/iOS) capability: the biometric app lock.",
+  "description": "Mobile-only (Android/iOS) capabilities: the biometric app lock and the home-screen widget publisher.",
   "platforms": ["android", "iOS"],
   "windows": ["main"],
-  "permissions": ["biometric:default"]
+  "permissions": ["biometric:default", "budgetwidget:default"]
 }

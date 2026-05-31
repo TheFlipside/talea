@@ -108,13 +108,31 @@ Edge cases to handle in the expansion logic (not the schema):
 
 ---
 
-## 6. Home-screen widget — 🟢 DECIDED (later milestone)
+## 6. Home-screen widget — 🟢 DONE (implemented)
 
-Shows only an **abstract ring (spent / remaining) and/or a percentage** of budget
-health. **Absolute figures never leave the core app** — only the percentage /
-ring fraction is published to the OS shared storage the widget reads. Actual
-numbers stay in-app, behind the optional biometric lock. Later milestone, not
-part of the current scaffold.
+Shows only an **abstract ring + percentage** of budget health. **Absolute figures
+never leave the core app** — only the ring fraction (0..1), a derived percent, an
+overspent flag, and the account name are published to the OS shared storage the
+widget reads. Actual numbers stay in-app, behind the optional biometric lock.
+
+- **Configurable per widget:** each placed widget tracks one account (per-account
+  currency means a widget can only ever reflect a single account — no
+  cross-account aggregation). The current calendar month is shown.
+- **Bridge:** an in-tree Tauri plugin `tauri-plugin-budgetwidget` exposes
+  `publish_health(accounts)`. The frontend computes each account's fraction by
+  reusing the in-app budget-ring view model (`ringView`), so money stays
+  string-typed at the boundary; only the abstract snapshot crosses to native.
+  Republished whenever data / accounts / ring-mode change while the app is open.
+- **Android:** the widget (an `AppWidgetProvider` drawing the ring to a bitmap, a
+  config `Activity` picking the account) lives in the plugin's Android library and
+  merges into the app manifest. The plugin writes `SharedPreferences` and nudges
+  the widgets to redraw.
+- **iOS (17+):** the plugin writes an **App Group** (`group.com.luminaapps.talea`)
+  and reloads timelines; the WidgetKit extension (`AppIntentConfiguration` account
+  picker + SwiftUI ring) is a separate Xcode target whose sources live in
+  `ios-widget/` and are added on macOS (see `docs/DEVELOPMENT.md`).
+- **Limitation:** no background updater in v1 — between months while the app is
+  closed the widget shows the last in-app snapshot until the app is next opened.
 
 ---
 

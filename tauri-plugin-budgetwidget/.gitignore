@@ -1,0 +1,9 @@
+/target
+Cargo.lock
+# Tauri copies the mobile API into these during a mobile build.
+/android/.tauri
+/android/build
+/android/.gradle
+/ios/.build
+/ios/.tauri
+/ios/Package.resolved

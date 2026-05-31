@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { AccountId } from '../api/types';
+import { BudgetWidgetPublisher } from '../components/BudgetWidgetPublisher';
 import { currentMonth, nextMonth, prevMonth } from '../lib/month';
 import type { RingMode } from '../lib/ring';
 import { setStatusBarDark } from '../lib/statusbar';
@@ -176,7 +177,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <SettingsProvider>
       <NavigationProvider>
         <ActiveAccountProvider>
-          <SelectedMonthProvider>{children}</SelectedMonthProvider>
+          <SelectedMonthProvider>
+            <BudgetWidgetPublisher />
+            {children}
+          </SelectedMonthProvider>
         </ActiveAccountProvider>
       </NavigationProvider>
     </SettingsProvider>

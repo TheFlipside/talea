@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native widget-config strings. The app's UI is localized in the web layer;
+     these few native labels default to English (namespaced to avoid clashing
+     with the host app's resources during manifest/resource merge). -->
+<resources>
+    <string name="budgetwidget_choose_account">Choose an account</string>
+    <string name="budgetwidget_no_accounts">Open Talea once to set up the widget.</string>
+</resources>

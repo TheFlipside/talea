@@ -1,0 +1,19 @@
+[package]
+name = "tauri-plugin-budgetwidget"
+description = "Publish an abstract budget-health ring fraction to the OS shared storage a home-screen widget reads (Android/iOS)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Required for plugins with a mobile (Android/iOS) component so Tauri can locate
+# the native projects during the mobile build.
+links = "tauri-plugin-budgetwidget"
+
+[dependencies]
+tauri = { version = "2" }
+serde = { workspace = true }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

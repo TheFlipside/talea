@@ -156,6 +156,27 @@ The generated `values/themes.xml` + `values-night/themes.xml` may also set
 in night) as a sensible default for the brief moment before the WebView loads,
 but the plugin is the authority once the app is running.
 
+### Home-screen widget
+
+The abstract budget-ring widget (DESIGN.md §6) is provided by
+`tauri-plugin-budgetwidget`. Its Android side is an `com.android.library`
+(`tauri-plugin-budgetwidget/android`) whose `AndroidManifest.xml` declares the
+`AppWidgetProvider` receiver + config activity; those **merge into the app
+manifest**, so the launcher lists the widget under `com.luminaapps.talea` — no
+edits to the generated `gen/android` project are needed.
+
+To test on a device:
+
+1. Build/run the app (`just android-dev` / `just android-dev-host <ip>`) and open
+   it at least once so it publishes a snapshot (the plugin writes the abstract
+   per-account ring fraction to `SharedPreferences "talea_widget"`).
+2. Long-press the home screen → **Widgets** → Talea → drag the widget out. The
+   config screen lists your accounts; pick one. The ring + percentage render.
+3. Record an entry or switch accounts in-app: the widget redraws (the app pushes
+   updates; it does not poll). Tapping the widget opens the app.
+4. Only the ring/percentage/name are shown — no amounts — so it's safe on the
+   lock screen / while the app is biometric-locked.
+
 ---
 
 ## iOS (App Store)
@@ -209,9 +230,24 @@ Notes:
   re-init** (this doc is the source of truth).
 - The build's provisioning profile must include the Data Protection entitlement
   (it will, once the capability is enabled on the App ID).
-- **Future widget:** the App Groups shared container that publishes the abstract
-  ring fraction must stay readable while the device is locked, so it must **not**
-  be `Complete`-protected — leave it at the default level.
+- **Widget App Group:** the App Group container that publishes the abstract ring
+  fraction (see below) must stay readable while the device is locked, so it must
+  **not** be `Complete`-protected — leave it at the default level.
+
+### Home-screen widget
+
+The abstract budget-ring widget (DESIGN.md §6) has two iOS parts:
+
+- The app-side bridge (`tauri-plugin-budgetwidget`) writes the abstract snapshot
+  to an **App Group** (`group.com.luminaapps.talea`) and reloads timelines. It is
+  built into the app automatically (no extra steps beyond enabling the App Group
+  capability + entitlement on the app target).
+- The WidgetKit **extension** is a separate Xcode target. Because Tauri can't
+  generate it, its sources live in [`ios-widget/`](../ios-widget/README.md) and
+  are added to the generated Xcode project on macOS. Follow
+  `ios-widget/README.md`: enable the App Group on both the app and widget targets,
+  add the `TaleaWidget` target (iOS 17+), and add the source files. Re-apply after
+  any `cargo tauri ios init`.
 
 ---
 

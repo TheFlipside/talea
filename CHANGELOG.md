@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Home-screen widget (Android + iOS): an **abstract budget-ring + percentage**
+  for a chosen account, **configurable per widget**. Only the ring fraction,
+  percent, overspent flag and account name cross to the OS — never any amount —
+  so figures stay in-app behind the biometric lock (DESIGN.md §6). A new in-tree
+  Tauri plugin `tauri-plugin-budgetwidget` publishes the abstract snapshot
+  (computed by reusing the in-app `ringView`); Android ships the widget in the
+  plugin's library (manifest-merged `AppWidgetProvider` + account-picker config
+  activity, ring drawn to a bitmap); iOS ships a WidgetKit extension (sources in
+  `ios-widget/`, App Group `group.com.luminaapps.talea`, added in Xcode on macOS).
+
+### Fixed
+
+- `tauri-plugin-statusbar` ProGuard keep-rule still referenced the pre-rebrand
+  package; updated to `com.luminaapps.talea.statusbar` so R8 can't strip the
+  reflectively-loaded plugin class in release builds.
+
 ## 1.0.0 - 2026-05-31
 
 First release prepared for the app stores; bundle identifier finalized to

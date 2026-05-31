@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- updatePeriodMillis=0: the app pushes updates via the plugin; the system
+     does not poll. A configure activity runs when the widget is placed so the
+     user picks which account it tracks. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:configure="com.luminaapps.talea.budgetwidget.BudgetWidgetConfigActivity"
+    android:initialLayout="@layout/budget_widget"
+    android:previewLayout="@layout/budget_widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

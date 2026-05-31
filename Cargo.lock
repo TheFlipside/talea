@@ -3662,6 +3662,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-biometric",
+ "tauri-plugin-budgetwidget",
  "tauri-plugin-statusbar",
  "tempfile",
  "thiserror 2.0.18",
@@ -3886,6 +3887,15 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "tauri-plugin-budgetwidget"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

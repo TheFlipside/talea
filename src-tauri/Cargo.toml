@@ -23,6 +23,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 talea-core = { path = "../core" }
 tauri-plugin-statusbar = { path = "../tauri-plugin-statusbar" }
+tauri-plugin-budgetwidget = { path = "../tauri-plugin-budgetwidget" }
 tauri = { version = "2", features = [] }
 serde.workspace = true
 serde_json.workspace = true
