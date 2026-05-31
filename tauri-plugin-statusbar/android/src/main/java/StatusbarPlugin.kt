@@ -1,4 +1,4 @@
-package app.talea.budget.statusbar
+package com.luminaapps.talea.statusbar
 
 import android.app.Activity
 import androidx.core.view.WindowCompat

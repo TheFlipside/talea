@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "app.talea.budget.statusbar"
+    namespace = "com.luminaapps.talea.statusbar"
     compileSdk = 36
 
     defaultConfig {

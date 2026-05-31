@@ -120,7 +120,7 @@ target/flavour; check the `cargo tauri android build` output.)
    behind a prompt you cancel). Fully close and reopen the app:
 
    ```bash
-   adb shell am force-stop app.talea.budget   # then relaunch from the launcher
+   adb shell am force-stop com.luminaapps.talea   # then relaunch from the launcher
    ```
 
 3. On relaunch the system biometric prompt appears → authenticate (fingerprint /
@@ -131,7 +131,7 @@ Reset on-device state (database **and** the lock preference) for a clean first
 run:
 
 ```bash
-just android-reset       # → adb shell pm clear app.talea.budget
+just android-reset       # → adb shell pm clear com.luminaapps.talea
 ```
 
 ### System bar appearance (status / navigation bar icons)

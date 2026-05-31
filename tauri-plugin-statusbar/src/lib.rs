@@ -65,7 +65,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .setup(|app, _api| {
             #[cfg(target_os = "android")]
             let handle =
-                _api.register_android_plugin("app.talea.budget.statusbar", "StatusbarPlugin")?;
+                _api.register_android_plugin("com.luminaapps.talea.statusbar", "StatusbarPlugin")?;
             #[cfg(target_os = "ios")]
             let handle = _api.register_ios_plugin(init_plugin_statusbar)?;
             app.manage(Statusbar {

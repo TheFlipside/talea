@@ -63,7 +63,7 @@ sqlx-prepare:
 
 # Delete the local dev database for a clean first run (Linux; see README for other OSes).
 reset-db:
-    rm -f ~/.local/share/app.talea.budget/talea.sqlite3*
+    rm -f ~/.local/share/com.luminaapps.talea/talea.sqlite3*
     @echo "Local dev database reset."
 
 # CRAP diagnosis: generate Rust coverage, then score change-risk/complexity.
@@ -109,10 +109,10 @@ android-build:
 android-log:
     #!/usr/bin/env bash
     set -euo pipefail
-    pid="$(adb shell pidof -s app.talea.budget || true)"
+    pid="$(adb shell pidof -s com.luminaapps.talea || true)"
     if [ -z "$pid" ]; then echo "Talea isn't running on the device."; exit 1; fi
     adb logcat --pid="$pid"
 
 # Wipe the app's on-device data (database + lock preference) for a clean run.
 android-reset:
-    adb shell pm clear app.talea.budget
+    adb shell pm clear com.luminaapps.talea

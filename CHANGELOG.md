@@ -138,6 +138,12 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Bundle identifier changed from the `app.talea.budget` development placeholder
+  to the published reverse-DNS id `com.luminaapps.talea` (the Android
+  `applicationId` / iOS bundle id, and the on-device app-data directory). The
+  in-tree `tauri-plugin-statusbar` Android package was renamed to match
+  (`com.luminaapps.talea.statusbar`). Regenerate the native `gen/` projects
+  (`cargo tauri android init` / `ios init`) so the change takes effect locally.
 - The date picker's calendar now renders in normal flow rather than as an
   absolute popup, so the entry/rule modal grows to use the available viewport
   height instead of clipping the calendar and forcing a scroll.
