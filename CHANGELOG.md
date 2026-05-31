@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.0.0 - 2026-05-31
+
+First release prepared for the app stores; bundle identifier finalized to
+`com.luminaapps.talea`.
+
 ### Added
 
 - Initial project scaffold: Cargo workspace with `core/`, `src-tauri/`, and
