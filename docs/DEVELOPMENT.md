@@ -212,13 +212,86 @@ To test on a device:
 
 ---
 
-## iOS (App Store)
+## iOS (macOS + Xcode)
 
-iOS builds require **macOS + Xcode**. `cargo tauri ios init` generates the
-native project under `src-tauri/gen/apple` (gitignored, like `gen/android`), and
-`cargo tauri ios build` produces the archive to upload via Xcode Organizer or
-Transporter. The bundle identifier is `com.luminaapps.talea` (from
-`tauri.conf.json`).
+iOS builds require **macOS + Xcode** and an Apple Developer team. The native
+project under `src-tauri/gen/apple` is **gitignored and regenerated from
+`project.yml` (XcodeGen) on every cli build** — so configure everything through
+`tauri.conf.json` / `project.yml` / the icon manifest, **never the Xcode UI**
+(GUI edits, manually-added targets, and "Signing & Capabilities" tweaks are
+wiped on the next build). The bundle id is `com.luminaapps.talea`; the app
+category, version, and display name come from `tauri.conf.json`.
+
+> **Drive every build through the tauri-cli, not Xcode's Run button.** The Rust
+> build phase (`cargo tauri ios xcode-script`) connects back to the running cli
+> over a WebSocket; pressing Run in Xcode standalone fails with
+> `failed to build WebSocket client … Connection refused`.
+
+### One-time setup
+
+1. **Development team.** Set it once so signing works headlessly (no Xcode team
+   picker). Either add to `tauri.conf.json` under `bundle`:
+   ```json
+   "iOS": { "developmentTeam": "XXXXXXXXXX" }
+   ```
+   or `export APPLE_DEVELOPMENT_TEAM=XXXXXXXXXX` in your shell (the `just ios-*`
+   recipes inherit it). Find the 10-char Team ID in the Apple Developer portal →
+   Membership.
+2. **Generate the project + icons:**
+   ```bash
+   just ios-init      # cargo tauri ios init  +  cargo tauri icon (branded icons)
+   ```
+   Like `android init`, `ios init` scaffolds the **default Tauri icon**, so the
+   recipe reapplies the branded one from `src-tauri/icons/icon-manifest.json`. If
+   the home-screen icon ever shows the stock Tauri logo, re-run `just ios-init`.
+
+### Live testing on a device
+
+```bash
+just ios-dev        # cargo tauri ios dev — builds, signs, installs, live-reloads
+```
+
+Keep the terminal running (it hosts the dev server the app and the Xcode build
+phase talk to). The device and Mac must be on the same network and able to reach
+the dev host (a restrictive Wi-Fi/AP-isolation or firewall setup can block it,
+like the Android LAN case below — `cargo tauri ios dev --host <mac-LAN-ip>` can
+help).
+
+### Building a publishable App Store archive
+
+No Xcode "Product → Archive" needed — the cli produces the signed IPA:
+
+```bash
+just ios-release    # cargo tauri ios build --export-method app-store-connect
+# → src-tauri/gen/apple/build/arm64/Talea.ipa
+```
+
+Then upload `Talea.ipa` to App Store Connect:
+
+- **Transporter** (free, Mac App Store) — open it, sign in with your Apple ID,
+  drag in the IPA (or **+**), and **Deliver**. This is the recommended path.
+- CLI alternative: `xcrun iTMSTransporter` with an App Store Connect API key.
+  (Note: `xcrun altool --upload-app` was removed in Xcode 16 — don't rely on it.)
+  Keep any `.p8` API key out of source control (store it under
+  `~/.appstoreconnect/private_keys/`).
+
+The app record (matching bundle id `com.luminaapps.talea`) must already exist in
+App Store Connect. Automatic signing creates the distribution cert + provisioning
+profile on first build; if it can't, create an **App Store** provisioning profile
+for the bundle id in the Developer portal.
+
+> **Widget caveat:** the WidgetKit extension (`ios-widget/`) is a **second
+> target**. Because the Xcode project is regenerated from `project.yml`, a target
+> added through the Xcode UI is wiped on the next cli build — it must be declared
+> in `project.yml` to ship. Until that's wired in, `just ios-release` builds the
+> app **without** the widget. See `ios-widget/README.md`.
+
+### PATH note (only if you do build from Xcode)
+
+GUI-launched Xcode doesn't inherit your shell `PATH`, so a Rust build phase run
+from Xcode can't find `cargo`. Driving builds via the cli (above) avoids this. If
+you must build in Xcode, add `source "$HOME/.cargo/env"` as the first line of the
+"Build Rust Code" run-script phase (re-add after regeneration).
 
 ### Data protection (at-rest encryption)
 
@@ -275,12 +348,12 @@ The abstract budget-ring widget (DESIGN.md §6) has two iOS parts:
   to an **App Group** (`group.com.luminaapps.talea`) and reloads timelines. It is
   built into the app automatically (no extra steps beyond enabling the App Group
   capability + entitlement on the app target).
-- The WidgetKit **extension** is a separate Xcode target. Because Tauri can't
-  generate it, its sources live in [`ios-widget/`](../ios-widget/README.md) and
-  are added to the generated Xcode project on macOS. Follow
-  `ios-widget/README.md`: enable the App Group on both the app and widget targets,
-  add the `TaleaWidget` target (iOS 17+), and add the source files. Re-apply after
-  any `cargo tauri ios init`.
+- The WidgetKit **extension** is a separate Xcode target whose sources live in
+  [`ios-widget/`](../ios-widget/README.md). Because `gen/apple` is regenerated
+  from `project.yml` on every cli build, the target must be declared in
+  `project.yml` to persist — adding it through the Xcode UI doesn't survive.
+  **This isn't wired in yet**, so the current `just ios-release` ships the app
+  **without** the widget; see `ios-widget/README.md`.
 
 ---
 

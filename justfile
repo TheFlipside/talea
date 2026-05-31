@@ -126,3 +126,24 @@ android-log:
 # Wipe the app's on-device data (database + lock preference) for a clean run.
 android-reset:
     adb shell pm clear com.luminaapps.talea
+
+# ---- iOS (mobile; macOS + Xcode only) ----
+# Requires Xcode and an Apple development team. Set the team ONCE, either:
+#   • tauri.conf.json → bundle.iOS.developmentTeam = "XXXXXXXXXX", or
+#   • export APPLE_DEVELOPMENT_TEAM=XXXXXXXXXX  (inherited by these recipes).
+# Drive every build through the tauri-cli — never Xcode's Run button (that
+# bypasses the cli's WebSocket and fails). See docs/DEVELOPMENT.md.
+
+# `ios init` scaffolds default icons, so reapply the branded ones right after.
+# Generate the native iOS project (one-time) and apply the branded icons.
+ios-init:
+    cargo tauri ios init
+    cargo tauri icon src-tauri/icons/icon-manifest.json
+
+# Run live on a connected device / simulator (Vite dev server + HMR).
+ios-dev: _ensure-frontend
+    cargo tauri ios dev
+
+# Build a signed App Store IPA → src-tauri/gen/apple/build/ (upload via Transporter).
+ios-release: _ensure-frontend
+    cargo tauri ios build --export-method app-store-connect

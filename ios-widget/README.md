@@ -3,10 +3,17 @@
 These are the sources for the iOS WidgetKit extension that renders the abstract
 budget-health ring (see `docs/DESIGN.md` §6). A WidgetKit extension is a
 **separate Xcode target**, so — unlike `tauri-plugin-budgetwidget` — it can't be
-contributed by a Tauri plugin and isn't built by `cargo tauri ios build`. It must
-be added to the generated Xcode project on macOS. These files are the source of
-truth; re-apply after any `cargo tauri ios init` (which regenerates
-`src-tauri/gen/apple`).
+contributed by a Tauri plugin and isn't built by `cargo tauri ios build`.
+
+> **⚠️ Pending: this must be wired via `project.yml`, not the Xcode UI.**
+> `src-tauri/gen/apple` is regenerated from `project.yml` (XcodeGen) on every
+> `cargo tauri ios dev/build`, so a target **added through the Xcode UI is wiped
+> on the next build**. The "add in Xcode" steps below are therefore *not* durable
+> and are kept only as a reference for the target's shape. The durable approach —
+> declaring the `TaleaWidget` extension target (sources, Info.plist, entitlements,
+> and embedding it into `talea_iOS`) in `project.yml` — is **not yet wired in**,
+> so a current `just ios-release` ships the app **without** the widget. Tracked
+> as follow-up.
 
 Targets **iOS 17+** (uses `AppIntentConfiguration` for the per-widget account
 picker and `containerBackground`).

@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Turnkey iOS workflow: `just ios-init` (project + branded icons), `just ios-dev`
+  (live device/simulator), and `just ios-release` (signed App Store IPA via
+  `--export-method app-store-connect`). The Apple development team is set once via
+  `tauri.conf.json` `bundle.iOS.developmentTeam` or `APPLE_DEVELOPMENT_TEAM`, so
+  signing no longer needs the Xcode team picker. Documented end-to-end (including
+  IPA upload via Transporter) in `docs/DEVELOPMENT.md`.
+- Set the app `category` ("Finance") in `tauri.conf.json` so iOS gets a valid
+  `LSApplicationCategoryType` (required for App Store).
+
 - Home-screen widget (Android + iOS): an **abstract budget-ring + percentage**
   for a chosen account, **configurable per widget**. Only the ring fraction,
   percent, overspent flag and account name cross to the OS — never any amount —
@@ -37,6 +46,9 @@ All notable changes to this project are documented in this file.
   the frontend deps weren't installed yet. Those recipes now depend on a
   `_ensure-frontend` guard that runs `npm install` only when `node_modules` is
   missing.
+- iOS launcher icon shipped as the default Tauri logo for the same reason as
+  Android (`ios init` scaffolds the stock icon). `just ios-init` now reapplies the
+  branded icon via the icon manifest.
 - Documented the real release-APK path (`…-release-unsigned.apk`) and the
   zipalign → apksigner signing flow in `docs/DEVELOPMENT.md` (the previous path
   assumed an auto-signed release).

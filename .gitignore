@@ -14,6 +14,12 @@ frontend/.vite/
 src-tauri/target/
 src-tauri/gen/
 
+# Apple signing secrets (never commit)
+*.p8
+*.mobileprovision
+*.p12
+*.cer
+
 # Local databases / env
 *.sqlite
 *.sqlite-*
