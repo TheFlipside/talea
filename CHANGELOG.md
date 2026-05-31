@@ -15,12 +15,22 @@ All notable changes to this project are documented in this file.
   plugin's library (manifest-merged `AppWidgetProvider` + account-picker config
   activity, ring drawn to a bitmap); iOS ships a WidgetKit extension (sources in
   `ios-widget/`, App Group `group.com.luminaapps.talea`, added in Xcode on macOS).
+  The widget is **reconfigurable** (Android 12+): long-press → reconfigure to
+  change the tracked account without removing and re-adding it.
 
 ### Fixed
 
+- Android launcher icon shipped as the **default Tauri logo** instead of Talea's:
+  `cargo tauri android init` scaffolds the stock icon, and nothing reapplied the
+  branded one. The `android-init` recipe now runs `cargo tauri icon` against a new
+  `src-tauri/icons/icon-manifest.json` (adaptive icon = ring/calendar on the dark
+  `#122E38` tile; also fills the iOS icons' transparent corners).
 - `tauri-plugin-statusbar` ProGuard keep-rule still referenced the pre-rebrand
   package; updated to `com.luminaapps.talea.statusbar` so R8 can't strip the
   reflectively-loaded plugin class in release builds.
+- Documented the real release-APK path (`…-release-unsigned.apk`) and the
+  zipalign → apksigner signing flow in `docs/DEVELOPMENT.md` (the previous path
+  assumed an auto-signed release).
 
 ## 1.0.0 - 2026-05-31
 

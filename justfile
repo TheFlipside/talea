@@ -76,11 +76,14 @@ crap:
 # environment or auto-detected as the latest NDK under $ANDROID_HOME/ndk.
 
 # Generate the native Android project (one-time; output is gitignored).
+# `android init` scaffolds the project with the default Tauri launcher icon, so
+# reapply the branded icons from the manifest right after.
 android-init:
     #!/usr/bin/env bash
     set -euo pipefail
     export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
     cargo tauri android init
+    cargo tauri icon src-tauri/icons/icon-manifest.json
 
 # Run on a connected device over USB (maps the device's localhost via adb reverse).
 android-dev:

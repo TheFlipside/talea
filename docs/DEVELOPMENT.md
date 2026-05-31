@@ -62,6 +62,13 @@ export PATH="$ANDROID_HOME/platform-tools:$PATH"
 just android-init        # → cargo tauri android init, creates src-tauri/gen/android
 ```
 
+`cargo tauri android init` scaffolds the project with the **default Tauri
+launcher icon**, so the recipe immediately reapplies the branded icons via
+`cargo tauri icon src-tauri/icons/icon-manifest.json` (adaptive icon: the
+ring/calendar foreground on the dark `#122E38` tile). If you ever run
+`cargo tauri android init` directly, run that icon command afterwards or the APK
+ships the stock Tauri logo.
+
 ### Connect the device
 
 1. On the phone: enable **Developer options → USB debugging**.
@@ -99,15 +106,38 @@ and hot-reload the frontend.
 ### Run it (standalone APK — no dev server)
 
 To run without a live dev server (the frontend is bundled into the APK), build
-and install a release package. This also sidesteps the firewall/networking
-entirely, so it's a good way to confirm whether a blank screen is a dev-server
-connection problem:
+and install a package. This also sidesteps the firewall/networking entirely, so
+it's a good way to confirm whether a blank screen is a dev-server connection
+problem.
+
+**Debug (simplest — auto-signed with the debug key, installs directly):**
 
 ```bash
-just android-build
+cargo tauri android build --debug
 adb install -r \
-  src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+  src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
+
+**Release (unsigned — must be signed before it will install):** a release build
+has no Gradle signing config, so it emits `app-universal-release-unsigned.apk`.
+Align, then sign with your keystore, then install (`$BT` = your build-tools dir,
+e.g. `$ANDROID_HOME/build-tools/37.0.0-rc2`):
+
+```bash
+BT="$ANDROID_HOME/build-tools/37.0.0-rc2"
+OUT="src-tauri/gen/android/app/build/outputs/apk/universal/release"
+just android-build                                   # → app-universal-release-unsigned.apk
+"$BT/zipalign" -f -p 4 "$OUT/app-universal-release-unsigned.apk" "$OUT/app-universal-release-aligned.apk"
+"$BT/apksigner" sign --ks <keystore> --ks-key-alias <alias> \
+  --out "$OUT/app-universal-release-signed.apk" "$OUT/app-universal-release-aligned.apk"
+adb install -r "$OUT/app-universal-release-signed.apk"
+```
+
+`zipalign` must run **before** `apksigner` (the signer preserves alignment, it
+doesn't realign). `apksigner` prompts for the keystore/key passwords — don't pass
+them on the command line. If a build signed with a different key (e.g. the debug
+APK) is already installed, `adb install` fails with
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`; `adb uninstall com.luminaapps.talea` first.
 
 (If the packaged app renders but `android-dev*` doesn't, the issue is the dev
 server connection — see Troubleshooting. The exact APK path can vary by
@@ -174,7 +204,10 @@ To test on a device:
    config screen lists your accounts; pick one. The ring + percentage render.
 3. Record an entry or switch accounts in-app: the widget redraws (the app pushes
    updates; it does not poll). Tapping the widget opens the app.
-4. Only the ring/percentage/name are shown — no amounts — so it's safe on the
+4. To **change the tracked account** after placement (Android 12+/API 31), the
+   widget is `reconfigurable`: long-press it → tap the reconfigure (pencil)
+   affordance to reopen the account picker. On older Android, remove and re-add.
+5. Only the ring/percentage/name are shown — no amounts — so it's safe on the
    lock screen / while the app is biometric-locked.
 
 ---
