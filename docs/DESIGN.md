@@ -184,15 +184,33 @@ Accepted as known debt for the scaffold; revisit before a release:
   quadrillion — far below `Decimal::MAX`. If a stricter guarantee is ever wanted,
   convert the ledger functions to return `Result` with checked arithmetic. Note
   the ledger is O(history); the persistence layer may cache per-month aggregates.
-- **The biometric app lock (§7) is a UI gate, not encryption.** The SQLite
-  database is not encrypted at rest, and the lock preference lives in
-  `localStorage`. The lock deters casual access on a running device; it does not
-  protect data against someone with filesystem access (root, ADB, an unencrypted
-  device backup) — they can read the DB regardless. It also auto-disengages where
-  biometrics are unavailable (by design, so the user is never locked out). Revisit
-  with at-rest encryption (e.g. SQLCipher) and OS-keystore-backed settings before
-  treating it as a confidentiality boundary. Lock-on-resume is a separate future
-  refinement (currently cold-start only).
+- **The biometric app lock (§7) is a UI gate, not encryption.** The lock
+  preference lives in `localStorage` and the lock deters casual access on a
+  running device; it does not protect data against someone with filesystem
+  access (root, ADB, an unencrypted device backup). It also auto-disengages
+  where biometrics are unavailable (by design, so the user is never locked out).
+  App-managed encryption (e.g. SQLCipher) plus OS-keystore-backed settings
+  remains the stronger, tracked option before treating the lock as a
+  confidentiality boundary. Lock-on-resume is a separate future refinement
+  (currently cold-start only).
+- **At-rest encryption — DECIDED: rely on the OS baseline for v1.** Both target
+  platforms encrypt app-private storage at rest once the user has a device
+  passcode/PIN, with **no app code and no entitlement**: iOS protects files at
+  the `NSFileProtectionCompleteUntilFirstUserAuthentication` class by default,
+  and modern Android encrypts internal storage (File-Based Encryption). The
+  SQLite DB therefore already benefits on a secured device. The iOS **Data
+  Protection** capability (`com.apple.developer.default-data-protection`,
+  documented value `NSFileProtectionComplete`) is the opt-in to the *stronger*
+  class where files are **sealed while the device is locked** — we deliberately
+  **defer** it for v1: the resident `sqlx`/WAL connection stays open, and a
+  sealed-when-locked file can raise `SQLITE_IOERR` if iOS suspends the app
+  around device lock (or during background refresh). So v1 needs neither the
+  capability nor the entitlement to get baseline at-rest encryption. (All of
+  this only applies when the user has a device passcode/PIN set.) Raising specific files to `Complete` (set
+  per-file, on-device-validated) or moving to SQLCipher is future work; the
+  how-to and the entitlement snippet live in `docs/DEVELOPMENT.md`. Note the
+  future widget's App Groups shared container (§6) must stay readable while
+  locked, so it must **not** be `Complete`-protected.
 - **Update commands trust the payload's `account_id`.** `update_account`/
   `update_entry`/`update_rule` locate the row by `id` and write the
   client-supplied `account_id`, so a crafted IPC call could in principle move a
