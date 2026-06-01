@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.2.0 - 2026-06-01
+
+### Added
+
+- Translations for 11 more languages: German, Spanish, French, Italian,
+  Portuguese, Dutch, Japanese, Simplified Chinese, Russian, Polish, Turkish —
+  selectable in Settings and auto-detected from the device locale. A test asserts
+  every locale carries all English keys. (Machine-translated; pending a
+  native-speaker pass on domain terms.)
+- Biometric lock now **re-engages on resume**, not just at cold start: returning
+  from the background requires authenticating again (`LockGate` listens for
+  `visibilitychange`, with a guard so the native prompt can't trigger a loop).
+
+### Fixed
+
+- Amount fields now accept a decimal **comma** (e.g. `0,99`): input is normalized
+  to a dot before validation/submit, and the example hints show each locale's
+  separator. Previously comma-locale users were rejected with a dot-only example.
+- Statistics screen: an empty month collapsed the swipe area so you couldn't
+  page out of it; `.stats-screen` now fills the height, keeping swipe navigation
+  working when there's no data.
+- Surface widget-publish failures (`console.warn`) so a misconfigured iOS App
+  Group is diagnosable; documented the App Group registration as the fix for an
+  empty widget / account picker.
+
 ## 1.1.0 - 2026-06-01
 
 ### Added

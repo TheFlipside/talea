@@ -13,7 +13,7 @@ import { useCategories, useCreateRule, useUpdateRule } from '../api/hooks';
 import { categoryIconText } from '../lib/categories';
 import { formatFullDate, isoDate, todayISO } from '../lib/date';
 import { currentMonth } from '../lib/month';
-import { formatMoney, isMoneyInput } from '../lib/money';
+import { formatMoney, isMoneyInput, normalizeAmountInput } from '../lib/money';
 import { DatePicker } from './DatePicker';
 import { Modal } from './Modal';
 import { Select } from './Select';
@@ -118,8 +118,8 @@ export function RuleForm({ accountId, currency, editing, onClose }: RuleFormProp
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const trimmed = amount.trim();
-    if (!isMoneyInput(trimmed) || Number(trimmed) <= 0) {
+    const normalizedAmount = normalizeAmountInput(amount);
+    if (!isMoneyInput(normalizedAmount) || Number(normalizedAmount) <= 0) {
       setLocalError(t('entry.invalidAmount'));
       return;
     }
@@ -143,7 +143,7 @@ export function RuleForm({ accountId, currency, editing, onClose }: RuleFormProp
       update.mutate(
         {
           ...editing,
-          amounts: nextAmounts(editing, trimmed),
+          amounts: nextAmounts(editing, normalizedAmount),
           kind,
           note: noteValue,
           category_id: categoryValue,
@@ -157,7 +157,7 @@ export function RuleForm({ accountId, currency, editing, onClose }: RuleFormProp
       create.mutate(
         {
           account_id: accountId,
-          amount: trimmed,
+          amount: normalizedAmount,
           kind,
           note: noteValue,
           category_id: categoryValue,

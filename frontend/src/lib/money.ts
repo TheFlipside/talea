@@ -19,6 +19,16 @@ export function isMoneyInput(text: string): boolean {
   return /^-?\d+(\.\d+)?$/.test(text.trim());
 }
 
+/**
+ * Normalizes a typed amount for the backend: trims and converts a decimal comma
+ * to a dot, so locales that enter "0,99" are accepted (money always crosses as a
+ * dot-decimal string). Thousands separators aren't handled — a bare amount is
+ * expected, and anything ambiguous still fails `isMoneyInput`.
+ */
+export function normalizeAmountInput(text: string): string {
+  return text.trim().replace(',', '.');
+}
+
 const formatterCache = new Map<string, Intl.NumberFormat>();
 
 function currencyFormatter(currency: string): Intl.NumberFormat | null {

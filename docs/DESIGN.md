@@ -150,8 +150,10 @@ plugin (Android/iOS), with the device PIN/passcode allowed as a fallback.
   to authenticate, and desktop is a development target.
 - **Toggle timing:** enabling/disabling the lock takes effect on the **next
   launch**, so flipping it on can't strand the user behind a prompt they cancel.
-- Lock-on-resume (re-locking when the app is backgrounded) is a possible later
-  refinement; the current lock is cold-start only.
+- **Lock-on-resume:** the lock re-engages when the app returns from the
+  background, not only at cold start (`LockGate` listens for
+  `visibilitychange`). A guard ignores the background/resume the native prompt
+  itself can trigger (e.g. Android's `BiometricPrompt`) so it can't loop.
 
 ### System bar theming — 🟢 DONE (implemented)
 
@@ -209,8 +211,8 @@ Accepted as known debt for the scaffold; revisit before a release:
   where biometrics are unavailable (by design, so the user is never locked out).
   App-managed encryption (e.g. SQLCipher) plus OS-keystore-backed settings
   remains the stronger, tracked option before treating the lock as a
-  confidentiality boundary. Lock-on-resume is a separate future refinement
-  (currently cold-start only).
+  confidentiality boundary. (The lock now re-engages on resume, not just at
+  cold start — see §7.)
 - **At-rest encryption — DECIDED: rely on the OS baseline for v1.** Both target
   platforms encrypt app-private storage at rest once the user has a device
   passcode/PIN, with **no app code and no entitlement**: iOS protects files at

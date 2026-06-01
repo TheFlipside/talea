@@ -20,7 +20,10 @@ export interface AccountHealth {
 export async function publishBudgetHealth(accounts: AccountHealth[]): Promise<void> {
   try {
     await invoke('plugin:budgetwidget|publish_health', { payload: { accounts } });
-  } catch {
-    // Plugin/command unavailable (e.g. desktop) — ignore.
+  } catch (cause) {
+    // Expected as a no-op on desktop (no widget surface). On iOS a misconfigured
+    // App Group surfaces here as "App Group … is unavailable" — log it so the
+    // widget's empty state is diagnosable from device logs, but never throw.
+    console.warn('budget widget publish failed:', cause);
   }
 }

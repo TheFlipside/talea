@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatMoney, isMoneyInput, parseMoneyForDisplay } from '../money';
+import {
+  formatMoney,
+  isMoneyInput,
+  normalizeAmountInput,
+  parseMoneyForDisplay,
+} from '../money';
 
 describe('isMoneyInput', () => {
   it('accepts decimal strings, with optional sign', () => {
@@ -46,5 +51,20 @@ describe('parseMoneyForDisplay', () => {
   it('parses valid amounts and zeroes invalid ones', () => {
     expect(parseMoneyForDisplay('12.34')).toBeCloseTo(12.34);
     expect(parseMoneyForDisplay('bad')).toBe(0);
+  });
+});
+
+describe('normalizeAmountInput', () => {
+  it('converts a decimal comma to a dot and trims', () => {
+    expect(normalizeAmountInput(' 0,99 ')).toBe('0.99');
+    expect(normalizeAmountInput('1234,56')).toBe('1234.56');
+  });
+
+  it('leaves a dot-decimal amount unchanged', () => {
+    expect(normalizeAmountInput('12.34')).toBe('12.34');
+  });
+
+  it('produces a value isMoneyInput accepts for comma input', () => {
+    expect(isMoneyInput(normalizeAmountInput('0,99'))).toBe(true);
   });
 });

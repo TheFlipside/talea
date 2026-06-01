@@ -655,6 +655,15 @@ button {
   padding: 1rem;
 }
 
+/* Fill the content height so the whole area stays swipeable for month paging
+   even when the month has no data (an empty body would otherwise collapse the
+   touch target to a couple of lines). */
+.stats-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .screen__header {
   display: flex;
   align-items: center;

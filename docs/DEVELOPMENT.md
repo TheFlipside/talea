@@ -241,12 +241,20 @@ category, version, and display name come from `tauri.conf.json`.
    Developer Program). Xcode → Settings → Accounts → your Apple ID → **Manage
    Certificates → + → Apple Distribution**. A development cert alone yields an
    `Apple Development`-signed IPA that App Store Connect rejects.
-3. **App Group** (for the home-screen widget). In the Apple Developer portal →
-   Identifiers → App Groups, register **`group.com.luminaapps.talea`**, and
-   enable the App Groups capability for both App IDs (`com.luminaapps.talea` and
-   `com.luminaapps.talea.TaleaWidget` — automatic signing creates the latter on
-   first build). The shared container lets the app publish the abstract ring the
-   widget reads.
+3. **App Group** (required for the widget — without it the widget shows no data
+   and its account picker is empty). The app and the widget share data through
+   the App Group container; if it isn't **registered in the portal**,
+   `UserDefaults(suiteName:)` is nil on both sides and nothing is shared.
+   1. Apple Developer portal → **Certificates, Identifiers & Profiles →
+      Identifiers → App Groups → +** → register the identifier
+      **`group.com.luminaapps.talea`**.
+   2. Build with `just ios-release` (automatic signing then enables the App
+      Groups capability on both App IDs — `com.luminaapps.talea` and
+      `com.luminaapps.talea.TaleaWidget`, creating the latter — and adds it to
+      the provisioning profiles). The entitlement files already declare the
+      group (added by `configure_ios_project.py`).
+   3. Open the app once so it publishes a snapshot, then the widget/picker
+      populate. If they stay empty, see Troubleshooting → "Widget shows no data".
 4. **Tooling for the recipes:** `python3 -m pip install Pillow pyyaml` and
    `brew install xcodegen` (xcodegen is already an iOS prerequisite). `ios-init`
    uses them to configure the project and icons.
@@ -419,6 +427,17 @@ The abstract budget-ring widget (DESIGN.md §6) has two iOS parts:
 ---
 
 ## Troubleshooting
+
+### Widget shows no data / empty account picker (iOS)
+
+Almost always the **App Group isn't registered** in the Apple Developer portal,
+so `UserDefaults(suiteName: "group.com.luminaapps.talea")` returns nil for both
+the app (can't write) and the widget (can't read) — the picker spins then shows
+nothing and the ring is blank. Fix: register `group.com.luminaapps.talea` (iOS
+setup step 3), rebuild with `just ios-release`, and open the app once. To
+confirm the cause, watch device logs while the app launches — the publish step
+logs `budget widget publish failed: … App Group … is unavailable` when the
+group isn't provisioned.
 
 ### First build: Vite/`npm` not installed
 

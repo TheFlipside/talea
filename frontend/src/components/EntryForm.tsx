@@ -12,7 +12,7 @@ import {
 } from '../api/hooks';
 import { categoryIconText } from '../lib/categories';
 import { defaultDateForMonth } from '../lib/date';
-import { isMoneyInput } from '../lib/money';
+import { isMoneyInput, normalizeAmountInput } from '../lib/money';
 import { useSelectedMonth } from '../state/contexts';
 import { DatePicker } from './DatePicker';
 import { Modal } from './Modal';
@@ -77,8 +77,8 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const trimmedAmount = amount.trim();
-    if (!isMoneyInput(trimmedAmount) || Number(trimmedAmount) <= 0) {
+    const normalizedAmount = normalizeAmountInput(amount);
+    if (!isMoneyInput(normalizedAmount) || Number(normalizedAmount) <= 0) {
       setLocalError(t('entry.invalidAmount'));
       return;
     }
@@ -88,14 +88,14 @@ export function EntryForm({ accountId, currency, editing, onClose }: EntryFormPr
     const categoryValue = categoryId === '' ? null : Number(categoryId);
     if (editing) {
       update.mutate(
-        { ...editing, amount: amount.trim(), kind, date, note: noteValue, category_id: categoryValue },
+        { ...editing, amount: normalizedAmount, kind, date, note: noteValue, category_id: categoryValue },
         { onSuccess: onClose },
       );
       return;
     }
     const payload = {
       account_id: accountId,
-      amount: amount.trim(),
+      amount: normalizedAmount,
       kind,
       date,
       note: noteValue,
