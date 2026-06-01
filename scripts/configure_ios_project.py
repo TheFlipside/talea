@@ -3,7 +3,7 @@
 
 ``cargo tauri ios init`` regenerates ``gen/apple`` from a template, so the
 App-Store-only bits Tauri does not emit must be re-applied after each init.
-``just ios-init`` runs this (idempotent). It performs three edits:
+``just ios-init`` runs this (idempotent). It performs four edits:
 
 1. ``NSFaceIDUsageDescription`` in the app Info.plist. Without it, iOS reports
    Face ID unavailable to ``LAContext.canEvaluatePolicy``, so the in-app lock's
@@ -13,6 +13,9 @@ App-Store-only bits Tauri does not emit must be re-applied after each init.
    the app can write the shared container the widget reads.
 3. A ``TaleaWidget`` app-extension target (from ``ios-widget/``) embedded
    into the app, so the home-screen widget ships.
+4. ``buildPhase: none`` on the app's ``Externals`` source, so the Rust
+   ``libapp.a`` links but isn't copied into the bundle (App Store rejects a
+   standalone library inside the .app).
 
 It then regenerates the ``.xcodeproj`` with ``xcodegen`` (an iOS prerequisite).
 
@@ -86,6 +89,24 @@ def widget_target(team: str | None, short: str, build: str) -> dict:
     }
 
 
+def unbundle_externals(app_target: dict) -> None:
+    """Mark the app's ``Externals`` source as file-reference-only.
+
+    XcodeGen otherwise copies the Rust ``libapp.a`` in it into the app bundle,
+    which App Store rejects; ``buildPhase: none`` keeps it out (it still links
+    via the ``framework: libapp.a`` dependency + ``LIBRARY_SEARCH_PATHS``).
+    """
+    sources = app_target.get("sources") or []
+    for index, src in enumerate(sources):
+        path_val = src.get("path") if isinstance(src, dict) else src
+        if path_val != "Externals":
+            continue
+        if isinstance(src, dict):
+            src["buildPhase"] = "none"
+        else:
+            sources[index] = {"path": "Externals", "buildPhase": "none"}
+
+
 def patch_project_yaml(path: str) -> None:
     """Add the Face ID string and the embedded widget target to project.yml."""
     with open(path, encoding="utf-8") as handle:
@@ -111,6 +132,13 @@ def patch_project_yaml(path: str) -> None:
     )
     if not embedded:
         deps.append({"target": WIDGET_TARGET, "embed": True})
+
+    # 4. Keep libapp.a out of the app bundle. The Externals source holds the
+    # Rust staticlib; XcodeGen would copy it into the .app, which App Store
+    # rejects ("standalone … library not permitted"). Mark it file-reference
+    # only — it still links via the `framework: libapp.a` dependency above plus
+    # the per-arch LIBRARY_SEARCH_PATHS.
+    unbundle_externals(app)
 
     # safe_dump normalizes YAML 1.1 booleans; XcodeGen re-normalizes them, and
     # the settings we add are quoted "NO"/"YES" strings, so this is safe.
@@ -146,7 +174,10 @@ def main() -> int:
         return 1
 
     patch_project_yaml(project_yml)
-    print("patched project.yml: NSFaceIDUsageDescription + TaleaWidget target")
+    print(
+        "patched project.yml: NSFaceIDUsageDescription + TaleaWidget target "
+        "+ Externals unbundled"
+    )
 
     entitlements = os.path.join(gen, APP_TARGET, f"{APP_TARGET}.entitlements")
     if not patch_app_entitlements(entitlements):

@@ -49,6 +49,11 @@ All notable changes to this project are documented in this file.
   `LockGate`'s graceful-degradation path unlocked immediately (Android needs no
   such string, hence it worked there). `configure_ios_project.py` now injects the
   key. iOS-only; no frontend change.
+- iOS App Store rejected the build because the Rust `libapp.a` was copied into the
+  app bundle (XcodeGen treats the `Externals` source dir's `.a` as a resource —
+  "standalone library not permitted"). `configure_ios_project.py` now marks that
+  source `buildPhase: none`, so it's linked (via the `framework: libapp.a`
+  dependency) but not bundled.
 - Android launcher icon shipped as the **default Tauri logo** instead of Talea's:
   `cargo tauri android init` scaffolds the stock icon, and nothing reapplied the
   branded one. The `android-init` recipe now runs `cargo tauri icon` against a new
