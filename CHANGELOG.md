@@ -4,8 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.1.0 - 2026-06-01
+
 ### Added
 
+- iOS home-screen widget now ships in the build. The WidgetKit extension can't be
+  a Tauri plugin and the Xcode project is regenerated from `project.yml`, so
+  `scripts/configure_ios_project.py` (run by `just ios-init`) declares the
+  `TaleaWidget` app-extension target — sources from `ios-widget/`, App Group
+  `group.com.luminaapps.talea`, embedded in the app — and regenerates the project
+  with `xcodegen`. Requires the App Group registered in the Apple Developer portal
+  (documented in `docs/DEVELOPMENT.md`).
 - Turnkey iOS workflow: `just ios-init` (project + branded icons), `just ios-dev`
   (live device/simulator), and `just ios-release` (signed App Store IPA via
   `--export-method app-store-connect`). The Apple development team is set once via
@@ -32,6 +41,12 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- iOS biometric app lock never engaged (toggled on, relaunch, app opened
+  unguarded): the iOS Info.plist had no `NSFaceIDUsageDescription`, so on a Face
+  ID device `LAContext.canEvaluatePolicy` reports biometrics unavailable and
+  `LockGate`'s graceful-degradation path unlocked immediately (Android needs no
+  such string, hence it worked there). `configure_ios_project.py` now injects the
+  key. iOS-only; no frontend change.
 - Android launcher icon shipped as the **default Tauri logo** instead of Talea's:
   `cargo tauri android init` scaffolds the stock icon, and nothing reapplied the
   branded one. The `android-init` recipe now runs `cargo tauri icon` against a new

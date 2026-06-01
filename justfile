@@ -134,11 +134,14 @@ android-reset:
 # Drive every build through the tauri-cli — never Xcode's Run button (that
 # bypasses the cli's WebSocket and fails). See docs/DEVELOPMENT.md.
 
-# `ios init` scaffolds default icons, so reapply the branded ones right after,
-# then flatten the iOS set to opaque RGB (App Store rejects alpha on the icon).
-# Generate the native iOS project (one-time) and apply the branded icons.
+# `ios init` regenerates gen/apple from a template, so afterwards we patch
+# project.yml for the Face ID string + App Group + TaleaWidget extension target
+# (configure_ios_project.py, needs PyYAML + xcodegen), then (re)apply + flatten
+# the icons. All idempotent.
+# Generate + configure the native iOS project (one-time).
 ios-init:
     cargo tauri ios init
+    python3 scripts/configure_ios_project.py
     cargo tauri icon src-tauri/icons/icon-manifest.json
     python3 scripts/flatten_ios_icons.py
 

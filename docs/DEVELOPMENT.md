@@ -241,17 +241,32 @@ category, version, and display name come from `tauri.conf.json`.
    Developer Program). Xcode → Settings → Accounts → your Apple ID → **Manage
    Certificates → + → Apple Distribution**. A development cert alone yields an
    `Apple Development`-signed IPA that App Store Connect rejects.
-3. **Generate the project + icons:**
+3. **App Group** (for the home-screen widget). In the Apple Developer portal →
+   Identifiers → App Groups, register **`group.com.luminaapps.talea`**, and
+   enable the App Groups capability for both App IDs (`com.luminaapps.talea` and
+   `com.luminaapps.talea.TaleaWidget` — automatic signing creates the latter on
+   first build). The shared container lets the app publish the abstract ring the
+   widget reads.
+4. **Tooling for the recipes:** `python3 -m pip install Pillow pyyaml` and
+   `brew install xcodegen` (xcodegen is already an iOS prerequisite). `ios-init`
+   uses them to configure the project and icons.
+5. **Generate + configure the project:**
    ```bash
-   just ios-init      # ios init  +  cargo tauri icon  +  flatten iOS icons to RGB
+   just ios-init
    ```
-   Like `android init`, `ios init` scaffolds the **default Tauri icon**, so the
-   recipe reapplies the branded one from `src-tauri/icons/icon-manifest.json`. It
-   then runs `scripts/flatten_ios_icons.py` to strip the alpha channel from the
-   iOS icons (App Store Connect rejects a 1024px marketing icon that has alpha,
-   even when fully opaque — `cargo tauri icon` emits RGBA). That step needs
-   **Pillow** (`python3 -m pip install Pillow`). If the home-screen icon ever
-   shows the stock Tauri logo, re-run `just ios-init`.
+   `ios init` regenerates `gen/apple` from a template (and scaffolds the **default
+   Tauri icon**), so the recipe then:
+   - runs `scripts/configure_ios_project.py` — patches `project.yml` to add
+     `NSFaceIDUsageDescription` (without it iOS reports Face ID unavailable and
+     the lock silently disengages), the App Group on the app entitlements, and
+     the **`TaleaWidget`** app-extension target (sources in `ios-widget/`,
+     embedded in the app), then regenerates the `.xcodeproj` with `xcodegen`;
+   - reapplies the branded icon (`cargo tauri icon`) and strips the iOS icons'
+     alpha channel (`scripts/flatten_ios_icons.py`) — App Store rejects a 1024px
+     marketing icon with alpha even when opaque.
+
+   Re-run `just ios-init` after any change to `ios-widget/` or if the icon shows
+   the stock Tauri logo.
 
 ### Live testing on a device
 
@@ -325,11 +340,11 @@ dev-server issues entirely.
   `python3 scripts/flatten_ios_icons.py` (needs Pillow) — `just ios-init` does
   this automatically — then rebuild.
 
-> **Widget caveat:** the WidgetKit extension (`ios-widget/`) is a **second
-> target**. Because the Xcode project is regenerated from `project.yml`, a target
-> added through the Xcode UI is wiped on the next cli build — it must be declared
-> in `project.yml` to ship. Until that's wired in, `just ios-release` builds the
-> app **without** the widget. See `ios-widget/README.md`.
+> **Widget:** the WidgetKit extension (`ios-widget/`) is a **second target**,
+> declared in `project.yml` by `scripts/configure_ios_project.py` (run from
+> `just ios-init`) and embedded in the app, so `just ios-release` ships it. The
+> App Group from the setup step must be registered in the portal or the
+> extension won't sign.
 
 ### PATH note (only if you do build from Xcode)
 
@@ -395,10 +410,11 @@ The abstract budget-ring widget (DESIGN.md §6) has two iOS parts:
   capability + entitlement on the app target).
 - The WidgetKit **extension** is a separate Xcode target whose sources live in
   [`ios-widget/`](../ios-widget/README.md). Because `gen/apple` is regenerated
-  from `project.yml` on every cli build, the target must be declared in
-  `project.yml` to persist — adding it through the Xcode UI doesn't survive.
-  **This isn't wired in yet**, so the current `just ios-release` ships the app
-  **without** the widget; see `ios-widget/README.md`.
+  from `project.yml` on every cli build, it can't be added via the Xcode UI (that
+  gets wiped). Instead `scripts/configure_ios_project.py` (run by `just ios-init`)
+  declares the `TaleaWidget` app-extension target in `project.yml` and embeds it
+  in the app, so it persists and ships. The App Group must be registered in the
+  portal (setup step 3) for the extension to sign.
 
 ---
 

@@ -3652,7 +3652,7 @@ dependencies = [
 
 [[package]]
 name = "talea"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "log",
  "serde",
@@ -3672,7 +3672,7 @@ dependencies = [
 
 [[package]]
 name = "talea-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "rust_decimal",
  "rust_decimal_macros",
@@ -3891,7 +3891,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-budgetwidget"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "tauri",
@@ -3900,7 +3900,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-statusbar"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "tauri",
