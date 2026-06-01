@@ -14,7 +14,9 @@ All notable changes to this project are documented in this file.
   `TaleaWidget` app-extension target — sources from `ios-widget/`, App Group
   `group.com.luminaapps.talea`, embedded in the app — and regenerates the project
   with `xcodegen`. Requires the App Group registered in the Apple Developer portal
-  (documented in `docs/DEVELOPMENT.md`).
+  (documented in `docs/DEVELOPMENT.md`). The extension's `Info.plist` declares
+  `CFBundleExecutable`, `CFBundlePackageType` `XPC!`, and app-matched version keys
+  so App Store validation accepts the bundle.
 - Turnkey iOS workflow: `just ios-init` (project + branded icons), `just ios-dev`
   (live device/simulator), and `just ios-release` (signed App Store IPA via
   `--export-method app-store-connect`). The Apple development team is set once via

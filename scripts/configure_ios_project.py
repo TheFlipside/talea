@@ -50,8 +50,13 @@ def resolve_team(app_target: dict) -> str | None:
     return base.get("DEVELOPMENT_TEAM")
 
 
-def widget_target(team: str | None) -> dict:
-    """The XcodeGen spec for the WidgetKit app-extension target."""
+def widget_target(team: str | None, short: str, build: str) -> dict:
+    """The XcodeGen spec for the WidgetKit app-extension target.
+
+    ``short``/``build`` are the app's versions; the extension must match them
+    (App Store validation), and its Info.plist references them via
+    ``$(MARKETING_VERSION)`` / ``$(CURRENT_PROJECT_VERSION)``.
+    """
     settings = {
         "PRODUCT_NAME": WIDGET_TARGET,
         "PRODUCT_BUNDLE_IDENTIFIER": WIDGET_BUNDLE_ID,
@@ -63,6 +68,8 @@ def widget_target(team: str | None) -> dict:
         "SWIFT_VERSION": "5.0",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SKIP_INSTALL": "YES",
+        "MARKETING_VERSION": short,
+        "CURRENT_PROJECT_VERSION": build,
     }
     if team:
         settings["DEVELOPMENT_TEAM"] = team
@@ -94,8 +101,10 @@ def patch_project_yaml(path: str) -> None:
     props = info.setdefault("properties", {})
     props["NSFaceIDUsageDescription"] = FACE_ID_REASON
 
-    # 3. The widget target + embed it into the app.
-    targets[WIDGET_TARGET] = widget_target(resolve_team(app))
+    # 3. The widget target (versions matched to the app) + embed it.
+    short = str(props.get("CFBundleShortVersionString", "1.0.0"))
+    build = str(props.get("CFBundleVersion", "1.0.0"))
+    targets[WIDGET_TARGET] = widget_target(resolve_team(app), short, build)
     deps = app.setdefault("dependencies", [])
     embedded = any(
         isinstance(d, dict) and d.get("target") == WIDGET_TARGET for d in deps
