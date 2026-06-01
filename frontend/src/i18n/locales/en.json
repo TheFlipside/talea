@@ -13,7 +13,8 @@
     "validation": "Please check your input.",
     "not_found": "That item no longer exists.",
     "database": "Something went wrong reading your data.",
-    "corrupt": "Your data file appears to be corrupt."
+    "corrupt": "Your data file appears to be corrupt.",
+    "backup": "The backup or restore couldn't be completed."
   },
   "summary": {
     "income": "Income",
@@ -128,7 +129,27 @@
     "ringSpent": "Spent so far",
     "ringRemaining": "Remaining",
     "appLock": "Require biometric unlock",
-    "appLockHint": "Locks the app on launch using device biometrics (or your device PIN). Guards against casual access — your data isn't encrypted on disk. Takes effect next launch."
+    "appLockHint": "Locks the app on launch using device biometrics (or your device PIN). Guards against casual access — your data isn't encrypted on disk. Takes effect next launch.",
+    "backupTitle": "Backup & sync",
+    "backupIntro": "Manually back up to and restore from your own Nextcloud. Your data stays on this device — nothing else is sent anywhere.",
+    "nextcloudUrl": "Nextcloud address",
+    "nextcloudUser": "Username",
+    "nextcloudPassword": "App password",
+    "nextcloudPasswordKeep": "Leave blank to keep the saved one",
+    "backupSave": "Save",
+    "backupTest": "Test connection",
+    "backupRun": "Back up now",
+    "backupRestore": "Restore",
+    "backupSaved": "Settings saved.",
+    "backupTestOk": "Connection works.",
+    "backupRunOk": "Backed up to Nextcloud.",
+    "backupRestoreOk": "Restored from Nextcloud.",
+    "lastBackup": "Last backup: {{when}}",
+    "lastBackupNever": "No backup yet.",
+    "restoreConfirmTitle": "Restore from Nextcloud?",
+    "restoreConfirmBody": "This replaces all data on this device with the latest Nextcloud backup. It can't be undone.",
+    "restoreConfirmAction": "Replace local data",
+    "backupHint": "Use a Nextcloud app password (Settings → Security), not your login password. Restore needs both devices on the same Talea version."
   },
   "lock": {
     "reason": "Unlock Talea",

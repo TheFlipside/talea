@@ -4,6 +4,8 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use talea_core::DomainError;
 
+use crate::webdav::WebDavError;
+
 /// Internal error from the repository / database layer.
 #[derive(Debug, thiserror::Error)]
 pub enum RepoError {
@@ -61,6 +63,10 @@ pub enum CommandError {
     /// The local data file is corrupt.
     #[error("the data file is corrupt")]
     Corrupt,
+
+    /// A Nextcloud backup/restore operation failed; `message` is safe to display.
+    #[error("{0}")]
+    Backup(String),
 }
 
 impl CommandError {
@@ -71,7 +77,15 @@ impl CommandError {
             Self::NotFound => "not_found",
             Self::Database => "database",
             Self::Corrupt => "corrupt",
+            Self::Backup(_) => "backup",
         }
+    }
+}
+
+impl From<WebDavError> for CommandError {
+    /// `WebDAV` errors already carry user-safe, password-free messages.
+    fn from(error: WebDavError) -> Self {
+        Self::Backup(error.to_string())
     }
 }
 

@@ -13,7 +13,8 @@
     "validation": "请检查您的输入。",
     "not_found": "该项目已不存在。",
     "database": "读取数据时出现问题。",
-    "corrupt": "您的数据文件似乎已损坏。"
+    "corrupt": "您的数据文件似乎已损坏。",
+    "backup": "无法完成备份或恢复。"
   },
   "summary": {
     "income": "收入",
@@ -128,7 +129,27 @@
     "ringSpent": "已花费",
     "ringRemaining": "剩余",
     "appLock": "需要生物识别解锁",
-    "appLockHint": "启动时使用设备生物识别（或设备 PIN）锁定应用。可防止随意访问；您的数据未在磁盘上加密。下次启动时生效。"
+    "appLockHint": "启动时使用设备生物识别（或设备 PIN）锁定应用。可防止随意访问；您的数据未在磁盘上加密。下次启动时生效。",
+    "backupTitle": "备份与同步",
+    "backupIntro": "手动备份到你自己的 Nextcloud 并从中恢复。你的数据保留在本设备上，不会发送到其他任何地方。",
+    "nextcloudUrl": "Nextcloud 地址",
+    "nextcloudUser": "用户名",
+    "nextcloudPassword": "应用专用密码",
+    "nextcloudPasswordKeep": "留空以保留已保存的密码",
+    "backupSave": "保存",
+    "backupTest": "测试连接",
+    "backupRun": "立即备份",
+    "backupRestore": "恢复",
+    "backupSaved": "设置已保存。",
+    "backupTestOk": "连接正常。",
+    "backupRunOk": "已备份到 Nextcloud。",
+    "backupRestoreOk": "已从 Nextcloud 恢复。",
+    "lastBackup": "上次备份：{{when}}",
+    "lastBackupNever": "尚无备份。",
+    "restoreConfirmTitle": "从 Nextcloud 恢复？",
+    "restoreConfirmBody": "这将用最新的 Nextcloud 备份替换本设备上的所有数据。此操作无法撤销。",
+    "restoreConfirmAction": "替换本地数据",
+    "backupHint": "请使用 Nextcloud 应用专用密码（设置 → 安全），而不是登录密码。恢复时两台设备需使用相同版本的 Talea。"
   },
   "lock": {
     "reason": "解锁 Talea",

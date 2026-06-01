@@ -426,6 +426,43 @@ The abstract budget-ring widget (DESIGN.md §6) has two iOS parts:
 
 ---
 
+## Backup & restore (Nextcloud over WebDAV)
+
+Optional, manual backup/restore to the user's own Nextcloud (DESIGN.md §10).
+Configured in-app under **Settings → Backup & sync**; nothing is set up at the
+build level.
+
+- **Server side:** in Nextcloud, create an **app password** under
+  *Settings → Security → Devices & sessions* (do **not** use the login password).
+  Backups land at `Talea/talea-backup.sqlite3` under the account's files; the
+  `Talea/` folder is created on first backup (`MKCOL`).
+- **Manual test loop:** enter the `https://` address + username + app password →
+  *Save* → *Test connection* → *Back up now*; confirm the file appears in the
+  Nextcloud web UI. On a second device (or after local edits), *Restore* and
+  confirm the data matches. `http://` and bad credentials are rejected with a
+  clear message; *Restore* is refused if the backup's schema version differs.
+- **TLS / cross-compile:** networking is `reqwest` + rustls with the **`ring`**
+  provider (not `aws-lc-rs`), so no OpenSSL or C/cmake crypto toolchain is needed
+  on iOS/Android. To re-verify the Android cross-compile after a dependency bump,
+  point the NDK clang at the target and build the lib only:
+
+  ```bash
+  NDK=~/Android/Sdk/ndk/<version>
+  TC=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
+  export CC_aarch64_linux_android=$TC/aarch64-linux-android24-clang \
+         AR_aarch64_linux_android=$TC/llvm-ar \
+         CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TC/aarch64-linux-android24-clang
+  cargo build -p talea --lib --target aarch64-linux-android
+  ```
+
+- **Credentials** are stored in `nextcloud.json` in the app-data directory,
+  **outside** the database (so the password is never inside an uploaded backup)
+  and are never returned to the frontend or logged. Resetting local data (see the
+  README) does not remove `nextcloud.json`; delete it alongside the DB for a fully
+  clean slate.
+
+---
+
 ## Troubleshooting
 
 ### Widget shows no data / empty account picker (iOS)

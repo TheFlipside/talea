@@ -9,6 +9,7 @@ const ERROR_CODES: readonly CommandErrorCode[] = [
   'not_found',
   'database',
   'corrupt',
+  'backup',
 ];
 
 /** Structural guard for the `{ code, message }` error a command rejects with. */

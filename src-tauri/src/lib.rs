@@ -10,11 +10,13 @@ use tauri::Manager;
 
 use talea_core::Money;
 
+mod backup;
 mod commands;
 mod db;
 mod dto;
 mod error;
 mod repo;
+mod webdav;
 
 #[cfg(test)]
 mod tests;
@@ -65,6 +67,12 @@ fn smoke_check(name: &str) -> SmokeInfo {
 /// database.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Install the ring crypto provider as rustls's process default. reqwest is
+    // built with `rustls-no-provider`, so the WebDAV (Nextcloud) client picks up
+    // this provider; ring keeps the iOS/Android cross-compile free of aws-lc-rs's
+    // C/cmake toolchain. Idempotent best-effort: a prior install is harmless.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Status-bar theming and the widget publisher work on all platforms (no-ops
     // on desktop), so they're registered unconditionally.
     let builder = tauri::Builder::default()
@@ -109,6 +117,11 @@ pub fn run() {
             commands::month_occurrences,
             commands::skip_occurrence,
             commands::detach_occurrence,
+            commands::nextcloud_get_config,
+            commands::nextcloud_set_config,
+            commands::nextcloud_test,
+            commands::backup_now,
+            commands::restore_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

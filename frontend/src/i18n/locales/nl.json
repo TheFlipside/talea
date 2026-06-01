@@ -13,7 +13,8 @@
     "validation": "Controleer je invoer.",
     "not_found": "Dit item bestaat niet meer.",
     "database": "Er ging iets mis bij het lezen van je gegevens.",
-    "corrupt": "Je gegevensbestand lijkt beschadigd te zijn."
+    "corrupt": "Je gegevensbestand lijkt beschadigd te zijn.",
+    "backup": "De back-up of het herstellen kon niet worden voltooid."
   },
   "summary": {
     "income": "Inkomsten",
@@ -128,7 +129,27 @@
     "ringSpent": "Tot nu toe besteed",
     "ringRemaining": "Resterend",
     "appLock": "Biometrische ontgrendeling vereisen",
-    "appLockHint": "Vergrendelt de app bij het opstarten met de biometrie van het apparaat (of je pincode). Beschermt tegen achteloze toegang; je gegevens zijn niet versleuteld op de schijf. Werkt vanaf de volgende start."
+    "appLockHint": "Vergrendelt de app bij het opstarten met de biometrie van het apparaat (of je pincode). Beschermt tegen achteloze toegang; je gegevens zijn niet versleuteld op de schijf. Werkt vanaf de volgende start.",
+    "backupTitle": "Back-up en synchronisatie",
+    "backupIntro": "Maak handmatig een back-up naar je eigen Nextcloud en herstel daarvandaan. Je gegevens blijven op dit apparaat — er wordt verder niets verzonden.",
+    "nextcloudUrl": "Nextcloud-adres",
+    "nextcloudUser": "Gebruikersnaam",
+    "nextcloudPassword": "App-wachtwoord",
+    "nextcloudPasswordKeep": "Laat leeg om het opgeslagen wachtwoord te behouden",
+    "backupSave": "Opslaan",
+    "backupTest": "Verbinding testen",
+    "backupRun": "Nu back-uppen",
+    "backupRestore": "Herstellen",
+    "backupSaved": "Instellingen opgeslagen.",
+    "backupTestOk": "Verbinding werkt.",
+    "backupRunOk": "Geback-upt naar Nextcloud.",
+    "backupRestoreOk": "Hersteld vanaf Nextcloud.",
+    "lastBackup": "Laatste back-up: {{when}}",
+    "lastBackupNever": "Nog geen back-up.",
+    "restoreConfirmTitle": "Herstellen vanaf Nextcloud?",
+    "restoreConfirmBody": "Hiermee worden alle gegevens op dit apparaat vervangen door de laatste Nextcloud-back-up. Dit kan niet ongedaan worden gemaakt.",
+    "restoreConfirmAction": "Lokale gegevens vervangen",
+    "backupHint": "Gebruik een Nextcloud-app-wachtwoord (Instellingen → Beveiliging), niet je inlogwachtwoord. Herstellen vereist dezelfde Talea-versie op beide apparaten."
   },
   "lock": {
     "reason": "Talea ontgrendelen",

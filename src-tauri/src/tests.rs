@@ -898,3 +898,81 @@ async fn occurrence_commands_enforce_ownership_and_apply() {
         2
     );
 }
+
+// ---- Backup / restore -------------------------------------------------------
+
+#[tokio::test]
+async fn backup_snapshot_restores_over_existing_data() {
+    // Source DB with one account.
+    let (src_dir, src) = fixture().await;
+    seed_account(&src).await; // "Checking"
+    let bytes = crate::backup::snapshot(&src, src_dir.path()).await.unwrap();
+    assert!(bytes.starts_with(b"SQLite format 3\0"));
+
+    // Destination DB seeded with a *different* account, to prove it's replaced.
+    let (dst_dir, dst) = fixture().await;
+    let other = Account::new(
+        AccountId::new(0),
+        "Wallet".to_owned(),
+        "👛".to_owned(),
+        Currency::new("USD").unwrap(),
+        Money::zero(),
+        Month::new(2026, 1).unwrap(),
+    )
+    .unwrap();
+    repo::account::insert(&dst, &other).await.unwrap();
+
+    crate::backup::restore(&dst, dst_dir.path(), &bytes)
+        .await
+        .unwrap();
+
+    // The destination now mirrors the source exactly.
+    let names: Vec<String> = sqlx::query_scalar("SELECT name FROM account ORDER BY name")
+        .fetch_all(&dst)
+        .await
+        .unwrap();
+    assert_eq!(names, vec!["Checking".to_owned()]);
+}
+
+#[tokio::test]
+async fn restore_rejects_a_non_sqlite_file() {
+    let (dir, pool) = fixture().await;
+    let err = crate::backup::restore(&pool, dir.path(), b"not a database")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CommandError::Backup(_)));
+}
+
+#[tokio::test]
+async fn restore_rejects_a_different_schema_version() {
+    // A valid Talea snapshot...
+    let (src_dir, src) = fixture().await;
+    seed_account(&src).await;
+    let bytes = crate::backup::snapshot(&src, src_dir.path()).await.unwrap();
+
+    // ...forged to claim a newer schema version than this app has (other columns
+    // copied from a real migration row so the table stays well-formed).
+    let forged = src_dir.path().join("forged.sqlite3");
+    std::fs::write(&forged, &bytes).unwrap();
+    let pool = SqlitePool::connect(&format!("sqlite://{}", forged.display()))
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO _sqlx_migrations \
+         (version, description, installed_on, success, checksum, execution_time) \
+         SELECT 9999, description, installed_on, success, checksum, execution_time \
+         FROM _sqlx_migrations LIMIT 1",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    pool.close().await;
+    let forged_bytes = std::fs::read(&forged).unwrap();
+
+    // Restoring it must be refused, leaving the destination untouched.
+    let (dst_dir, dst) = fixture().await;
+    let err = crate::backup::restore(&dst, dst_dir.path(), &forged_bytes)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, CommandError::Backup(_)));
+}

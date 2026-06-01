@@ -13,7 +13,8 @@
     "validation": "Verifique os dados introduzidos.",
     "not_found": "Esse item já não existe.",
     "database": "Ocorreu um problema ao ler os seus dados.",
-    "corrupt": "O seu ficheiro de dados parece estar corrompido."
+    "corrupt": "O seu ficheiro de dados parece estar corrompido.",
+    "backup": "Não foi possível concluir a cópia de segurança ou o restauro."
   },
   "summary": {
     "income": "Receitas",
@@ -128,7 +129,27 @@
     "ringSpent": "Gasto até agora",
     "ringRemaining": "Restante",
     "appLock": "Exigir desbloqueio biométrico",
-    "appLockHint": "Bloqueia a app ao iniciar usando a biometria do dispositivo (ou o seu PIN). Protege contra acesso casual; os seus dados não estão cifrados no disco. Tem efeito no próximo arranque."
+    "appLockHint": "Bloqueia a app ao iniciar usando a biometria do dispositivo (ou o seu PIN). Protege contra acesso casual; os seus dados não estão cifrados no disco. Tem efeito no próximo arranque.",
+    "backupTitle": "Cópia de segurança e sincronização",
+    "backupIntro": "Faça manualmente cópias de segurança para o seu próprio Nextcloud e restaure a partir dele. Os seus dados permanecem neste dispositivo — nada é enviado para outro local.",
+    "nextcloudUrl": "Endereço do Nextcloud",
+    "nextcloudUser": "Nome de utilizador",
+    "nextcloudPassword": "Palavra-passe de aplicação",
+    "nextcloudPasswordKeep": "Deixe em branco para manter a guardada",
+    "backupSave": "Guardar",
+    "backupTest": "Testar ligação",
+    "backupRun": "Fazer cópia agora",
+    "backupRestore": "Restaurar",
+    "backupSaved": "Definições guardadas.",
+    "backupTestOk": "A ligação funciona.",
+    "backupRunOk": "Cópia guardada no Nextcloud.",
+    "backupRestoreOk": "Restaurado a partir do Nextcloud.",
+    "lastBackup": "Última cópia: {{when}}",
+    "lastBackupNever": "Ainda sem cópias de segurança.",
+    "restoreConfirmTitle": "Restaurar a partir do Nextcloud?",
+    "restoreConfirmBody": "Isto substitui todos os dados deste dispositivo pela cópia de segurança mais recente do Nextcloud. Não pode ser anulado.",
+    "restoreConfirmAction": "Substituir dados locais",
+    "backupHint": "Use uma palavra-passe de aplicação do Nextcloud (Definições → Segurança), não a palavra-passe de início de sessão. O restauro requer a mesma versão do Talea em ambos os dispositivos."
   },
   "lock": {
     "reason": "Desbloquear o Talea",

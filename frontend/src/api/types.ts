@@ -153,7 +153,20 @@ export interface CategoryExpense {
   total: Money;
 }
 
-export type CommandErrorCode = 'validation' | 'not_found' | 'database' | 'corrupt';
+/**
+ * The frontend-visible Nextcloud backup settings. Mirrors the Rust
+ * `NextcloudConfigView` (camelCase). The password is deliberately absent — the
+ * backend never returns it; `configured` reports whether one is stored.
+ */
+export interface NextcloudConfigView {
+  baseUrl: string;
+  username: string;
+  configured: boolean;
+  /** RFC-3339 timestamp of the last successful backup, or null if none. */
+  lastBackup: string | null;
+}
+
+export type CommandErrorCode = 'validation' | 'not_found' | 'database' | 'corrupt' | 'backup';
 
 export interface CommandError {
   code: CommandErrorCode;

@@ -13,7 +13,8 @@
     "validation": "Lütfen girdiğiniz bilgileri kontrol edin.",
     "not_found": "Bu öğe artık mevcut değil.",
     "database": "Verileriniz okunurken bir sorun oluştu.",
-    "corrupt": "Veri dosyanız bozulmuş görünüyor."
+    "corrupt": "Veri dosyanız bozulmuş görünüyor.",
+    "backup": "Yedekleme veya geri yükleme tamamlanamadı."
   },
   "summary": {
     "income": "Gelir",
@@ -128,7 +129,27 @@
     "ringSpent": "Şimdiye kadar harcanan",
     "ringRemaining": "Kalan",
     "appLock": "Biyometrik kilit gerektir",
-    "appLockHint": "Uygulamayı açılışta cihaz biyometrisiyle (veya cihaz PIN'iyle) kilitler. Gelişigüzel erişime karşı korur; verileriniz diskte şifrelenmez. Bir sonraki açılışta etkinleşir."
+    "appLockHint": "Uygulamayı açılışta cihaz biyometrisiyle (veya cihaz PIN'iyle) kilitler. Gelişigüzel erişime karşı korur; verileriniz diskte şifrelenmez. Bir sonraki açılışta etkinleşir.",
+    "backupTitle": "Yedekleme ve eşitleme",
+    "backupIntro": "Kendi Nextcloud'unuza elle yedekleyin ve oradan geri yükleyin. Verileriniz bu cihazda kalır — başka hiçbir yere bir şey gönderilmez.",
+    "nextcloudUrl": "Nextcloud adresi",
+    "nextcloudUser": "Kullanıcı adı",
+    "nextcloudPassword": "Uygulama parolası",
+    "nextcloudPasswordKeep": "Kayıtlıyı korumak için boş bırakın",
+    "backupSave": "Kaydet",
+    "backupTest": "Bağlantıyı test et",
+    "backupRun": "Şimdi yedekle",
+    "backupRestore": "Geri yükle",
+    "backupSaved": "Ayarlar kaydedildi.",
+    "backupTestOk": "Bağlantı çalışıyor.",
+    "backupRunOk": "Nextcloud'a yedeklendi.",
+    "backupRestoreOk": "Nextcloud'dan geri yüklendi.",
+    "lastBackup": "Son yedek: {{when}}",
+    "lastBackupNever": "Henüz yedek yok.",
+    "restoreConfirmTitle": "Nextcloud'dan geri yüklensin mi?",
+    "restoreConfirmBody": "Bu, bu cihazdaki tüm verileri en son Nextcloud yedeğiyle değiştirir. Geri alınamaz.",
+    "restoreConfirmAction": "Yerel verileri değiştir",
+    "backupHint": "Giriş parolanızı değil, bir Nextcloud uygulama parolası kullanın (Ayarlar → Güvenlik). Geri yükleme, her iki cihazda da aynı Talea sürümünü gerektirir."
   },
   "lock": {
     "reason": "Talea'nın kilidini aç",

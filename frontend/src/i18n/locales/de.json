@@ -13,7 +13,8 @@
     "validation": "Bitte überprüfe deine Eingabe.",
     "not_found": "Dieser Eintrag existiert nicht mehr.",
     "database": "Beim Lesen deiner Daten ist ein Fehler aufgetreten.",
-    "corrupt": "Deine Datendatei scheint beschädigt zu sein."
+    "corrupt": "Deine Datendatei scheint beschädigt zu sein.",
+    "backup": "Sicherung oder Wiederherstellung konnte nicht abgeschlossen werden."
   },
   "summary": {
     "income": "Einnahmen",
@@ -128,7 +129,27 @@
     "ringSpent": "Bisher ausgegeben",
     "ringRemaining": "Verbleibend",
     "appLock": "Biometrische Entsperrung verlangen",
-    "appLockHint": "Sperrt die App beim Start mit der Geräte-Biometrie (oder deiner Geräte-PIN). Schützt vor flüchtigem Zugriff – deine Daten sind nicht auf dem Datenträger verschlüsselt. Wird beim nächsten Start wirksam."
+    "appLockHint": "Sperrt die App beim Start mit der Geräte-Biometrie (oder deiner Geräte-PIN). Schützt vor flüchtigem Zugriff – deine Daten sind nicht auf dem Datenträger verschlüsselt. Wird beim nächsten Start wirksam.",
+    "backupTitle": "Sicherung & Synchronisierung",
+    "backupIntro": "Sichere deine Daten manuell in deiner eigenen Nextcloud und stelle sie von dort wieder her. Deine Daten bleiben auf diesem Gerät – sonst wird nichts irgendwohin gesendet.",
+    "nextcloudUrl": "Nextcloud-Adresse",
+    "nextcloudUser": "Benutzername",
+    "nextcloudPassword": "App-Passwort",
+    "nextcloudPasswordKeep": "Leer lassen, um das gespeicherte zu behalten",
+    "backupSave": "Speichern",
+    "backupTest": "Verbindung testen",
+    "backupRun": "Jetzt sichern",
+    "backupRestore": "Wiederherstellen",
+    "backupSaved": "Einstellungen gespeichert.",
+    "backupTestOk": "Verbindung funktioniert.",
+    "backupRunOk": "In Nextcloud gesichert.",
+    "backupRestoreOk": "Aus Nextcloud wiederhergestellt.",
+    "lastBackup": "Letzte Sicherung: {{when}}",
+    "lastBackupNever": "Noch keine Sicherung.",
+    "restoreConfirmTitle": "Aus Nextcloud wiederherstellen?",
+    "restoreConfirmBody": "Dadurch werden alle Daten auf diesem Gerät durch die neueste Nextcloud-Sicherung ersetzt. Das kann nicht rückgängig gemacht werden.",
+    "restoreConfirmAction": "Lokale Daten ersetzen",
+    "backupHint": "Verwende ein Nextcloud-App-Passwort (Einstellungen → Sicherheit), nicht dein Anmeldepasswort. Für die Wiederherstellung müssen beide Geräte dieselbe Talea-Version haben."
   },
   "lock": {
     "reason": "Talea entsperren",

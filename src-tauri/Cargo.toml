@@ -37,6 +37,15 @@ sqlx = { version = "0.9", default-features = false, features = [
     "macros",
     "migrate",
 ] }
+# WebDAV (Nextcloud) backup/restore. rustls (not native-tls) so it
+# cross-compiles to iOS/Android without OpenSSL. reqwest 0.13's `rustls`
+# feature defaults to the C/asm aws-lc-rs provider; we pin the pure-Rust `ring`
+# provider instead (cleaner mobile cross-compile) via `rustls-no-provider` plus
+# an explicit ring default installed at startup (see lib.rs).
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [dev-dependencies]
 tempfile = "3"

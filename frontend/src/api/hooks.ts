@@ -25,6 +25,7 @@ import type {
   NewCategory,
   NewEntry,
   NewRule,
+  NextcloudConfigView,
   Occurrence,
   RecurringRule,
   RecurringRuleId,
@@ -260,6 +261,55 @@ export function useDetachOccurrence(accountId: AccountId) {
       // A detach removes an occurrence AND adds a standalone entry.
       invalidateAccountData(client, accountId);
       void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
+    },
+  });
+}
+
+// ---- Nextcloud backup / restore --------------------------------------------
+
+export function useNextcloudConfig() {
+  return useQuery<NextcloudConfigView, CommandError>({
+    queryKey: queryKeys.nextcloudConfig,
+    queryFn: api.nextcloudGetConfig,
+  });
+}
+
+export function useNextcloudSetConfig() {
+  const client = useQueryClient();
+  return useMutation<void, CommandError, { baseUrl: string; username: string; password: string }>({
+    mutationFn: ({ baseUrl, username, password }) =>
+      api.nextcloudSetConfig(baseUrl, username, password),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
+    },
+  });
+}
+
+/** Tests the connection. No cache effect — the caller surfaces success/error. */
+export function useNextcloudTest() {
+  return useMutation<void, CommandError, void>({ mutationFn: api.nextcloudTest });
+}
+
+/** Uploads a backup; resolves to its RFC-3339 timestamp and refreshes the
+ *  "last backup" line via the config query. */
+export function useBackupNow() {
+  const client = useQueryClient();
+  return useMutation<string, CommandError, void>({
+    mutationFn: api.backupNow,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
+    },
+  });
+}
+
+/** Restores from Nextcloud, replacing all local data. Every cached query is now
+ *  stale (the whole database changed), so invalidate everything. */
+export function useRestoreNow() {
+  const client = useQueryClient();
+  return useMutation<void, CommandError, void>({
+    mutationFn: api.restoreNow,
+    onSuccess: () => {
+      void client.invalidateQueries();
     },
   });
 }

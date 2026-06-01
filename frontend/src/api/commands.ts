@@ -23,6 +23,7 @@ import type {
   NewCategory,
   NewEntry,
   NewRule,
+  NextcloudConfigView,
   Occurrence,
   RecurringRule,
   RecurringRuleId,
@@ -106,3 +107,26 @@ export const detachOccurrence = (
   entry: NewEntry,
 ): Promise<Entry> =>
   call('detach_occurrence', { accountId, occurrence: { rule_id: ruleId, date }, entry });
+
+// ---- Nextcloud backup / restore --------------------------------------------
+
+/** The stored Nextcloud settings (never the password — see `NextcloudConfigView`). */
+export const nextcloudGetConfig = (): Promise<NextcloudConfigView> =>
+  call('nextcloud_get_config');
+
+/** Saves the address/username and, when `password` is non-empty, the app
+ *  password (an empty string keeps the stored one). */
+export const nextcloudSetConfig = (
+  baseUrl: string,
+  username: string,
+  password: string,
+): Promise<void> => call('nextcloud_set_config', { baseUrl, username, password });
+
+/** Verifies the stored address and credentials against the server. */
+export const nextcloudTest = (): Promise<void> => call('nextcloud_test');
+
+/** Snapshots the database and uploads it; resolves to the backup's RFC-3339 time. */
+export const backupNow = (): Promise<string> => call('backup_now');
+
+/** Downloads the latest backup and replaces all local data with it. */
+export const restoreNow = (): Promise<void> => call('restore_now');

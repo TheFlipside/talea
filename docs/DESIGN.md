@@ -238,3 +238,48 @@ Accepted as known debt for the scaffold; revisit before a release:
   boundary), but if a wider IPC/sync surface is ever added, scope the `WHERE` to
   the owning account and stop writing `account_id` on update. Rule amount history
   is already bounded (`MAX_AMOUNT_SEGMENTS`) alongside the note/amount caps.
+
+---
+
+## 10. Backup & restore over WebDAV (Nextcloud) — 🟢 DONE (implemented)
+
+Testers wanted multi-device data movement. The chosen first step is the
+pragmatic, local-first-preserving one: **manual backup & restore to the user's
+own Nextcloud over WebDAV** — cross-platform (plain HTTPS, no per-platform iCloud
+/ Google native code), self-hosted, and it doubles as the backup users want. It
+is **optional** (the app is fully usable with nothing configured) and **not**
+automatic sync: no background upload, no merge/CRDT, no schema migration to UUIDs.
+Those remain future work if concurrent multi-device editing is ever needed.
+
+- **Single-writer, latest-snapshot model.** One fixed remote file,
+  `Talea/talea-backup.sqlite3` under the user's files root. *Back up* overwrites
+  it; *Restore* downloads it. No versioned history in v1 (a noted follow-up).
+- **Backup** is a `VACUUM INTO` snapshot — a clean single file with no
+  `-wal`/`-shm` sidecars — read into memory and `PUT`. **Restore** must **not**
+  swap the live `sqlx` pool (every command holds `State<SqlitePool>`; swapping
+  would mean refactoring them all). Instead it replaces table contents **in
+  place, in one transaction** with `PRAGMA defer_foreign_keys = ON`: `ATTACH` the
+  downloaded file, `DELETE` then `INSERT … SELECT *` across
+  `account, category, entry, recurring_rule, rule_amount, rule_skip` (plus
+  `sqlite_sequence`, so AUTOINCREMENT counters don't collide), `COMMIT`/`DETACH`.
+  Any failure rolls back and leaves local data intact.
+- **Same-version restore only.** Restore compares `MAX(version)` in each side's
+  `_sqlx_migrations` and **refuses** a backup from a different schema version
+  with a clear message, rather than risk a column mismatch. Cross-version restore
+  is future work.
+- **Credentials live in `nextcloud.json` in app-data — NOT in the database.**
+  Deliberate: the password is therefore never part of an uploaded backup. The
+  config getter returns address/username + a `configured` flag only; the password
+  is never returned to the frontend and never logged. At rest it is plaintext
+  protected by the same OS file-encryption baseline as the rest of the app's data
+  (§9). Use a Nextcloud **app password** (app-scoped, revocable), not the login
+  password. OS-keychain storage is a tracked follow-up (the `keyring` crate
+  doesn't cover Android, so it isn't a clean cross-platform win today).
+- **HTTPS only.** The WebDAV client (`src-tauri/src/webdav.rs`) rejects non-
+  `https://` addresses and authenticates with HTTP Basic. TLS is `reqwest` +
+  **rustls with the `ring` provider** (not the default `aws-lc-rs`), chosen so the
+  iOS/Android cross-compile needs no OpenSSL and no C/cmake crypto toolchain; the
+  provider is installed as rustls's process default at startup (`lib.rs`).
+- **Network surface.** This re-introduces an *outbound* channel, but only to a
+  user-supplied host, only on explicit action. There is no inbound server and no
+  background networking; local-first is intact.

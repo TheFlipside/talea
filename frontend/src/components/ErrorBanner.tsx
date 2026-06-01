@@ -8,6 +8,7 @@ const TONE_KEYS: Record<CommandErrorCode, string> = {
   not_found: 'errors.not_found',
   database: 'errors.database',
   corrupt: 'errors.corrupt',
+  backup: 'errors.backup',
 };
 
 export function ErrorBanner({ error }: { error: CommandError }) {

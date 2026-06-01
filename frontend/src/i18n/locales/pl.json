@@ -13,7 +13,8 @@
     "validation": "Sprawdź wprowadzone dane.",
     "not_found": "Ten element już nie istnieje.",
     "database": "Wystąpił problem podczas odczytu danych.",
-    "corrupt": "Plik danych wygląda na uszkodzony."
+    "corrupt": "Plik danych wygląda na uszkodzony.",
+    "backup": "Nie udało się ukończyć kopii zapasowej lub przywracania."
   },
   "summary": {
     "income": "Przychody",
@@ -128,7 +129,27 @@
     "ringSpent": "Wydane do tej pory",
     "ringRemaining": "Pozostało",
     "appLock": "Wymagaj odblokowania biometrycznego",
-    "appLockHint": "Blokuje aplikację przy uruchomieniu za pomocą biometrii urządzenia (lub kodu PIN). Chroni przed przypadkowym dostępem; dane nie są szyfrowane na dysku. Zacznie obowiązywać przy następnym uruchomieniu."
+    "appLockHint": "Blokuje aplikację przy uruchomieniu za pomocą biometrii urządzenia (lub kodu PIN). Chroni przed przypadkowym dostępem; dane nie są szyfrowane na dysku. Zacznie obowiązywać przy następnym uruchomieniu.",
+    "backupTitle": "Kopia zapasowa i synchronizacja",
+    "backupIntro": "Ręcznie twórz kopie zapasowe we własnym Nextcloud i przywracaj z niego dane. Twoje dane pozostają na tym urządzeniu — nic nie jest wysyłane gdzie indziej.",
+    "nextcloudUrl": "Adres Nextcloud",
+    "nextcloudUser": "Nazwa użytkownika",
+    "nextcloudPassword": "Hasło aplikacji",
+    "nextcloudPasswordKeep": "Pozostaw puste, aby zachować zapisane",
+    "backupSave": "Zapisz",
+    "backupTest": "Testuj połączenie",
+    "backupRun": "Utwórz kopię teraz",
+    "backupRestore": "Przywróć",
+    "backupSaved": "Ustawienia zapisane.",
+    "backupTestOk": "Połączenie działa.",
+    "backupRunOk": "Utworzono kopię w Nextcloud.",
+    "backupRestoreOk": "Przywrócono z Nextcloud.",
+    "lastBackup": "Ostatnia kopia: {{when}}",
+    "lastBackupNever": "Brak kopii zapasowej.",
+    "restoreConfirmTitle": "Przywrócić z Nextcloud?",
+    "restoreConfirmBody": "Spowoduje to zastąpienie wszystkich danych na tym urządzeniu najnowszą kopią z Nextcloud. Nie można tego cofnąć.",
+    "restoreConfirmAction": "Zastąp dane lokalne",
+    "backupHint": "Użyj hasła aplikacji Nextcloud (Ustawienia → Bezpieczeństwo), a nie hasła logowania. Przywracanie wymaga tej samej wersji Talea na obu urządzeniach."
   },
   "lock": {
     "reason": "Odblokuj Talea",

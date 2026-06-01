@@ -33,4 +33,6 @@ export const queryKeys = {
   occurrencesByAccount: (accountId: AccountId) => ['occurrences', accountId] as const,
   /** Prefix matching every account's occurrences (e.g. after a category delete). */
   occurrencesAll: ['occurrences'] as const,
+  /** The stored Nextcloud backup settings (single, account-independent). */
+  nextcloudConfig: ['nextcloudConfig'] as const,
 };

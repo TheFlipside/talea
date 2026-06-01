@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.3.0 - 2026-06-01
+
+### Added
+
+- **Backup & restore to your own Nextcloud** (manual, over WebDAV). A new
+  *Backup & sync* section in Settings takes a Nextcloud address, username, and
+  **app password**, with *Test connection*, *Back up now*, and *Restore* (guarded
+  by a confirmation, since it replaces all local data). Backups are a clean
+  `VACUUM INTO` snapshot uploaded to `Talea/talea-backup.sqlite3`; restore is an
+  in-place, single-transaction table replace (no pool swap) that refuses a backup
+  from a different schema version rather than risk a mismatch. Stays local-first:
+  no automatic sync, no merge, and the app is fully usable with nothing
+  configured. Translated into all 12 locales.
+- Credentials are stored in `nextcloud.json` in the app-data directory —
+  deliberately **outside** the database, so the password is never part of an
+  uploaded backup — and the password is never returned to the frontend or logged.
+
+### Changed
+
+- Networking uses `reqwest` 0.13 with **rustls + the `ring` provider** (not the
+  default `aws-lc-rs`), keeping the iOS/Android cross-compile free of a C/cmake
+  TLS toolchain.
+
 ## 1.2.0 - 2026-06-01
 
 ### Added

@@ -6,7 +6,7 @@
 //! [`CommandError`] on failure.
 
 use sqlx::SqlitePool;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use talea_core::{
     expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
@@ -14,9 +14,11 @@ use talea_core::{
     CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
+use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
 use crate::dto::{NewAccount, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
+use crate::webdav::WebDav;
 
 /// Upper bound on the number of months a single range query may span (100
 /// years), so a crafted `from..=to` can't force a huge loop/allocation.
@@ -510,4 +512,103 @@ pub(crate) async fn detach_occurrence_inner(
     require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
     let draft = entry.build()?;
     Ok(repo::skip::detach(pool, occurrence.rule_id, occurrence.date, &draft).await?)
+}
+
+// ---- Nextcloud backup / restore --------------------------------------------
+
+/// Resolves the app-data directory (where the Nextcloud config lives).
+fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, CommandError> {
+    app.path().app_data_dir().map_err(|err| {
+        log::error!("app data dir unavailable: {err}");
+        CommandError::Backup("Couldn't access app storage.".into())
+    })
+}
+
+/// Builds a `WebDAV` client from the stored config, or a friendly error if it
+/// isn't configured yet.
+fn client_for(config: &NextcloudConfig) -> Result<WebDav, CommandError> {
+    if !config.is_configured() {
+        return Err(CommandError::Backup(
+            "Add your Nextcloud address, username, and app password first.".into(),
+        ));
+    }
+    Ok(WebDav::new(
+        &config.base_url,
+        &config.username,
+        &config.password,
+    )?)
+}
+
+/// Returns the stored Nextcloud settings — never the password, only whether one
+/// is set.
+///
+/// # Errors
+/// [`CommandError::Backup`] if app storage is unavailable.
+// Tauri's command macro requires `AppHandle` by value; it's an `Arc`-backed
+// handle, so passing it by value is cheap and idiomatic.
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+pub fn nextcloud_get_config(app: AppHandle) -> Result<NextcloudConfigView, CommandError> {
+    let dir = app_data_dir(&app)?;
+    Ok((&backup::load_config(&dir)).into())
+}
+
+/// Saves the Nextcloud address/username, and the app password when a non-empty
+/// one is given (an empty password keeps the stored one).
+///
+/// # Errors
+/// [`CommandError::Backup`] if the settings can't be written.
+// Tauri's command macro requires owned `AppHandle`/`String` arguments.
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+pub fn nextcloud_set_config(
+    app: AppHandle,
+    base_url: String,
+    username: String,
+    password: String,
+) -> Result<(), CommandError> {
+    let dir = app_data_dir(&app)?;
+    backup::set_credentials(&dir, &base_url, &username, &password)
+}
+
+/// Verifies the stored Nextcloud address and credentials.
+///
+/// # Errors
+/// [`CommandError::Backup`] if not configured, unreachable, or rejected.
+#[tauri::command]
+pub async fn nextcloud_test(app: AppHandle) -> Result<(), CommandError> {
+    let dir = app_data_dir(&app)?;
+    client_for(&backup::load_config(&dir))?.check().await?;
+    Ok(())
+}
+
+/// Snapshots the database and uploads it to Nextcloud; returns the RFC-3339
+/// timestamp of the backup.
+///
+/// # Errors
+/// [`CommandError::Backup`] if not configured or the upload fails;
+/// [`CommandError::Database`] on a snapshot error.
+#[tauri::command]
+pub async fn backup_now(
+    app: AppHandle,
+    state: State<'_, SqlitePool>,
+) -> Result<String, CommandError> {
+    let dir = app_data_dir(&app)?;
+    let client = client_for(&backup::load_config(&dir))?;
+    let bytes = backup::snapshot(state.inner(), &dir).await?;
+    client.put_backup(bytes).await?;
+    backup::mark_backed_up(&dir)
+}
+
+/// Downloads the Nextcloud backup and replaces all local data with it.
+///
+/// # Errors
+/// [`CommandError::Backup`] if not configured, the download fails, or the file
+/// is not a same-version Talea backup.
+#[tauri::command]
+pub async fn restore_now(app: AppHandle, state: State<'_, SqlitePool>) -> Result<(), CommandError> {
+    let dir = app_data_dir(&app)?;
+    let client = client_for(&backup::load_config(&dir))?;
+    let bytes = client.get_backup().await?;
+    backup::restore(state.inner(), &dir, &bytes).await
 }
