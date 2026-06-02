@@ -24,6 +24,62 @@ never engages (there's no authenticator), so the app always opens.
 
 ---
 
+## Quality gates
+
+All gates must pass clean (also wrapped as `just gate`):
+
+```bash
+cargo clippy --workspace --all-targets -- -W clippy::pedantic -D warnings
+cargo fmt --all --check
+cargo test --workspace
+npm --prefix frontend run lint     # eslint --max-warnings=0
+npm --prefix frontend run build    # tsc + vite build
+npm --prefix frontend test         # vitest (incl. the locale key-parity test)
+```
+
+### sqlx offline cache
+
+SQL in `src-tauri` is compile-time checked by `sqlx::query!` against the
+committed `.sqlx/` cache (`SQLX_OFFLINE=true` in `.cargo/config.toml`), so the
+gates build with **no database**. After changing any query or migration,
+regenerate the cache and commit it:
+
+```bash
+# one-time: a matching sqlx-cli
+cargo install sqlx-cli --version ^0.9 --no-default-features --features sqlite
+# regenerate .sqlx against a scratch DB migrated from src-tauri/migrations
+export DATABASE_URL="sqlite:///tmp/talea-prepare.sqlite3"
+sqlx database create && sqlx migrate run --source src-tauri/migrations
+cargo sqlx prepare --workspace          # then commit the updated .sqlx/
+```
+
+Verify the committed cache still matches the code with
+`SQLX_OFFLINE=false cargo sqlx prepare --workspace --check` against the same
+`DATABASE_URL`.
+
+---
+
+## Resetting local data
+
+The app stores its SQLite database in the OS app-data directory under the
+identifier `com.luminaapps.talea`. Deleting it gives a clean first run (which
+auto-creates a default account):
+
+```bash
+# Linux
+rm -f ~/.local/share/com.luminaapps.talea/talea.sqlite3*
+# macOS
+rm -f ~/Library/Application\ Support/com.luminaapps.talea/talea.sqlite3*
+# Windows (PowerShell)
+Remove-Item "$env:APPDATA\com.luminaapps.talea\talea.sqlite3*"
+```
+
+The `talea.sqlite3*` glob also removes the `-wal`/`-shm` WAL sidecar files. The
+Nextcloud credentials (`nextcloud.json`) live in the same directory and are
+**not** removed by that glob — delete it too for a fully clean slate.
+
+---
+
 ## Android
 
 ### Prerequisites (one-time)
@@ -142,6 +198,80 @@ APK) is already installed, `adb install` fails with
 (If the packaged app renders but `android-dev*` doesn't, the issue is the dev
 server connection — see Troubleshooting. The exact APK path can vary by
 target/flavour; check the `cargo tauri android build` output.)
+
+### Play Store release bundle (`.aab`)
+
+The Play Store takes an **App Bundle** (`.aab`), not an APK. `cargo tauri android
+build --aab` emits an **unsigned** bundle (the project has no Gradle signing
+config) at:
+
+```
+src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab
+```
+
+An `.aab` is a JAR-format archive, so it is signed with **`jarsigner`** — *not*
+`apksigner`/`zipalign`, which are APK-only (Google generates and aligns the APKs
+from your bundle).
+
+```bash
+# One-time: create an upload keystore. Back it up — it's your upload key forever.
+keytool -genkeypair -v -keystore ~/talea-upload.jks \
+  -alias upload -keyalg RSA -keysize 2048 -validity 10000
+
+AAB="src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab"
+cargo tauri android build --aab
+jarsigner -sigalg SHA256withRSA -digestalg SHA-256 -keystore ~/talea-upload.jks "$AAB" upload
+jarsigner -verify "$AAB"          # → "jar verified."
+```
+
+`jarsigner` signs in place and prompts for the password (don't pass it on the
+command line). With **Play App Signing** (default for new apps) this is only your
+*upload* key — Google re-signs with the app-signing key it holds — so it just has
+to stay consistent across uploads. `versionCode` must increase on every upload;
+Tauri derives it from the app version (override via `bundle.android.versionCode`
+in `tauri.conf.json` if Play reports a clash).
+
+> `src-tauri/gen/android/` is regenerated and not committed, so don't add a
+> `signingConfig` to `build.gradle.kts` (it would be wiped). The post-build
+> `jarsigner` step is the durable approach.
+
+#### Optional Play uploads: deobfuscation mapping + native debug symbols
+
+Both are optional but make Play Console crash reports readable — they turn a
+native panic (like the rustls one fixed in 1.4.1) from raw addresses into named
+frames.
+
+- **R8 mapping (the Java/Kotlin layer).** The release build minifies
+  (`isMinifyEnabled = true`), so a mapping file is already produced at:
+
+  ```
+  src-tauri/gen/android/app/build/outputs/mapping/universalRelease/mapping.txt
+  ```
+
+  Upload it in the Play Console for the release (app-bundle explorer → Downloads →
+  ReTrace mapping file); it's also bundled automatically when present at build.
+
+- **Native debug symbols (the Rust `.so`).** Not produced by default: the release
+  profile strips them (`[profile.release] strip = true` in the workspace
+  `Cargo.toml`, and the `jniLibs` libraries symlink straight to the stripped
+  `target/<abi>/release/` output). Produce a symbol-bearing build by disabling
+  stripping for one build, then zip the per-ABI libraries:
+
+  ```bash
+  # Temporarily set `strip = false` under [profile.release] in Cargo.toml, then:
+  cargo tauri android build --aab
+  ( cd src-tauri/gen/android/app/src/main/jniLibs && \
+    zip -r ~/talea-native-symbols.zip ./*/*.so )   # arm64-v8a/…, armeabi-v7a/…, x86/…
+  # Revert to `strip = true` afterwards so shipped builds stay small.
+  ```
+
+  Upload `talea-native-symbols.zip` in the Play Console (app-bundle explorer →
+  Downloads → Native debug symbols). `strip = false` keeps the **symbol table**
+  (function names — enough to symbolicate a stack trace); also add `debug = true`
+  to the profile if you want source line numbers too (much larger output). The
+  *shipped* bundle is unaffected — AGP strips the packaged libraries during
+  release packaging; only the `jniLibs` source you zip retains the symbols.
+  (`zip` dereferences the symlinks and stores the real `.so` contents.)
 
 ### Testing the biometric app lock
 

@@ -3,6 +3,18 @@
 Canonical record of product/architecture decisions and the few details still
 open. Status legend: 🔴 open · 🟡 leaning · 🟢 decided.
 
+### Stack & key decisions (at a glance)
+
+| Decision        | Choice                          | Rationale                                                                  |
+| --------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| Shell           | Tauri 2.x                       | One Rust core, native Android + iOS + desktop, small footprint.            |
+| Frontend        | React + TypeScript (Vite)       | Familiar, fast HMR, typed boundary to the shell.                           |
+| Persistence     | local SQLite via `sqlx`         | Local-first, embeddable, queryable, no server.                             |
+| Money           | `rust_decimal` — **never f64**  | Exact base-10 arithmetic; floating point is forbidden for monetary values. |
+| Domain location | pure `core` crate               | Logic stays IO-free and unit-tested, isolated from the shell.              |
+
+The sections below record the product and architecture decisions in full.
+
 ---
 
 ## 1. Budgeting model — 🟢 DECIDED: monthly cashflow ledger with carry-over
