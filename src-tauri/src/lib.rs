@@ -67,10 +67,11 @@ fn smoke_check(name: &str) -> SmokeInfo {
 /// database.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Install the ring crypto provider as rustls's process default. reqwest is
-    // built with `rustls-no-provider`, so the WebDAV (Nextcloud) client picks up
-    // this provider; ring keeps the iOS/Android cross-compile free of aws-lc-rs's
-    // C/cmake toolchain. Idempotent best-effort: a prior install is harmless.
+    // Install the ring crypto provider as rustls's process default. The WebDAV
+    // (Nextcloud) client builds its config with ring explicitly (see
+    // `webdav.rs`), so this is a safety net for any other rustls path that falls
+    // back to the process default. ring keeps the iOS/Android cross-compile free
+    // of aws-lc-rs's C/cmake toolchain. Best-effort: a prior install is harmless.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     // Status-bar theming and the widget publisher work on all platforms (no-ops

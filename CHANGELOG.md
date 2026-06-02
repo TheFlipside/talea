@@ -23,6 +23,15 @@ All notable changes to this project are documented in this file.
 - The account form gained an account-type selector and (for a summary) a member
   checklist; the account switcher marks summary accounts with a badge.
 
+### Fixed
+
+- **Nextcloud backup/restore crashed on Android** (and would on iOS) when testing
+  the connection or backing up: reqwest 0.13's default rustls verifier
+  (`rustls-platform-verifier`) needs platform JNI initialization we don't perform,
+  so the first TLS handshake panicked. The WebDAV client now uses an explicit
+  rustls config with the bundled Mozilla roots (`webpki-roots`) and the `ring`
+  provider — no platform initialization, identical on every target.
+
 ## 1.3.0 - 2026-06-01
 
 ### Added

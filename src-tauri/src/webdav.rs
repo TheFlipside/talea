@@ -4,6 +4,7 @@
 //! directory, and a connectivity/credentials check. HTTPS is required; the app
 //! password is sent via HTTP Basic auth and never logged.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::{Client, Method, StatusCode, Url};
@@ -56,6 +57,24 @@ fn dav_url(base: &Url, user: &str, segments: &[&str]) -> Result<Url, WebDavError
     Ok(url)
 }
 
+/// Builds a rustls client config that trusts the bundled Mozilla root set
+/// (`webpki-roots`) using the `ring` provider.
+///
+/// We supply this explicitly instead of letting reqwest pick its default
+/// verifier: reqwest 0.13's rustls default is `rustls-platform-verifier`, which
+/// on Android (and iOS) must be initialized with the platform's JNI/Context
+/// before first use — without that it panics, aborting the app. Bundled roots
+/// need no platform initialization and behave identically on every target.
+fn tls_config() -> rustls::ClientConfig {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+        .with_safe_default_protocol_versions()
+        .expect("ring provider supports the default TLS protocol versions")
+        .with_root_certificates(roots)
+        .with_no_client_auth()
+}
+
 /// Maps an HTTP status to our error set; 2xx and 207 Multi-Status are success.
 fn check_status(status: StatusCode) -> Result<(), WebDavError> {
     if status.is_success() || status == StatusCode::MULTI_STATUS {
@@ -89,6 +108,9 @@ impl WebDav {
             // Don't follow redirects: a redirect could forward the Basic-auth
             // credentials to another host. WebDAV has no need to redirect.
             .redirect(reqwest::redirect::Policy::none())
+            // Use our bundled-roots config (see `tls_config`) instead of the
+            // default platform verifier, which isn't initialized on mobile.
+            .use_preconfigured_tls(tls_config())
             .build()
             .map_err(|_| WebDavError::Network)?;
         Ok(Self {
