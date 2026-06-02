@@ -167,6 +167,29 @@ just android-dev
 The first run downloads Gradle dependencies and is slow; later runs are quick
 and hot-reload the frontend.
 
+### Build & sign with `scripts/android.sh` (recommended)
+
+`scripts/android.sh` automates the build → align → sign → collect steps so you
+don't run them by hand. It auto-detects the NDK and build-tools, forces a JDK
+≤ 21, prompts **once** for the keystore password (then signs unattended), and
+names release artifacts `<App>-<version>` on your Desktop.
+
+```bash
+just android-apk        # build + sign a test APK, then print the adb install line
+just android-aab        # build + sign the Play .aab + copy it & mapping.txt to ~/Desktop
+just android-symbols    # build native (Rust) symbols → ~/Desktop/<App>-<ver>-native-symbols.zip
+just android-release    # aab + symbols together (full Play upload set)
+# or call the script directly: ./scripts/android.sh {apk|aab|symbols|release}
+```
+
+Signing inputs are overridable via the environment (defaults in parentheses):
+`TALEA_KEYSTORE` (`~/play-store_release-key.keystore`), `TALEA_KEY_ALIAS`
+(`play-store_release`), `TALEA_DESKTOP` (`~/Desktop`). The password is read with
+`read -rs` and passed to `apksigner`/`jarsigner` via the environment, never on the
+command line. `apk`/`release` leave the signed APK under `gen/android/...` and
+print its `adb install -r` command. The manual steps below document what the
+script does, for reference or one-off tweaks.
+
 ### Run it (standalone APK — no dev server)
 
 To run without a live dev server (the frontend is bundled into the APK), build

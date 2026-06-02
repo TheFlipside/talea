@@ -115,6 +115,22 @@ android-build: _ensure-frontend
     export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
     cargo tauri android build
 
+# Build + sign a release APK for a test device, then print `adb install`.
+android-apk: _ensure-frontend
+    ./scripts/android.sh apk
+
+# Build + sign the Play Store .aab and copy it + the R8 mapping to the Desktop.
+android-aab: _ensure-frontend
+    ./scripts/android.sh aab
+
+# Zip the native (Rust) debug symbols to the Desktop for the optional Play upload.
+android-symbols: _ensure-frontend
+    ./scripts/android.sh symbols
+
+# Full Play Store upload set: signed .aab + mapping + native symbols → Desktop.
+android-release: _ensure-frontend
+    ./scripts/android.sh release
+
 # Tail device logs for the running app (webview console + Rust stdout/stderr).
 android-log:
     #!/usr/bin/env bash
