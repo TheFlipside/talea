@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.4.1 - 2026-06-02
+
+### Fixed
+
+- **Nextcloud backup/restore crashed on Android** when testing the connection or
+  backing up: reqwest 0.13's default rustls verifier (`rustls-platform-verifier`)
+  needs Android JNI initialization we don't perform, so the first TLS handshake
+  panicked (iOS was unaffected — it verifies via the Security framework with no
+  init). The WebDAV client now uses an explicit rustls config with the bundled
+  Mozilla roots (`webpki-roots`) and the `ring` provider — no platform
+  initialization, identical on every target. Note: validation now uses the
+  bundled public-CA set rather than the OS trust store, so a Nextcloud served
+  with a **private/enterprise CA** must use a publicly-trusted certificate (e.g.
+  Let's Encrypt); honoring device-installed private CAs is tracked follow-up.
+
 ## 1.4.0 - 2026-06-02
 
 ### Added
@@ -22,15 +37,6 @@ All notable changes to this project are documented in this file.
 
 - The account form gained an account-type selector and (for a summary) a member
   checklist; the account switcher marks summary accounts with a badge.
-
-### Fixed
-
-- **Nextcloud backup/restore crashed on Android** (and would on iOS) when testing
-  the connection or backing up: reqwest 0.13's default rustls verifier
-  (`rustls-platform-verifier`) needs platform JNI initialization we don't perform,
-  so the first TLS handshake panicked. The WebDAV client now uses an explicit
-  rustls config with the bundled Mozilla roots (`webpki-roots`) and the `ring`
-  provider — no platform initialization, identical on every target.
 
 ## 1.3.0 - 2026-06-01
 
