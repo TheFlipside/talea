@@ -7,8 +7,8 @@
 
 use serde::Deserialize;
 use talea_core::{
-    Account, AccountId, Category, CategoryIcon, CategoryId, Currency, DomainError, Entry, EntryId,
-    EntryKind, Frequency, Money, Month, RecurringRule, RecurringRuleId, RuleEnd,
+    Account, AccountId, AccountKind, Category, CategoryIcon, CategoryId, Currency, DomainError,
+    Entry, EntryId, EntryKind, Frequency, Money, Month, RecurringRule, RecurringRuleId, RuleEnd,
 };
 use time::Date;
 
@@ -29,6 +29,10 @@ time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
 const DRAFT_ID: u64 = 0;
 
 /// Create payload for an [`Account`].
+///
+/// `kind`/`members` default for older clients: an omitted `kind` is a normal
+/// account. For a summary account, `members` lists the aggregated accounts
+/// (cross-account validation happens in the command layer).
 #[derive(Debug, Deserialize)]
 pub struct NewAccount {
     pub name: String,
@@ -36,6 +40,10 @@ pub struct NewAccount {
     pub currency: Currency,
     pub opening_balance: Money,
     pub anchor: Month,
+    #[serde(default)]
+    pub kind: AccountKind,
+    #[serde(default)]
+    pub members: Vec<AccountId>,
 }
 
 impl NewAccount {
@@ -44,14 +52,24 @@ impl NewAccount {
     /// # Errors
     /// [`DomainError`] if any field is invalid.
     pub fn build(self) -> Result<Account, DomainError> {
-        Account::new(
-            AccountId::new(DRAFT_ID),
-            self.name,
-            self.icon,
-            self.currency,
-            self.opening_balance,
-            self.anchor,
-        )
+        match self.kind {
+            AccountKind::Normal => Account::new(
+                AccountId::new(DRAFT_ID),
+                self.name,
+                self.icon,
+                self.currency,
+                self.opening_balance,
+                self.anchor,
+            ),
+            AccountKind::Summary => Account::new_summary(
+                AccountId::new(DRAFT_ID),
+                self.name,
+                self.icon,
+                self.currency,
+                self.anchor,
+                self.members,
+            ),
+        }
     }
 }
 

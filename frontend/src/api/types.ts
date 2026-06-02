@@ -29,6 +29,10 @@ export interface Month {
   month: number;
 }
 
+/** Whether an account records its own entries (`normal`) or is a read-only
+ *  overview aggregating same-currency members (`summary`). */
+export type AccountKind = 'normal' | 'summary';
+
 export interface Account {
   id: AccountId;
   name: string;
@@ -36,6 +40,9 @@ export interface Account {
   currency: string;
   opening_balance: Money;
   anchor: Month;
+  kind: AccountKind;
+  /** Member account ids — non-empty only for a summary account. */
+  members: AccountId[];
 }
 
 export interface NewAccount {
@@ -44,6 +51,8 @@ export interface NewAccount {
   currency: string;
   opening_balance: Money;
   anchor: Month;
+  kind: AccountKind;
+  members: AccountId[];
 }
 
 export interface Entry {

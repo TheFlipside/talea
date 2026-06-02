@@ -23,30 +23,39 @@ export function MonthScreen({ account }: { account: Account }) {
   // Swipe left → next month, right → previous (natural paging direction).
   const swipe = useSwipe({ onSwipeLeft: next, onSwipeRight: prev });
 
+  // A summary account is a read-only overview: its rows belong to its member
+  // accounts, so it takes no records of its own (no + button, no editing).
+  const isSummary = account.kind === 'summary';
+
   return (
     <div className="month-screen" {...swipe}>
       <MonthNav />
       <SummaryBar accountId={account.id} currency={account.currency} />
 
+      {isSummary && <p className="month-screen__summary-hint muted">{t('summary.combinedHint')}</p>}
+
       <div className="month-screen__list">
         <EntryList
           accountId={account.id}
           currency={account.currency}
+          readOnly={isSummary}
           onEdit={(entry) => setForm({ mode: 'edit', entry })}
           onSelectOccurrence={setOccurrence}
         />
       </div>
 
-      <button
-        type="button"
-        className="fab"
-        aria-label={t('entry.new')}
-        onClick={() => setForm({ mode: 'new' })}
-      >
-        +
-      </button>
+      {!isSummary && (
+        <button
+          type="button"
+          className="fab"
+          aria-label={t('entry.new')}
+          onClick={() => setForm({ mode: 'new' })}
+        >
+          +
+        </button>
+      )}
 
-      {form.mode !== 'closed' && (
+      {!isSummary && form.mode !== 'closed' && (
         <EntryForm
           key={form.mode === 'edit' ? form.entry.id : 'new'}
           accountId={account.id}
@@ -56,7 +65,7 @@ export function MonthScreen({ account }: { account: Account }) {
         />
       )}
 
-      {occurrence && (
+      {!isSummary && occurrence && (
         <OccurrenceActions
           accountId={account.id}
           occurrence={occurrence}

@@ -66,6 +66,8 @@ function App() {
         currency: defaultCurrency(),
         opening_balance: '0.00',
         anchor: currentMonth(),
+        kind: 'normal',
+        members: [],
       },
       { onSuccess: (account) => setActiveAccountId(account.id) },
     );

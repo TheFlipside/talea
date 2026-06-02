@@ -22,7 +22,8 @@
     "available": "月末まで利用可能",
     "loading": "概要を読み込み中…",
     "ringSpent": "今月の資金の {{percent}}% を使用",
-    "ringRemaining": "今月の資金の {{percent}}% が残り"
+    "ringRemaining": "今月の資金の {{percent}}% が残り",
+    "combinedHint": "対象口座を合算した読み取り専用の表示です。"
   },
   "month": {
     "navigation": "月の移動",
@@ -68,7 +69,15 @@
     "errorName": "名前を入力してください。",
     "errorCurrency": "通貨は3文字のコードである必要があります（例: USD）。",
     "errorBalance": "有効な開始残高を入力してください（例: 0.00）。",
-    "currencyChangeWarning": "通貨を変更すると既存の記録のラベルが変わります。金額は換算されません。"
+    "currencyChangeWarning": "通貨を変更すると既存の記録のラベルが変わります。金額は換算されません。",
+    "kind": "口座の種類",
+    "kindNormal": "通常",
+    "kindSummary": "まとめ",
+    "members": "対象の口座",
+    "membersHint": "まとめ口座は、選択した同一通貨の口座を読み取り専用で合算します。",
+    "membersEmpty": "合算できる他の {{currency}} 口座がまだありません。",
+    "errorMembers": "対象の口座を1つ以上選択してください。",
+    "summaryBadge": "まとめ口座"
   },
   "accounts": {
     "title": "口座",

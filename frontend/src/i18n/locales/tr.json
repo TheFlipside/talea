@@ -22,7 +22,8 @@
     "available": "Ay sonuna kadar kullanılabilir",
     "loading": "Özet yükleniyor…",
     "ringSpent": "Bu ayki fonların %{{percent}} kadarı harcandı",
-    "ringRemaining": "Bu ayki fonların %{{percent}} kadarı kaldı"
+    "ringRemaining": "Bu ayki fonların %{{percent}} kadarı kaldı",
+    "combinedHint": "Dahil edilen hesapların birleşik, salt okunur görünümü."
   },
   "month": {
     "navigation": "Ay gezinmesi",
@@ -68,7 +69,15 @@
     "errorName": "Lütfen bir ad girin.",
     "errorCurrency": "Para birimi 3 harfli bir kod olmalı, örn. EUR.",
     "errorBalance": "Geçerli bir açılış bakiyesi girin, örn. 0,00.",
-    "currencyChangeWarning": "Para birimini değiştirmek mevcut kayıtları yeniden etiketler; tutarları dönüştürülmez."
+    "currencyChangeWarning": "Para birimini değiştirmek mevcut kayıtları yeniden etiketler; tutarları dönüştürülmez.",
+    "kind": "Hesap türü",
+    "kindNormal": "Normal",
+    "kindSummary": "Özet",
+    "members": "Dahil edilen hesaplar",
+    "membersHint": "Özet hesap, seçilen aynı para birimine sahip hesapları salt okunur bir görünümde birleştirir.",
+    "membersEmpty": "Birleştirilecek başka {{currency}} hesabı yok.",
+    "errorMembers": "En az bir hesap seçin.",
+    "summaryBadge": "Özet hesabı"
   },
   "accounts": {
     "title": "Hesaplar",

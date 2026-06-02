@@ -22,7 +22,8 @@
     "available": "本月底前可用",
     "loading": "正在加载概要…",
     "ringSpent": "本月资金已花费 {{percent}}%",
-    "ringRemaining": "本月资金剩余 {{percent}}%"
+    "ringRemaining": "本月资金剩余 {{percent}}%",
+    "combinedHint": "所含账户的合并只读视图。"
   },
   "month": {
     "navigation": "月份导航",
@@ -68,7 +69,15 @@
     "errorName": "请输入名称。",
     "errorCurrency": "货币必须是 3 个字母的代码，例如 USD。",
     "errorBalance": "请输入有效的期初余额，例如 0.00。",
-    "currencyChangeWarning": "更改货币会重新标注现有记录；其金额不会被换算。"
+    "currencyChangeWarning": "更改货币会重新标注现有记录；其金额不会被换算。",
+    "kind": "账户类型",
+    "kindNormal": "普通",
+    "kindSummary": "汇总",
+    "members": "包含的账户",
+    "membersHint": "汇总账户将所选的同币种账户合并为只读概览。",
+    "membersEmpty": "暂无其他 {{currency}} 账户可供汇总。",
+    "errorMembers": "请至少选择一个账户。",
+    "summaryBadge": "汇总账户"
   },
   "accounts": {
     "title": "账户",

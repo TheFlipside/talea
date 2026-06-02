@@ -28,6 +28,7 @@ const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
 /// there's a single list to update when a table is added.
 const TABLES: &[&str] = &[
     "account",
+    "account_member",
     "category",
     "recurring_rule",
     "entry",

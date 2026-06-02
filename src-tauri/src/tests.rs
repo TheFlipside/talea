@@ -7,9 +7,9 @@ use tempfile::TempDir;
 use time::{Date, Month as TMonth};
 
 use talea_core::{
-    month_summary, Account, AccountId, AmountSegment, Category, CategoryIcon, CategoryId, Currency,
-    Entry, EntryId, EntryKind, FreqUnit, Frequency, Money, Month, RecurringRule, RecurringRuleId,
-    RuleEnd,
+    month_summary, Account, AccountId, AccountKind, AmountSegment, Category, CategoryIcon,
+    CategoryId, Currency, Entry, EntryId, EntryKind, FreqUnit, Frequency, Money, Month,
+    RecurringRule, RecurringRuleId, RuleEnd,
 };
 
 use crate::db;
@@ -941,6 +941,137 @@ async fn restore_rejects_a_non_sqlite_file() {
         .await
         .unwrap_err();
     assert!(matches!(err, CommandError::Backup(_)));
+}
+
+// ---- Summary accounts -------------------------------------------------------
+
+fn summary_over(currency: &str, name: &str, members: Vec<AccountId>) -> Account {
+    Account::new_summary(
+        AccountId::new(0),
+        name.to_owned(),
+        "📊".to_owned(),
+        Currency::new(currency).unwrap(),
+        Month::new(2026, 1).unwrap(),
+        members,
+    )
+    .unwrap()
+}
+
+/// Inserts an entry built from the `new_entry` helper (March 2026, given amount).
+async fn seed_entry(pool: &SqlitePool, account_id: AccountId, minor: i64, kind: EntryKind) {
+    let draft = new_entry(account_id, minor, kind).build().unwrap();
+    repo::entry::insert(pool, &draft).await.unwrap();
+}
+
+#[tokio::test]
+async fn summary_account_combines_member_month_summaries() {
+    let (_dir, pool) = fixture().await;
+    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+        .await
+        .unwrap();
+    seed_entry(&pool, a.id(), 50_000, EntryKind::Income).await; // +500 on A
+    seed_entry(&pool, b.id(), 30_000, EntryKind::Income).await; // +300 on B
+    seed_entry(&pool, b.id(), 10_000, EntryKind::Expense).await; // -100 on B
+
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+        .await
+        .unwrap();
+    assert_eq!(summary.kind(), AccountKind::Summary);
+    assert_eq!(summary.members(), &[a.id(), b.id()]);
+
+    let march = Month::new(2026, 3).unwrap();
+    let combined = crate::commands::month_summary_inner(&pool, summary.id(), march)
+        .await
+        .unwrap();
+    assert_eq!(combined.income, Money::from_minor_units(80_000, 2)); // 800.00
+    assert_eq!(combined.expenses, Money::from_minor_units(10_000, 2)); // 100.00
+    assert_eq!(combined.available, Money::from_minor_units(70_000, 2)); // 700.00
+}
+
+#[tokio::test]
+async fn summary_account_merges_member_category_expenses() {
+    let (_dir, pool) = fixture().await;
+    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+        .await
+        .unwrap();
+    seed_entry(&pool, a.id(), 10_000, EntryKind::Expense).await; // -100 (uncategorized)
+    seed_entry(&pool, b.id(), 20_000, EntryKind::Expense).await; // -200 (uncategorized)
+
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+        .await
+        .unwrap();
+    let march = Month::new(2026, 3).unwrap();
+    let breakdown = crate::commands::expenses_by_category_inner(&pool, summary.id(), march)
+        .await
+        .unwrap();
+    assert_eq!(breakdown.len(), 1); // both fold into the uncategorized "Other" bucket
+    assert_eq!(breakdown[0].category_id, None);
+    assert_eq!(breakdown[0].total, Money::from_minor_units(30_000, 2)); // 300.00
+}
+
+#[tokio::test]
+async fn writes_to_a_summary_account_are_rejected() {
+    let (_dir, pool) = fixture().await;
+    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id()]))
+        .await
+        .unwrap();
+    assert!(matches!(
+        crate::commands::reject_if_summary(&pool, summary.id()).await,
+        Err(CommandError::Validation(_))
+    ));
+    // A normal account is fine.
+    crate::commands::reject_if_summary(&pool, a.id())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn summary_membership_requires_matching_currency() {
+    let (_dir, pool) = fixture().await;
+    let usd = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    // A EUR summary cannot take a USD member.
+    let draft = summary_over("EUR", "All", vec![usd.id()]);
+    assert!(matches!(
+        crate::commands::validate_membership(&pool, &draft).await,
+        Err(CommandError::Validation(_))
+    ));
+}
+
+#[tokio::test]
+async fn backup_round_trip_preserves_summary_membership() {
+    let (src_dir, src) = fixture().await;
+    let a = repo::account::insert(&src, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let b = repo::account::insert(&src, &account_with("USD", "B"))
+        .await
+        .unwrap();
+    repo::account::insert(&src, &summary_over("USD", "All", vec![a.id(), b.id()]))
+        .await
+        .unwrap();
+    let bytes = crate::backup::snapshot(&src, src_dir.path()).await.unwrap();
+
+    let (dst_dir, dst) = fixture().await;
+    crate::backup::restore(&dst, dst_dir.path(), &bytes)
+        .await
+        .unwrap();
+    let restored = repo::account::list(&dst).await.unwrap();
+    let summary = restored
+        .iter()
+        .find(|acc| acc.kind() == AccountKind::Summary)
+        .expect("summary account survived the restore");
+    assert_eq!(summary.members().len(), 2);
 }
 
 #[tokio::test]

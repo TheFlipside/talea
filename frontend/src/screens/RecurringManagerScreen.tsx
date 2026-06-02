@@ -31,6 +31,10 @@ export function RecurringManagerScreen({ account }: { account: Account }) {
     return <ErrorBanner error={rules.error} />;
   }
 
+  // A summary account has no rules of its own; recurring rules are managed on the
+  // member accounts.
+  const isSummary = account.kind === 'summary';
+
   const byId = new Map<number, Category>((categories ?? []).map((c) => [c.id, c]));
   const cadence = (rule: RecurringRule) =>
     t(`recurring.cadence.${rule.frequency.unit}`, { count: rule.frequency.interval });
@@ -55,12 +59,16 @@ export function RecurringManagerScreen({ account }: { account: Account }) {
     <section className="screen recurring-screen">
       <div className="screen__header">
         <h2>{t('recurring.title')}</h2>
-        <button type="button" className="btn" onClick={() => setDialog({ type: 'create' })}>
-          {t('recurring.add')}
-        </button>
+        {!isSummary && (
+          <button type="button" className="btn" onClick={() => setDialog({ type: 'create' })}>
+            {t('recurring.add')}
+          </button>
+        )}
       </div>
 
-      {rules.data.length === 0 ? (
+      {isSummary ? (
+        <p className="muted">{t('summary.combinedHint')}</p>
+      ) : rules.data.length === 0 ? (
         <p className="muted">{t('recurring.empty')}</p>
       ) : (
         <ul className="account-list">

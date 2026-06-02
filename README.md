@@ -163,6 +163,11 @@ Remove-Item "$env:APPDATA\com.luminaapps.talea\talea.sqlite3*"
       per widget, one account each) — the actual figures stay in-app behind the
       biometric lock. Android (in-tree plugin, merges into the app) and iOS
       (WidgetKit extension; sources in `ios-widget/`, added in Xcode on macOS).
+- [x] **Backup & restore** to your own Nextcloud over WebDAV (optional, manual,
+      same-version) — see [`docs/DESIGN.md`](docs/DESIGN.md) §10.
+- [x] **Summary accounts:** a read-only account type that combines several
+      same-currency accounts into one month view (combined budget, merged entry
+      list and stats, widget target) — see [`docs/DESIGN.md`](docs/DESIGN.md) §11.
 
 ## License
 

@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.4.0 - 2026-06-02
+
+### Added
+
+- **Summary accounts** — a read-only account type that aggregates several
+  **same-currency** normal accounts into one combined month view. Pick *Summary*
+  when creating an account and choose its member accounts; selecting it shows the
+  combined income / expenses / available and the merged entry list (each row
+  colour-tagged and labelled by its source account), the combined
+  category-expense statistics, and works as a widget target. It takes no records
+  of its own: the `+` button is hidden and every write command rejects it.
+  Translated into all 12 locales. (Stays faithful to the money rules — members
+  must share a currency, so figures are summed, never converted; see DESIGN §11.)
+
+### Changed
+
+- The account form gained an account-type selector and (for a summary) a member
+  checklist; the account switcher marks summary accounts with a badge.
+
 ## 1.3.0 - 2026-06-01
 
 ### Added

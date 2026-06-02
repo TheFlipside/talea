@@ -13,6 +13,8 @@ interface SelectProps {
   options: SelectOption[];
   onChange: (value: string) => void;
   ariaLabel: string;
+  /** When true, the control is shown but can't be opened or changed. */
+  disabled?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ interface SelectProps {
  * out-of-place default webview control. Supports keyboard navigation and
  * closes on outside click / Escape.
  */
-export function Select({ value, options, onChange, ariaLabel }: SelectProps) {
+export function Select({ value, options, onChange, ariaLabel, disabled = false }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -115,9 +117,22 @@ export function Select({ value, options, onChange, ariaLabel }: SelectProps) {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => (open ? setOpen(false) : openList())}
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
+          if (open) {
+            setOpen(false);
+          } else {
+            openList();
+          }
+        }}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+          if (
+            !disabled &&
+            (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ')
+          ) {
             event.preventDefault();
             openList();
           }

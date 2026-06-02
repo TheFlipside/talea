@@ -16,6 +16,11 @@ pub const MAX_LABEL_LEN: usize = 200;
 /// inflate the `rule_amount` table or the per-occurrence amount lookup.
 pub const MAX_AMOUNT_SEGMENTS: usize = 100;
 
+/// Maximum number of member accounts a summary account may aggregate. Bounds
+/// untrusted IPC input so a crafted summary can't force an unbounded fan-out of
+/// per-member ledger scans on every read.
+pub const MAX_SUMMARY_MEMBERS: usize = 50;
+
 /// Largest single amount accepted (one quadrillion). Far below
 /// `Decimal::MAX` (~7.9e28), so even pathological prefix-sums over the bounded
 /// month range cannot overflow the ledger's arithmetic.
@@ -89,6 +94,29 @@ pub enum DomainError {
     /// A currency code was not three ASCII letters (ISO 4217).
     #[error("currency code {0:?} is not a 3-letter ISO 4217 code")]
     InvalidCurrency(String),
+
+    /// A normal account was given member accounts (only summary accounts have
+    /// members).
+    #[error("a normal account cannot have member accounts")]
+    NormalAccountHasMembers,
+
+    /// A summary account was given a non-zero opening balance (its figures are
+    /// derived from its members).
+    #[error("a summary account cannot have an opening balance")]
+    SummaryHasOpeningBalance,
+
+    /// A summary account's member list contained the same account twice.
+    #[error("a summary account's members must be distinct")]
+    DuplicateMembers,
+
+    /// A summary account had more members than [`MAX_SUMMARY_MEMBERS`].
+    #[error("a summary account has {len} members, exceeding the maximum of {max}")]
+    TooManyMembers {
+        /// Number of members supplied.
+        len: usize,
+        /// The enforced maximum.
+        max: usize,
+    },
 
     /// A recurrence interval was zero; it must be at least one.
     #[error("recurrence interval must be >= 1")]

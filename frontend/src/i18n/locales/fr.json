@@ -22,7 +22,8 @@
     "available": "Disponible jusqu'à la fin du mois",
     "loading": "Chargement du résumé…",
     "ringSpent": "{{percent}} % des fonds du mois dépensés",
-    "ringRemaining": "{{percent}} % des fonds du mois restants"
+    "ringRemaining": "{{percent}} % des fonds du mois restants",
+    "combinedHint": "Vue combinée et en lecture seule des comptes inclus."
   },
   "month": {
     "navigation": "Navigation par mois",
@@ -68,7 +69,15 @@
     "errorName": "Veuillez saisir un nom.",
     "errorCurrency": "La devise doit être un code à 3 lettres, ex. EUR.",
     "errorBalance": "Saisissez un solde initial valide, ex. 0,00.",
-    "currencyChangeWarning": "Changer la devise renomme les écritures existantes ; leurs montants ne sont pas convertis."
+    "currencyChangeWarning": "Changer la devise renomme les écritures existantes ; leurs montants ne sont pas convertis.",
+    "kind": "Type de compte",
+    "kindNormal": "Normal",
+    "kindSummary": "Récapitulatif",
+    "members": "Comptes inclus",
+    "membersHint": "Un récapitulatif regroupe les comptes sélectionnés de même devise en une vue en lecture seule.",
+    "membersEmpty": "Aucun autre compte en {{currency}} à regrouper pour l'instant.",
+    "errorMembers": "Sélectionnez au moins un compte.",
+    "summaryBadge": "Compte récapitulatif"
   },
   "accounts": {
     "title": "Comptes",

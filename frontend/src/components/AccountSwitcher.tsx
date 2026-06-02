@@ -9,15 +9,26 @@ export function AccountSwitcher({ accounts }: { accounts: Account[] }) {
   const { t } = useTranslation();
   const { activeAccountId, setActiveAccountId } = useActiveAccount();
 
+  // Mark summary accounts with a layered glyph so they're distinguishable from
+  // the normal accounts they aggregate.
+  const summaryMark = (account: Account) =>
+    account.kind === 'summary' ? (
+      <span className="account-switcher__summary" aria-label={t('account.summaryBadge')}>
+        ⊞{' '}
+      </span>
+    ) : null;
+
   const options = accounts.map((account) => ({
     value: String(account.id),
     label: (
       <span>
+        {summaryMark(account)}
         {account.icon} {account.name} <span className="muted">({account.currency})</span>
       </span>
     ),
     triggerLabel: (
       <span>
+        {summaryMark(account)}
         {account.icon} {account.name}
       </span>
     ),

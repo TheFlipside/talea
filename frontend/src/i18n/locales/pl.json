@@ -22,7 +22,8 @@
     "available": "Dostępne do końca miesiąca",
     "loading": "Ładowanie podsumowania…",
     "ringSpent": "Wydano {{percent}} % środków w tym miesiącu",
-    "ringRemaining": "Pozostało {{percent}} % środków w tym miesiącu"
+    "ringRemaining": "Pozostało {{percent}} % środków w tym miesiącu",
+    "combinedHint": "Połączony widok uwzględnionych kont, tylko do odczytu."
   },
   "month": {
     "navigation": "Nawigacja po miesiącach",
@@ -68,7 +69,15 @@
     "errorName": "Wprowadź nazwę.",
     "errorCurrency": "Waluta musi być 3-literowym kodem, np. EUR.",
     "errorBalance": "Wprowadź prawidłowe saldo początkowe, np. 0,00.",
-    "currencyChangeWarning": "Zmiana waluty zmienia opis istniejących wpisów — ich kwoty nie są przeliczane."
+    "currencyChangeWarning": "Zmiana waluty zmienia opis istniejących wpisów — ich kwoty nie są przeliczane.",
+    "kind": "Typ konta",
+    "kindNormal": "Zwykłe",
+    "kindSummary": "Zbiorcze",
+    "members": "Uwzględnione konta",
+    "membersHint": "Konto zbiorcze łączy wybrane konta w tej samej walucie w widok tylko do odczytu.",
+    "membersEmpty": "Brak innych kont w walucie {{currency}} do połączenia.",
+    "errorMembers": "Wybierz co najmniej jedno konto.",
+    "summaryBadge": "Konto zbiorcze"
   },
   "accounts": {
     "title": "Konta",

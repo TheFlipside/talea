@@ -283,3 +283,39 @@ Those remain future work if concurrent multi-device editing is ever needed.
 - **Network surface.** This re-introduces an *outbound* channel, but only to a
   user-supplied host, only on explicit action. There is no inbound server and no
   background networking; local-first is intact.
+
+---
+
+## 11. Summary accounts — 🟢 DONE (implemented)
+
+Testers running several accounts wanted a combined overview of their total
+budget. A **summary account** is a new, read-only account *kind* that aggregates
+several **same-currency** normal accounts into one month view. This is a
+deliberate, narrow amendment to the "no cross-account aggregation" stance of §2 /
+§5: aggregation is allowed, but **only within a single currency**, so figures are
+**summed, never converted** — the money rules hold.
+
+- **Two kinds.** `AccountKind::{Normal, Summary}`. A normal account records its
+  own entries/rules. A summary records nothing: it has no opening balance and no
+  rules, and `core` fixes its opening balance to zero. Membership is a
+  many-to-many relation (`account_member`), edited **on the summary account**.
+- **Same-currency only.** A summary has a fixed currency; every member must match
+  it (validated in the command layer, which `core` can't do — `core` only checks
+  structural rules: a normal account has no members, a summary has a zero balance
+  and distinct members). No nesting: members must be normal accounts.
+- **Derived figures.** The summary's `MonthSummary` is the field-wise sum of its
+  members' summaries (`core::combine_summaries`); its entry list, occurrences, and
+  category stats are the members' rows concatenated and run through the existing
+  per-account functions. Nothing is stored; everything is recomputed.
+- **Read-only, enforced.** The UI hides the `+` button and renders rows
+  non-interactively (tagged by source account with a stable colour). Behind that,
+  every write command (`create_entry`, `update_entry`, `create_transfer`,
+  `create_rule`, `update_rule`) rejects a summary target, and an account's kind is
+  fixed after creation. A normal account that belongs to a summary can't change
+  its currency (it would break the invariant) — remove it first.
+- **Persistence.** Migration `0004` adds `account.kind` (defaulting existing rows
+  to `normal`) and the `account_member` table (both FKs cascade, so deleting a
+  member or a summary tidies the link). `account_member` joins the backup/restore
+  `TABLES` set, so summaries round-trip.
+- **Scope.** Covers the month view, the statistics screen, and the home-screen
+  widget (a summary publishes the same abstract ring snapshot as any account).

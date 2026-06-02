@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT summary_account_id AS \"summary_account_id!\",\n                  member_account_id AS \"member_account_id!\"\n           FROM account_member ORDER BY rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "summary_account_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "account_member",
+            "name": "summary_account_id"
+          }
+        }
+      },
+      {
+        "name": "member_account_id!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "account_member",
+            "name": "member_account_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "5b4de556e458423217ad69a47ea166da071614f46a8862a1a0214853265f12f5"
+}

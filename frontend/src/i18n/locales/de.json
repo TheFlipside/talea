@@ -22,7 +22,8 @@
     "available": "Verfügbar bis Monatsende",
     "loading": "Übersicht wird geladen…",
     "ringSpent": "{{percent}} % der Mittel dieses Monats ausgegeben",
-    "ringRemaining": "{{percent}} % der Mittel dieses Monats übrig"
+    "ringRemaining": "{{percent}} % der Mittel dieses Monats übrig",
+    "combinedHint": "Zusammengefasste, schreibgeschützte Ansicht der enthaltenen Konten."
   },
   "month": {
     "navigation": "Monatsnavigation",
@@ -68,7 +69,15 @@
     "errorName": "Bitte gib einen Namen ein.",
     "errorCurrency": "Die Währung muss ein 3-Buchstaben-Code sein, z. B. EUR.",
     "errorBalance": "Gib einen gültigen Anfangssaldo ein, z. B. 0,00.",
-    "currencyChangeWarning": "Eine Währungsänderung benennt bestehende Einträge um – ihre Beträge werden nicht umgerechnet."
+    "currencyChangeWarning": "Eine Währungsänderung benennt bestehende Einträge um – ihre Beträge werden nicht umgerechnet.",
+    "kind": "Kontotyp",
+    "kindNormal": "Normal",
+    "kindSummary": "Übersicht",
+    "members": "Enthaltene Konten",
+    "membersHint": "Eine Übersicht fasst die ausgewählten Konten gleicher Währung schreibgeschützt zusammen.",
+    "membersEmpty": "Noch keine weiteren {{currency}}-Konten zum Zusammenfassen.",
+    "errorMembers": "Wähle mindestens ein enthaltenes Konto.",
+    "summaryBadge": "Übersichtskonto"
   },
   "accounts": {
     "title": "Konten",

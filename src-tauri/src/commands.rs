@@ -9,9 +9,10 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
 use talea_core::{
-    expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
-    summaries_for_range as core_summaries_for_range, Account, AccountId, Category, CategoryExpense,
-    CategoryId, Entry, EntryId, Month, MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
+    combine_summaries as core_combine_summaries, expenses_by_category as core_expenses_by_category,
+    month_summary as core_month_summary, summaries_for_range as core_summaries_for_range, Account,
+    AccountId, AccountKind, Category, CategoryExpense, CategoryId, Entry, EntryId, Month,
+    MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
 use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
@@ -35,17 +36,75 @@ fn require_found(updated: bool) -> Result<(), CommandError> {
 
 // ---- Account ----------------------------------------------------------------
 
+/// Validates a summary account's membership against the rest of the database:
+/// each member must exist, be a **normal** account (no nesting), share the
+/// summary's currency, and not be the summary itself. Normal accounts have no
+/// members to check. (`core` already rejected duplicates and a non-zero summary
+/// balance; these are the cross-account rules it can't see.)
+pub(crate) async fn validate_membership(
+    pool: &SqlitePool,
+    draft: &Account,
+) -> Result<(), CommandError> {
+    if draft.kind() != AccountKind::Summary {
+        return Ok(());
+    }
+    if draft.members().is_empty() {
+        return Err(CommandError::Validation(
+            "a summary account needs at least one member account".to_owned(),
+        ));
+    }
+    for member_id in draft.members() {
+        if *member_id == draft.id() {
+            return Err(CommandError::Validation(
+                "a summary account cannot include itself".to_owned(),
+            ));
+        }
+        let member = repo::account::get(pool, *member_id).await?.ok_or_else(|| {
+            CommandError::Validation("a member account no longer exists".to_owned())
+        })?;
+        if member.kind() != AccountKind::Normal {
+            return Err(CommandError::Validation(
+                "a summary account's members must be normal accounts".to_owned(),
+            ));
+        }
+        if member.currency().code() != draft.currency().code() {
+            return Err(CommandError::Validation(
+                "all member accounts must share the summary account's currency".to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Errors if `account_id` names a summary account — they hold no records, so
+/// every write path rejects them (defense in depth behind the hidden UI).
+pub(crate) async fn reject_if_summary(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<(), CommandError> {
+    let account = repo::account::get(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    if account.kind() == AccountKind::Summary {
+        return Err(CommandError::Validation(
+            "summary accounts are read-only and cannot hold entries or rules".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 /// Creates an account.
 ///
 /// # Errors
-/// [`CommandError::Validation`] on invalid input; [`CommandError::Database`] on
-/// a database error.
+/// [`CommandError::Validation`] on invalid input (including summary membership);
+/// [`CommandError::Database`] on a database error.
 #[tauri::command]
 pub async fn create_account(
     state: State<'_, SqlitePool>,
     account: NewAccount,
 ) -> Result<Account, CommandError> {
     let draft = account.build()?;
+    validate_membership(state.inner(), &draft).await?;
     Ok(repo::account::insert(state.inner(), &draft).await?)
 }
 
@@ -60,27 +119,61 @@ pub async fn list_accounts(state: State<'_, SqlitePool>) -> Result<Vec<Account>,
 
 /// Updates an account.
 ///
+/// An account's kind is fixed after creation. A normal account that belongs to a
+/// summary cannot change its currency (it would break the summary's
+/// same-currency invariant) — remove it from the summary first.
+///
 /// # Errors
-/// [`CommandError::NotFound`] if it does not exist; [`CommandError::Database`].
+/// [`CommandError::NotFound`] if it does not exist; [`CommandError::Validation`]
+/// on invalid input or a forbidden change; [`CommandError::Database`].
 #[tauri::command]
 pub async fn update_account(
     state: State<'_, SqlitePool>,
     account: Account,
 ) -> Result<Account, CommandError> {
-    require_found(repo::account::update(state.inner(), &account).await?)?;
+    let pool = state.inner();
+    let existing = repo::account::get(pool, account.id())
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    if existing.kind() != account.kind() {
+        return Err(CommandError::Validation(
+            "an account's type cannot be changed after creation".to_owned(),
+        ));
+    }
+    if account.kind() == AccountKind::Normal
+        && existing.currency().code() != account.currency().code()
+        && repo::account::is_member_of_any(pool, account.id()).await?
+    {
+        return Err(CommandError::Validation(
+            "remove this account from its summary account before changing its currency".to_owned(),
+        ));
+    }
+    validate_membership(pool, &account).await?;
+    require_found(repo::account::update(pool, &account).await?)?;
     Ok(account)
 }
 
 /// Deletes an account (cascading its entries and rules).
 ///
+/// Refuses to delete an account that still belongs to a summary account (it
+/// would silently shrink — or empty — that summary). Remove it from the summary
+/// first. Deleting a summary account itself is always fine.
+///
 /// # Errors
-/// [`CommandError::NotFound`] if it does not exist; [`CommandError::Database`].
+/// [`CommandError::NotFound`] if it does not exist; [`CommandError::Validation`]
+/// if it is still a summary member; [`CommandError::Database`].
 #[tauri::command]
 pub async fn delete_account(
     state: State<'_, SqlitePool>,
     id: AccountId,
 ) -> Result<(), CommandError> {
-    require_found(repo::account::delete(state.inner(), id).await?)
+    let pool = state.inner();
+    if repo::account::is_member_of_any(pool, id).await? {
+        return Err(CommandError::Validation(
+            "remove this account from its summary account before deleting it".to_owned(),
+        ));
+    }
+    require_found(repo::account::delete(pool, id).await?)
 }
 
 // ---- Category ---------------------------------------------------------------
@@ -144,6 +237,7 @@ pub async fn create_entry(
     entry: NewEntry,
 ) -> Result<Entry, CommandError> {
     let draft = entry.build()?;
+    reject_if_summary(state.inner(), draft.account_id()).await?;
     Ok(repo::entry::insert(state.inner(), &draft).await?)
 }
 
@@ -156,7 +250,21 @@ pub async fn list_entries(
     state: State<'_, SqlitePool>,
     account_id: AccountId,
 ) -> Result<Vec<Entry>, CommandError> {
-    Ok(repo::entry::for_account(state.inner(), account_id).await?)
+    let pool = state.inner();
+    let account = repo::account::get_full(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    if account.kind() == AccountKind::Summary {
+        // Concatenate the members' entries; each entry carries its own
+        // `account_id`, which the frontend uses to colour-tag rows by account.
+        let mut all = Vec::new();
+        for member_id in account.members() {
+            all.extend(repo::entry::for_account(pool, *member_id).await?);
+        }
+        Ok(all)
+    } else {
+        Ok(repo::entry::for_account(pool, account_id).await?)
+    }
 }
 
 /// Updates an entry.
@@ -168,6 +276,8 @@ pub async fn update_entry(
     state: State<'_, SqlitePool>,
     entry: Entry,
 ) -> Result<Entry, CommandError> {
+    // Reject moving an entry onto a summary account (a crafted `account_id`).
+    reject_if_summary(state.inner(), entry.account_id()).await?;
     require_found(repo::entry::update(state.inner(), &entry).await?)?;
     Ok(entry)
 }
@@ -222,6 +332,11 @@ pub(crate) async fn transfer(
     let to = repo::account::get(pool, counter_account_id)
         .await?
         .ok_or(CommandError::NotFound)?;
+    if from.kind() == AccountKind::Summary || to.kind() == AccountKind::Summary {
+        return Err(CommandError::Validation(
+            "summary accounts are read-only and cannot take transfers".to_owned(),
+        ));
+    }
     if from.currency().code() != to.currency().code() {
         return Err(CommandError::Validation(
             "a transfer needs both accounts in the same currency".to_owned(),
@@ -260,6 +375,7 @@ pub async fn create_rule(
     rule: NewRule,
 ) -> Result<RecurringRule, CommandError> {
     let draft = rule.build()?;
+    reject_if_summary(state.inner(), draft.account_id()).await?;
     Ok(repo::rule::insert(state.inner(), &draft).await?)
 }
 
@@ -284,6 +400,7 @@ pub async fn update_rule(
     state: State<'_, SqlitePool>,
     rule: RecurringRule,
 ) -> Result<RecurringRule, CommandError> {
+    reject_if_summary(state.inner(), rule.account_id()).await?;
     require_found(repo::rule::update(state.inner(), &rule).await?)?;
     Ok(rule)
 }
@@ -371,14 +488,42 @@ pub async fn month_summary(
     account_id: AccountId,
     month: Month,
 ) -> Result<MonthSummary, CommandError> {
-    let (account, entries, rules) = load_account_data(state.inner(), account_id).await?;
-    Ok(core_month_summary(
-        month,
-        account.opening_balance(),
-        account.anchor(),
-        &entries,
-        &rules,
-    ))
+    month_summary_inner(state.inner(), account_id, month).await
+}
+
+/// `month_summary` against a pool (summary-aware), separated so it's testable.
+pub(crate) async fn month_summary_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    month: Month,
+) -> Result<MonthSummary, CommandError> {
+    let account = repo::account::get_full(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    if account.kind() == AccountKind::Summary {
+        // Combine each member's own summary (members share the currency).
+        let mut parts = Vec::with_capacity(account.members().len());
+        for member_id in account.members() {
+            let (member, entries, rules) = load_account_data(pool, *member_id).await?;
+            parts.push(core_month_summary(
+                month,
+                member.opening_balance(),
+                member.anchor(),
+                &entries,
+                &rules,
+            ));
+        }
+        Ok(core_combine_summaries(month, &parts))
+    } else {
+        let (_account, entries, rules) = load_account_data(pool, account_id).await?;
+        Ok(core_month_summary(
+            month,
+            account.opening_balance(),
+            account.anchor(),
+            &entries,
+            &rules,
+        ))
+    }
 }
 
 /// Computes contiguous budget summaries for `from..=to` of an account.
@@ -399,15 +544,53 @@ pub async fn summaries_for_range(
             "requested range exceeds {MAX_RANGE_MONTHS} months"
         )));
     }
-    let (account, entries, rules) = load_account_data(state.inner(), account_id).await?;
-    Ok(core_summaries_for_range(
-        from,
-        to,
-        account.opening_balance(),
-        account.anchor(),
-        &entries,
-        &rules,
-    ))
+    let pool = state.inner();
+    let account = repo::account::get_full(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    if account.kind() == AccountKind::Summary {
+        // Each member's range covers the same months (`from..=to`); combine them
+        // month-by-month. The empty-data baseline gives the month skeleton so the
+        // result is correct even for a summary with no members.
+        let months: Vec<Month> =
+            core_summaries_for_range(from, to, talea_core::Money::zero(), from, &[], &[])
+                .into_iter()
+                .map(|s| s.month)
+                .collect();
+        let mut member_ranges = Vec::with_capacity(account.members().len());
+        for member_id in account.members() {
+            let (member, entries, rules) = load_account_data(pool, *member_id).await?;
+            member_ranges.push(core_summaries_for_range(
+                from,
+                to,
+                member.opening_balance(),
+                member.anchor(),
+                &entries,
+                &rules,
+            ));
+        }
+        Ok(months
+            .into_iter()
+            .enumerate()
+            .map(|(i, month)| {
+                let parts: Vec<MonthSummary> = member_ranges
+                    .iter()
+                    .filter_map(|range| range.get(i).cloned())
+                    .collect();
+                core_combine_summaries(month, &parts)
+            })
+            .collect())
+    } else {
+        let (_account, entries, rules) = load_account_data(pool, account_id).await?;
+        Ok(core_summaries_for_range(
+            from,
+            to,
+            account.opening_balance(),
+            account.anchor(),
+            &entries,
+            &rules,
+        ))
+    }
 }
 
 /// Totals a month's expenses grouped by category for an account (descending by
@@ -422,7 +605,34 @@ pub async fn expenses_by_category(
     account_id: AccountId,
     month: Month,
 ) -> Result<Vec<CategoryExpense>, CommandError> {
-    let (_account, entries, rules) = load_account_data(state.inner(), account_id).await?;
+    expenses_by_category_inner(state.inner(), account_id, month).await
+}
+
+/// `expenses_by_category` against a pool (summary-aware), separated so it's
+/// testable.
+pub(crate) async fn expenses_by_category_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    month: Month,
+) -> Result<Vec<CategoryExpense>, CommandError> {
+    let account = repo::account::get_full(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    let ids: Vec<AccountId> = if account.kind() == AccountKind::Summary {
+        account.members().to_vec()
+    } else {
+        vec![account_id]
+    };
+    // Pool every relevant account's entries and rules, then run the existing
+    // per-account categorisation once over the combined set (members share the
+    // currency, so the totals are comparable).
+    let mut entries = Vec::new();
+    let mut rules = Vec::new();
+    for id in ids {
+        let (_account, member_entries, member_rules) = load_account_data(pool, id).await?;
+        entries.extend(member_entries);
+        rules.extend(member_rules);
+    }
     Ok(core_expenses_by_category(month, &entries, &rules))
 }
 
@@ -438,11 +648,21 @@ pub async fn month_occurrences(
     account_id: AccountId,
     month: Month,
 ) -> Result<Vec<VirtualEntry>, CommandError> {
-    let rules = load_account_rules(state.inner(), account_id).await?;
-    Ok(rules
-        .iter()
-        .flat_map(|rule| rule.expand_in(month))
-        .collect())
+    let pool = state.inner();
+    let account = repo::account::get_full(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    let ids: Vec<AccountId> = if account.kind() == AccountKind::Summary {
+        account.members().to_vec()
+    } else {
+        vec![account_id]
+    };
+    let mut out = Vec::new();
+    for id in ids {
+        let rules = load_account_rules(pool, id).await?;
+        out.extend(rules.iter().flat_map(|rule| rule.expand_in(month)));
+    }
+    Ok(out)
 }
 
 /// Removes a single occurrence of a recurring rule ("skip"), so the expansion
@@ -480,6 +700,7 @@ pub(crate) async fn skip_occurrence_inner(
     account_id: AccountId,
     occurrence: OccurrenceRef,
 ) -> Result<(), CommandError> {
+    reject_if_summary(pool, account_id).await?;
     require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
     Ok(repo::skip::add(pool, occurrence.rule_id, occurrence.date).await?)
 }
@@ -509,8 +730,12 @@ pub(crate) async fn detach_occurrence_inner(
     occurrence: OccurrenceRef,
     entry: NewEntry,
 ) -> Result<Entry, CommandError> {
+    reject_if_summary(pool, account_id).await?;
     require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
     let draft = entry.build()?;
+    // The detached entry carries its own `account_id`; never let it land on a
+    // summary account (a crafted payload could differ from `account_id`).
+    reject_if_summary(pool, draft.account_id()).await?;
     Ok(repo::skip::detach(pool, occurrence.rule_id, occurrence.date, &draft).await?)
 }
 

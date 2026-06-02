@@ -22,7 +22,8 @@
     "available": "Disponible hasta fin de mes",
     "loading": "Cargando resumen…",
     "ringSpent": "{{percent}} % de los fondos de este mes gastados",
-    "ringRemaining": "{{percent}} % de los fondos de este mes restantes"
+    "ringRemaining": "{{percent}} % de los fondos de este mes restantes",
+    "combinedHint": "Vista combinada y de solo lectura de las cuentas incluidas."
   },
   "month": {
     "navigation": "Navegación por meses",
@@ -68,7 +69,15 @@
     "errorName": "Introduce un nombre.",
     "errorCurrency": "La moneda debe ser un código de 3 letras, p. ej. EUR.",
     "errorBalance": "Introduce un saldo inicial válido, p. ej. 0,00.",
-    "currencyChangeWarning": "Cambiar la moneda reetiqueta los movimientos existentes; sus importes no se convierten."
+    "currencyChangeWarning": "Cambiar la moneda reetiqueta los movimientos existentes; sus importes no se convierten.",
+    "kind": "Tipo de cuenta",
+    "kindNormal": "Normal",
+    "kindSummary": "Resumen",
+    "members": "Cuentas incluidas",
+    "membersHint": "Un resumen combina las cuentas seleccionadas de la misma moneda en una vista de solo lectura.",
+    "membersEmpty": "Aún no hay otras cuentas en {{currency}} para combinar.",
+    "errorMembers": "Selecciona al menos una cuenta.",
+    "summaryBadge": "Cuenta de resumen"
   },
   "accounts": {
     "title": "Cuentas",

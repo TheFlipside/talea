@@ -22,7 +22,8 @@
     "available": "Disponibile a fine mese",
     "loading": "Caricamento del riepilogo…",
     "ringSpent": "{{percent}} % dei fondi del mese spesi",
-    "ringRemaining": "{{percent}} % dei fondi del mese rimanenti"
+    "ringRemaining": "{{percent}} % dei fondi del mese rimanenti",
+    "combinedHint": "Vista combinata e di sola lettura dei conti inclusi."
   },
   "month": {
     "navigation": "Navigazione tra i mesi",
@@ -68,7 +69,15 @@
     "errorName": "Inserisci un nome.",
     "errorCurrency": "La valuta deve essere un codice di 3 lettere, es. EUR.",
     "errorBalance": "Inserisci un saldo iniziale valido, es. 0,00.",
-    "currencyChangeWarning": "Cambiare la valuta rietichetta i movimenti esistenti; i loro importi non vengono convertiti."
+    "currencyChangeWarning": "Cambiare la valuta rietichetta i movimenti esistenti; i loro importi non vengono convertiti.",
+    "kind": "Tipo di conto",
+    "kindNormal": "Normale",
+    "kindSummary": "Riepilogo",
+    "members": "Conti inclusi",
+    "membersHint": "Un riepilogo combina i conti selezionati con la stessa valuta in una vista di sola lettura.",
+    "membersEmpty": "Ancora nessun altro conto in {{currency}} da combinare.",
+    "errorMembers": "Seleziona almeno un conto.",
+    "summaryBadge": "Conto di riepilogo"
   },
   "accounts": {
     "title": "Conti",

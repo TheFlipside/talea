@@ -171,9 +171,34 @@ pub fn summaries_for_range(
     out
 }
 
+/// Combines several accounts' [`MonthSummary`]s for the same month into one, by
+/// summing each field. Used for **summary accounts** (`docs/DESIGN.md` §11),
+/// whose figures are the total across their members.
+///
+/// The caller guarantees the members share a currency (so the sums are
+/// meaningful — `core` never converts). An empty `parts` slice yields an all-zero
+/// summary for `month`.
+#[must_use]
+pub fn combine_summaries(month: Month, parts: &[MonthSummary]) -> MonthSummary {
+    let mut combined = MonthSummary {
+        month,
+        carry_in: Money::zero(),
+        income: Money::zero(),
+        expenses: Money::zero(),
+        available: Money::zero(),
+    };
+    for part in parts {
+        combined.carry_in = combined.carry_in + part.carry_in;
+        combined.income = combined.income + part.income;
+        combined.expenses = combined.expenses + part.expenses;
+        combined.available = combined.available + part.available;
+    }
+    combined
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{balance_at_end_of, month_summary, summaries_for_range};
+    use super::{balance_at_end_of, combine_summaries, month_summary, summaries_for_range};
     use crate::domain::entry::{Entry, EntryKind};
     use crate::domain::ids::{AccountId, EntryId, RecurringRuleId};
     use crate::domain::month::Month;
@@ -196,6 +221,54 @@ mod tests {
             None,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn combine_summaries_sums_each_field() {
+        let anchor = m(2026, 1);
+        let a = month_summary(
+            m(2026, 1),
+            Money::from_minor_units(10_000, 2), // 100.00 opening
+            anchor,
+            &[entry(
+                1,
+                50_000,
+                EntryKind::Income,
+                2026,
+                TMonth::January,
+                1,
+            )], // +500
+            &[],
+        );
+        let b = month_summary(
+            m(2026, 1),
+            Money::from_minor_units(2_000, 2), // 20.00 opening
+            anchor,
+            &[entry(
+                2,
+                30_000,
+                EntryKind::Expense,
+                2026,
+                TMonth::January,
+                2,
+            )], // -300
+            &[],
+        );
+        let combined = combine_summaries(m(2026, 1), &[a.clone(), b.clone()]);
+        assert_eq!(combined.month, m(2026, 1));
+        assert_eq!(combined.carry_in, a.carry_in + b.carry_in); // 120.00
+        assert_eq!(combined.income, Money::from_minor_units(50_000, 2)); // 500.00
+        assert_eq!(combined.expenses, Money::from_minor_units(30_000, 2)); // 300.00
+        assert_eq!(combined.available, a.available + b.available);
+    }
+
+    #[test]
+    fn combine_summaries_of_nothing_is_zero() {
+        let combined = combine_summaries(m(2026, 4), &[]);
+        assert_eq!(combined.carry_in, Money::zero());
+        assert_eq!(combined.income, Money::zero());
+        assert_eq!(combined.expenses, Money::zero());
+        assert_eq!(combined.available, Money::zero());
     }
 
     #[test]

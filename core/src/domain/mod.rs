@@ -30,12 +30,14 @@ pub mod stats;
 
 pub(crate) mod date;
 
-pub use account::{Account, Currency};
+pub use account::{Account, AccountKind, Currency};
 pub use category::{Category, CategoryIcon};
 pub use entry::{Entry, EntryKind};
 pub use error::{DomainError, MAX_LABEL_LEN, MAX_NOTE_LEN};
 pub use ids::{AccountId, CategoryId, EntryId, RecurringRuleId};
-pub use ledger::{balance_at_end_of, month_summary, summaries_for_range, MonthSummary};
+pub use ledger::{
+    balance_at_end_of, combine_summaries, month_summary, summaries_for_range, MonthSummary,
+};
 pub use month::Month;
 pub use recurring::{AmountSegment, FreqUnit, Frequency, RecurringRule, RuleEnd, VirtualEntry};
 pub use stats::{expenses_by_category, CategoryExpense};

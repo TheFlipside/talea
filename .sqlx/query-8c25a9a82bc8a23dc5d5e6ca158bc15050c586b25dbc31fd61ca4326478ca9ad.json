@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name AS \"name!\", icon AS \"icon!\", currency AS \"currency!\",\n                  opening_balance AS \"opening_balance!\", anchor_year AS \"anchor_year!\",\n                  anchor_month AS \"anchor_month!\"\n           FROM account WHERE id = ?",
+  "query": "SELECT id AS \"id!\", name AS \"name!\", icon AS \"icon!\", currency AS \"currency!\",\n                  opening_balance AS \"opening_balance!\", anchor_year AS \"anchor_year!\",\n                  anchor_month AS \"anchor_month!\", kind AS \"kind!\"\n           FROM account WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -79,6 +79,17 @@
             "name": "anchor_month"
           }
         }
+      },
+      {
+        "name": "kind!",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "kind"
+          }
+        }
       }
     ],
     "parameters": {
@@ -91,8 +102,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "655bd72b13d626f79d6a248204eb535541cf3d2f8117eb44898812081f4ca781"
+  "hash": "8c25a9a82bc8a23dc5d5e6ca158bc15050c586b25dbc31fd61ca4326478ca9ad"
 }

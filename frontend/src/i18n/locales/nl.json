@@ -22,7 +22,8 @@
     "available": "Beschikbaar tot einde maand",
     "loading": "Overzicht laden…",
     "ringSpent": "{{percent}} % van het maandbudget besteed",
-    "ringRemaining": "{{percent}} % van het maandbudget over"
+    "ringRemaining": "{{percent}} % van het maandbudget over",
+    "combinedHint": "Gecombineerde, alleen-lezen weergave van de opgenomen rekeningen."
   },
   "month": {
     "navigation": "Maandnavigatie",
@@ -68,7 +69,15 @@
     "errorName": "Voer een naam in.",
     "errorCurrency": "De valuta moet een 3-letterige code zijn, bijv. EUR.",
     "errorBalance": "Voer een geldig beginsaldo in, bijv. 0,00.",
-    "currencyChangeWarning": "Het wijzigen van de valuta herlabelt bestaande boekingen; hun bedragen worden niet omgerekend."
+    "currencyChangeWarning": "Het wijzigen van de valuta herlabelt bestaande boekingen; hun bedragen worden niet omgerekend.",
+    "kind": "Rekeningtype",
+    "kindNormal": "Normaal",
+    "kindSummary": "Overzicht",
+    "members": "Opgenomen rekeningen",
+    "membersHint": "Een overzicht combineert de geselecteerde rekeningen met dezelfde valuta in een alleen-lezen weergave.",
+    "membersEmpty": "Nog geen andere {{currency}}-rekeningen om te combineren.",
+    "errorMembers": "Selecteer minstens één rekening.",
+    "summaryBadge": "Overzichtsrekening"
   },
   "accounts": {
     "title": "Rekeningen",

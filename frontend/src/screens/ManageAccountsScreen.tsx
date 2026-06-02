@@ -76,7 +76,13 @@ export function ManageAccountsScreen() {
       {dialog.type === 'delete' && (
         <ConfirmDialog
           title={t('accounts.deleteTitle')}
-          message={t('accounts.deleteWarning', { name: dialog.account.name })}
+          // Surface a backend refusal (e.g. the account still feeds a summary)
+          // in place of the warning, leaving the dialog open.
+          message={
+            del.error
+              ? del.error.message
+              : t('accounts.deleteWarning', { name: dialog.account.name })
+          }
           confirmLabel={t('accounts.deleteConfirm')}
           busy={del.isPending}
           onCancel={close}

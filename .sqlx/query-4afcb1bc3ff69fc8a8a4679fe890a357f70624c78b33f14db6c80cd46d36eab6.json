@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO account (name, icon, currency, opening_balance, anchor_year, anchor_month)\n           VALUES (?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"",
+  "query": "INSERT INTO account (name, icon, currency, opening_balance, anchor_year, anchor_month, kind)\n           VALUES (?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 6
+      "Right": 7
     },
     "nullable": [
       false
     ]
   },
-  "hash": "1845ee4953c314764576e10a50f24685a438050697f14208276801d9dfe58f7a"
+  "hash": "4afcb1bc3ff69fc8a8a4679fe890a357f70624c78b33f14db6c80cd46d36eab6"
 }

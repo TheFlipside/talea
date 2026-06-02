@@ -331,10 +331,64 @@ button {
   font-size: 0.8rem;
 }
 
+/* Read-only rows (summary account view): same layout, not interactive. */
+.entry-row--readonly {
+  cursor: default;
+}
+
+.entry-row__account {
+  display: inline-flex;
+  align-items: center;
+}
+
+.entry-row__account-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+}
+
 .entry-list__empty {
   color: var(--muted);
   text-align: center;
   margin-top: 2rem;
+}
+
+/* One-line notice atop a summary account's combined month view. */
+.month-screen__summary-hint {
+  margin: 0 0 0.5rem;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+}
+
+/* Summary-account marker in the account switcher. */
+.account-switcher__summary {
+  color: var(--accent);
+}
+
+/* Member-account checklist in the account form (summary kind). */
+.account-form__members-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.account-form__members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.account-form__member {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
 }
 
 /* ---- Floating add button ---- */

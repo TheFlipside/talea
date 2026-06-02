@@ -22,7 +22,8 @@
     "available": "Available to end of month",
     "loading": "Loading summary…",
     "ringSpent": "{{percent}}% of this month's funds spent",
-    "ringRemaining": "{{percent}}% of this month's funds remaining"
+    "ringRemaining": "{{percent}}% of this month's funds remaining",
+    "combinedHint": "Combined, read-only view of this summary's member accounts."
   },
   "month": {
     "navigation": "Month navigation",
@@ -68,7 +69,15 @@
     "errorName": "Please enter a name.",
     "errorCurrency": "Currency must be a 3-letter code, e.g. USD.",
     "errorBalance": "Enter a valid opening balance, e.g. 0.00.",
-    "currencyChangeWarning": "Changing the currency relabels existing entries — their amounts are not converted."
+    "currencyChangeWarning": "Changing the currency relabels existing entries — their amounts are not converted.",
+    "kind": "Account type",
+    "kindNormal": "Normal",
+    "kindSummary": "Summary",
+    "members": "Member accounts",
+    "membersHint": "A summary combines the selected same-currency accounts into a read-only overview.",
+    "membersEmpty": "No other {{currency}} accounts to combine yet.",
+    "errorMembers": "Select at least one member account.",
+    "summaryBadge": "Summary account"
   },
   "accounts": {
     "title": "Accounts",
