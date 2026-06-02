@@ -84,8 +84,16 @@ Nextcloud credentials (`nextcloud.json`) live in the same directory and are
 
 ### Prerequisites (one-time)
 
-- **JDK 17.** Installed here via `sudo apt install openjdk-17-jdk`, giving
-  `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`. (Gradle/AGP want JDK 17.)
+- **JDK 17 (or 21) — and `JAVA_HOME` must point at it.** Installed here via
+  `sudo apt install openjdk-17-jdk`, giving
+  `export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`. Gradle/AGP and the
+  Kotlin compiler that builds the generated `buildSrc` only support up to JDK 21.
+  If `JAVA_HOME` is unset, Gradle uses the system-default `java` — and a newer one
+  (e.g. JDK 25) fails at *configure* time with a cryptic
+  `A problem occurred configuring project ':buildSrc'. > <version>`
+  (`IllegalArgumentException` from `JavaVersion.parse`). Fix: export `JAVA_HOME`
+  to a 17/21 JDK before building (Android Studio's bundled JBR at
+  `~/Dev/android-studio/jbr` is JDK 21 and also works).
 - **Android SDK + NDK.** Provided by an Android Studio install. Use the SDK
   Manager to ensure an *SDK Platform* (API 34/35), *Platform-Tools*, and the
   *NDK* are present. The SDK lives at `~/Android/Sdk` by default.
