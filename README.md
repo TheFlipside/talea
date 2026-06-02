@@ -1,6 +1,8 @@
 # Talea
 
-![Talea](docs/Talea-Feature.png)
+<p align="center">
+  <img src="docs/Talea-Feature.png" alt="Talea" width="640" />
+</p>
 
 A **local-first, cross-platform budget app**. Your money data lives on your
 device in a local SQLite database — no account, no cloud, no sync server in the
