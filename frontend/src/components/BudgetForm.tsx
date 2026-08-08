@@ -49,7 +49,7 @@ export function BudgetForm({
   const create = useCreateBudget(accountId);
   const update = useUpdateBudget(accountId);
   const deleteRule = useDeleteRule(accountId);
-  const { data: categories } = useCategories();
+  const { data: categories, isPending: categoriesPending } = useCategories();
 
   const start = editing?.start ?? startMonth;
   const [categoryId, setCategoryId] = useState(
@@ -67,13 +67,35 @@ export function BudgetForm({
   const [endDate, setEndDate] = useState(
     firstDayOf(editing?.end ?? (isBefore(startMonth, start) ? start : startMonth)),
   );
-  const [dropRule, setDropRule] = useState(true);
+  // Starts off: the category may be the list's default rather than a deliberate
+  // choice, and deleting a recurring rule the user never aimed at is destructive.
+  // `pickCategory` turns it on, so an explicit pick still gets the helpful
+  // default (a budget usually *does* replace the rule it's modelled on).
+  const [dropRule, setDropRule] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const categoryOptions = (categories ?? [])
+    .filter((c) => c.id === editing?.category_id || !takenCategoryIds.includes(c.id))
+    .map((c) => ({
+      value: String(c.id),
+      label: (
+        <span>
+          {categoryIconText(c.icon)} {c.label}
+        </span>
+      ),
+    }));
+
+  // A budget always needs a category, so there is no "none" option — which means
+  // `Select` falls back to displaying the first one while `categoryId` is still
+  // empty. Fall back to the same option here so the form acts on what it shows,
+  // rather than rejecting a category the user can plainly see selected. Derived
+  // rather than seeded into state: the list arrives asynchronously.
+  const selectedCategoryId = categoryId === '' ? (categoryOptions[0]?.value ?? '') : categoryId;
+  const selected = selectedCategoryId === '' ? null : Number(selectedCategoryId);
 
   // A recurring expense in the same category books its full amount every month,
   // so it would consume the whole budget on day one and leave it inert (while
   // still double-counting against `available`). Offer to retire it.
-  const selected = categoryId === '' ? null : Number(categoryId);
   const clashingRule =
     selected == null
       ? undefined
@@ -81,6 +103,7 @@ export function BudgetForm({
 
   function pickCategory(value: string) {
     setCategoryId(value);
+    setDropRule(true);
     if (amountTouched) {
       return;
     }
@@ -95,17 +118,6 @@ export function BudgetForm({
         : rules.find((r) => r.kind === 'expense' && r.category_id === id);
     setAmount(rule ? rule.amounts[rule.amounts.length - 1].amount : '');
   }
-
-  const categoryOptions = (categories ?? [])
-    .filter((c) => c.id === editing?.category_id || !takenCategoryIds.includes(c.id))
-    .map((c) => ({
-      value: String(c.id),
-      label: (
-        <span>
-          {categoryIconText(c.icon)} {c.label}
-        </span>
-      ),
-    }));
 
   const mutationError = create.error ?? update.error ?? deleteRule.error;
   const errorMessage = localError ?? mutationError?.message ?? null;
@@ -161,11 +173,15 @@ export function BudgetForm({
 
         <div className="field">
           <span>{t('entry.category')}</span>
-          {categoryOptions.length === 0 ? (
+          {/* Distinguish "still loading" from "genuinely none left": an empty
+              list mid-fetch would otherwise claim every category is budgeted. */}
+          {categoriesPending ? (
+            <p className="muted">{t('common.loading')}</p>
+          ) : categoryOptions.length === 0 ? (
             <p className="muted">{t('budgets.allCategoriesBudgeted')}</p>
           ) : (
             <Select
-              value={categoryId}
+              value={selectedCategoryId}
               options={categoryOptions}
               onChange={pickCategory}
               ariaLabel={t('entry.category')}

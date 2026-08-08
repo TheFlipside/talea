@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Account, Budget, BudgetStatus, Category, CategoryId } from '../api/types';
+import type { Account, Budget, BudgetStatus, Category, CategoryId, Month } from '../api/types';
 import {
   useBudgets,
   useCategories,
@@ -20,6 +20,9 @@ import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { monthLabel } from '../lib/month';
 import { useSwipe } from '../lib/swipe';
 import { useSelectedMonth } from '../state/contexts';
+
+const isBefore = (a: Month, b: Month): boolean =>
+  a.year < b.year || (a.year === b.year && a.month < b.month);
 
 type Dialog =
   | { type: 'none' }
@@ -183,9 +186,12 @@ export function BudgetsScreen({ account }: { account: Account }) {
                   <span className="rule-row__main">
                     <span className="account-list__name">{label(budget.category_id)}</span>
                     <span className="rule-row__meta">
-                      {budget.end
-                        ? t('budgets.ranUntil', { month: monthLabel(budget.end) })
-                        : t('budgets.startsFrom', { month: monthLabel(budget.start) })}
+                      {/* Branch on where the selected month sits, not on whether
+                          an end exists: a bounded budget that hasn't started yet
+                          would otherwise read as already finished. */}
+                      {isBefore(month, budget.start)
+                        ? t('budgets.startsFrom', { month: monthLabel(budget.start) })
+                        : t('budgets.ranUntil', { month: monthLabel(budget.end ?? budget.start) })}
                     </span>
                   </span>
                   <span className="amount">{formatMoney(budget.amount, account.currency)}</span>
@@ -282,13 +288,27 @@ function BudgetRow({
 
   return (
     <li className="stats-row budget-row">
-      {onEdit ? (
-        <button type="button" className="budget-row__main" onClick={onEdit}>
-          {head}
-        </button>
-      ) : (
-        head
-      )}
+      {/* The delete button is a flex sibling, not an overlay, so it can never
+          cover the amounts however long the label or figures get. */}
+      <div className="budget-row__top">
+        {onEdit ? (
+          <button type="button" className="budget-row__main" onClick={onEdit}>
+            {head}
+          </button>
+        ) : (
+          head
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            className="icon-btn budget-row__delete"
+            aria-label={deleteAria}
+            onClick={onDelete}
+          >
+            ✕
+          </button>
+        )}
+      </div>
       <div className="stats-row__track">
         <div
           className={`stats-row__fill${over ? ' stats-row__fill--over' : ''}`}
@@ -299,11 +319,6 @@ function BudgetRow({
         </span>
       </div>
       {ruleWarning && <p className="budget-row__warning">{ruleWarning}</p>}
-      {onDelete && (
-        <button type="button" className="icon-btn budget-row__delete" aria-label={deleteAria} onClick={onDelete}>
-          ✕
-        </button>
-      )}
     </li>
   );
 }

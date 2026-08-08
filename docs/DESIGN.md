@@ -403,9 +403,20 @@ free     = available − reserved
   as `(year, month)` INTEGER pairs like `account.anchor_*`). `category_id`
   cascades — unlike an entry, a budget names exactly one category and has nothing
   left to measure without it. `budget` joins the backup/restore `TABLES` set.
-- **Deferred.** Effective-dated amount history. The amount sits directly on
-  `budget.amount`, the shape `recurring_rule.amount` had in `0001`, and
-  `Budget::amount_in(month)` is the single read point — so a `budget_amount`
-  table can add forward-dated breakpoints later exactly the way
-  `0002_rule_amount.sql` did for rules, without touching a caller. Also deferred:
-  envelope rollover, budgets spanning several categories, non-monthly periods.
+- **Deferred: effective-dated amount history**, and the two sharp edges that
+  follow from its absence. Changing a budget's amount **rewrites the past**:
+  every earlier month re-derives `planned`/`reserved`/`free` at the new figure.
+  No stored money moves (a reservation never enters the balance chain), so this
+  is a display inaccuracy, not corruption — but it is why the `start` month is
+  read-only, and the two are inconsistent until history lands. And because
+  `UNIQUE (account_id, category_id)` is unconditional over time, **ending a
+  budget does not free its category**: there is no way to run a successor at a
+  different amount from next month while keeping the old months truthful.
+  Both dissolve together once amounts are dated. The seam is already in place —
+  the amount sits directly on `budget.amount`, the shape `recurring_rule.amount`
+  had in `0001`, and `Budget::amount_in(month)` is the single read point — so a
+  `budget_amount` table can add forward-dated breakpoints exactly the way
+  `0002_rule_amount.sql` did for rules, without touching a caller. The `UNIQUE`
+  constraint would then relax to "no two *overlapping* budgets per category".
+- **Also deferred:** envelope rollover, budgets spanning several categories,
+  non-monthly periods.

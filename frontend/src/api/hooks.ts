@@ -64,12 +64,20 @@ function invalidateRuleData(client: QueryClient, accountId: AccountId): void {
   void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
 }
 
-/** Refresh what a budget change affects: the budget list, the month's progress,
- *  and the month summaries carrying `reserved`/`free` (and so the ring). */
+/**
+ * Refresh what a budget change affects: the budget list, the month's progress,
+ * and the month summaries carrying `reserved`/`free` (and so the ring).
+ *
+ * Month summaries are invalidated for **every** account, not just this one: a
+ * summary account's `reserved` is the sum of its members', so a member's budget
+ * change staleness would otherwise reach the home-screen widget. Budget edits are
+ * rare (unlike entries, whose helpers stay account-scoped), so the wider sweep
+ * costs nothing in practice.
+ */
 function invalidateBudgetData(client: QueryClient, accountId: AccountId): void {
   void client.invalidateQueries({ queryKey: queryKeys.budgets(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: ['monthSummary'] });
 }
 
 export function useAccounts() {

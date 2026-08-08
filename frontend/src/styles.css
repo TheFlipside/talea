@@ -1064,35 +1064,49 @@ button {
   margin: 1.5rem 0 0.5rem;
 }
 
-/* The row is a positioning context for the delete button, which floats over the
-   head line so the progress bar keeps the full width. */
-.budget-row {
-  position: relative;
+/* Head line and delete button share a flex row, so the button reserves its own
+   space instead of overlaying the amounts. The progress bar below still spans
+   the full width. */
+.budget-row__top {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
 }
 
 /* The tappable head (icon, label, spent/planned). Reset to look like the plain
-   row it replaces; the whole line opens the edit dialog. */
+   row it replaces; the whole line opens the edit dialog. `min-width: 0` lets the
+   label ellipsis kick in rather than pushing the button off the row. */
+.budget-row__top > .stats-row__head,
 .budget-row__main {
-  display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0;
   border: none;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
+}
+
+.budget-row__main {
   cursor: pointer;
 }
 
-/* Leave room for the delete button so a long category label can't slide under it. */
-.budget-row__main .stats-row__head {
-  padding-right: 2rem;
+/* The margin now lives on `__top`, which owns the spacing before the bar. */
+.budget-row__top .stats-row__head {
+  margin-bottom: 0;
 }
 
 .budget-row__delete {
-  position: absolute;
-  top: -0.25rem;
-  right: -0.25rem;
+  flex: 0 0 auto;
+}
+
+/* A budget row carries two figures ("spent / planned"), so keep them on one line
+   and let the category label ellipsis absorb a narrow screen instead. */
+.budget-row .stats-row__head .amount {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* Source-account accent, shown only in a summary account's combined list. */
