@@ -88,6 +88,9 @@ export function BudgetsScreen({ account }: { account: Account }) {
     if (isSummary) {
       return undefined;
     }
+    // Failing open on a rules error is deliberate: the warning is advisory, and
+    // the same list drives the form's offer to *delete* a rule. Guessing from
+    // missing data is the one way that offer could destroy something.
     return clashingExpenseRule(rules.data ?? [], budget.category_id, budget);
   }
 
@@ -105,11 +108,19 @@ export function BudgetsScreen({ account }: { account: Account }) {
    *
    * Branches on where the selected month sits rather than on whether an end
    * exists: a budget that hasn't started yet would otherwise read as already
-   * finished. A budget can also be inactive for a third reason (the month
-   * predates the account's anchor, so the ledger doesn't cover it); that falls
-   * through to its start month, which is true if not the full story.
+   * finished.
    */
   function inactiveIn(budget: Budget): { label: string; at: Month } {
+    // A third reason to be inactive, and nothing to do with the budget: the
+    // month predates the account's own ledger, which `month_budgets` skips to
+    // stay consistent with `month_summary`. Saying "from January" under "not
+    // active this month" would contradict itself.
+    if (isBeforeMonth(month, account.anchor)) {
+      return {
+        label: t('budgets.beforeAccountStart', { month: monthLabel(account.anchor) }),
+        at: budget.start,
+      };
+    }
     if (budget.end && isBeforeMonth(budget.end, month)) {
       return {
         label: t('budgets.ranUntil', { month: monthLabel(budget.end) }),

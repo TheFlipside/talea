@@ -260,7 +260,12 @@
     "monthHint": "Es zählt nur der Monat; der Tag wird ignoriert.",
     "categoryTaken": "Kategorien mit einem bestehenden Budget werden nicht aufgeführt. Um einen anderen Monat abzudecken, ändere stattdessen dessen Startmonat.",
     "emptySummaryMonth": "In diesem Monat ist keines der Budgets dieser Übersicht aktiv.",
-    "startsLater": "Dieses Budget beginnt im {{start}} und deckt {{month}} daher nicht ab.",
-    "startFromHere": "Ab {{month}} beginnen"
+    "thisMonthOnly": "Nur {{month}}",
+    "scopeHint": {
+      "month": "Nur {{month}} ändert sich; spätere Monate behalten ihre Beträge.",
+      "from": "{{month}} und die folgenden Monate ändern sich, bis zur nächsten geplanten Änderung.",
+      "all": "Jeder Monat ändert sich, und alle geplanten Änderungen werden entfernt."
+    },
+    "beforeAccountStart": "Vor dem ersten Monat dieses Kontos ({{month}})"
   }
 }

@@ -2,6 +2,7 @@
 
 import type { BudgetSegment, CategoryId, Money, Month, RecurringRule } from '../api/types';
 import { isoMonthOf } from './date';
+import { nextMonth } from './month';
 
 /** Whether `a` is strictly earlier than `b`. */
 export function isBeforeMonth(a: Month, b: Month): boolean {
@@ -36,6 +37,35 @@ export function withAmountFrom(
   return [...amounts.filter((s) => !isSameMonth(s.effective_from, at)), { effective_from: at, amount }].sort(
     (a, b) => (isBeforeMonth(a.effective_from, b.effective_from) ? -1 : 1),
   );
+}
+
+/**
+ * The history with `amount` applying to `at` **and to that month alone**: the
+ * month after it gets a breakpoint restoring whatever was running there before,
+ * so nothing downstream shifts.
+ *
+ * This is the "just this one month" edit, which the segment model expresses
+ * exactly — a one-month change is simply two breakpoints. Without it the only
+ * ways to lower a single month were to lower every later month too, or to end
+ * the budget after it, which throws the later months away entirely.
+ *
+ * `end` bounds the restore: if `at` is the budget's last month there is nothing
+ * after it to restore, and a segment past the end could never apply.
+ */
+export function withAmountForMonth(
+  amounts: readonly BudgetSegment[],
+  at: Month,
+  amount: Money,
+  end?: Month | null,
+): BudgetSegment[] {
+  const after = nextMonth(at);
+  // Read before the change: this is the figure `after` runs at today.
+  const restore = amountInMonth(amounts, after);
+  const changed = withAmountFrom(amounts, at, amount);
+  if (end && isBeforeMonth(end, after)) {
+    return changed;
+  }
+  return withAmountFrom(changed, after, restore);
 }
 
 /**

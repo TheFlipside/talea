@@ -260,7 +260,12 @@
     "monthHint": "Alleen de maand telt; de dag wordt genegeerd.",
     "categoryTaken": "Categorieën met een bestaand budget staan er niet bij. Wijzig de startmaand van dat budget om een andere maand te dekken.",
     "emptySummaryMonth": "Geen van de budgetten van dit overzicht is deze maand actief.",
-    "startsLater": "Dit budget begint in {{start}} en dekt {{month}} dus niet.",
-    "startFromHere": "Vanaf {{month}} beginnen"
+    "thisMonthOnly": "Alleen {{month}}",
+    "scopeHint": {
+      "month": "Alleen {{month}} verandert; latere maanden houden hun bedragen.",
+      "from": "{{month}} en de maanden erna veranderen, tot de volgende geplande wijziging.",
+      "all": "Elke maand verandert en geplande wijzigingen worden verwijderd."
+    },
+    "beforeAccountStart": "Vóór de eerste maand van deze rekening ({{month}})"
   }
 }

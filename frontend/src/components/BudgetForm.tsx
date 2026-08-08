@@ -14,6 +14,7 @@ import {
   isBeforeMonth,
   isSameMonth,
   reanchorAmounts,
+  withAmountForMonth,
   withAmountFrom,
 } from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
@@ -41,8 +42,23 @@ interface BudgetFormProps {
 /** The first day of `month`, so the end-month picker can reuse `DatePicker`. */
 const firstDayOf = (month: Month): string => isoDate(month.year, month.month, 1);
 
-/** How an edited amount applies: to every month, or from one month onward. */
-type AmountScope = 'all' | 'from';
+/**
+ * How far an edited amount reaches. Defaults to the narrowest, `month`: every
+ * complaint about this form has been a change spreading further than intended,
+ * and the other two are one tap away with their effect spelled out.
+ */
+type AmountScope = 'month' | 'from' | 'all';
+
+/** `view` clamped into `[start, end]` — the month an edit there really lands on. */
+function clampToSpan(view: Month, start: Month, end?: Month | null): Month {
+  if (isBeforeMonth(view, start)) {
+    return start;
+  }
+  if (end && isBeforeMonth(end, view)) {
+    return end;
+  }
+  return view;
+}
 
 export function BudgetForm({
   accountId,
@@ -64,27 +80,42 @@ export function BudgetForm({
   // over months that had none. Without this there is no way to bring an existing
   // budget back to a month you paged to — and since a category can hold only one
   // budget, no way to cover that month at all.
-  const [startDate, setStartDate] = useState(firstDayOf(editing?.start ?? startMonth));
+  //
+  // Opening one from a month it doesn't reach yet proposes *that* month, because
+  // that is why you opened it. The field shows the proposal plainly rather than
+  // explaining that you have to go and change it.
+  const [startDate, setStartDate] = useState(
+    firstDayOf(
+      editing && isBeforeMonth(startMonth, editing.start) ? startMonth : (editing?.start ?? startMonth),
+    ),
+  );
   const start = isoMonthOf(startDate);
+  const storedEffectiveMonth = editing
+    ? clampToSpan(startMonth, editing.start, editing.end)
+    : startMonth;
   const [categoryId, setCategoryId] = useState(
     editing != null ? String(editing.category_id) : '',
   );
-  // The figure the *viewed* month actually reserves, not the newest one: editing
-  // while looking at May must show May's amount, or "unchanged" would compare
-  // against a later raise and silently discard the edit.
-  const viewedAmount = editing ? amountInMonth(editing.amounts, startMonth) : '';
+  // The figure of the month this edit will actually land on — the viewed month,
+  // clamped into the budget's stored span exactly as `effectiveMonth` clamps the
+  // write. Not the newest segment: editing while looking at May must show May's
+  // amount, or "unchanged" would compare against a later raise and silently
+  // discard the edit. Computed from the stored budget so it stays a fixed
+  // baseline while the form is open.
+  const viewedAmount = editing ? amountInMonth(editing.amounts, storedEffectiveMonth) : '';
   const [amount, setAmount] = useState(viewedAmount);
   // Tracked so a pre-existing rule's amount only seeds an untouched field.
   const [amountTouched, setAmountTouched] = useState(editing != null);
-  // Amount-change scope (edit only): default to "from this month" so a raise
-  // never rewrites what earlier months were planned at.
-  const [amountScope, setAmountScope] = useState<AmountScope>('from');
+  const [amountScope, setAmountScope] = useState<AmountScope>('month');
   const [endKind, setEndKind] = useState<'never' | 'until'>(
     editing?.end != null ? 'until' : 'never',
   );
-  // Default the end picker to the month being viewed, not the budget's start:
-  // for a long-running budget the start is in the past, and proposing it would
-  // silently retire the budget for every month since. Never before the start.
+  // The stored end is kept as-is, deliberately *not* mirroring the start's
+  // proposal above. Extending a start backwards covers months that had no budget
+  // at all; un-ending a budget someone deliberately ended is a different thing,
+  // and doing it as a side effect of opening the form to fix an amount would be
+  // a genuine surprise. A budget with no end defaults to the viewed month, never
+  // before the start.
   const [endDate, setEndDate] = useState(
     firstDayOf(editing?.end ?? (isBeforeMonth(startMonth, start) ? start : startMonth)),
   );
@@ -155,14 +186,7 @@ export function BudgetForm({
    * July a budget that starts in August would otherwise offer "From July" and
    * then quietly write August.
    */
-  const effectiveMonth: Month = isBeforeMonth(startMonth, start)
-    ? start
-    : end && isBeforeMonth(end, startMonth)
-      ? end
-      : startMonth;
-
-  /** Whether the budget's start leaves the viewed month uncovered. */
-  const startsAfterViewed = isBeforeMonth(startMonth, start);
+  const effectiveMonth: Month = clampToSpan(startMonth, start, end);
 
   /**
    * The amount history to persist on an edit. The start month is applied first
@@ -188,7 +212,9 @@ export function BudgetForm({
     if (Number(trimmed) === Number(viewedAmount)) {
       return rebased;
     }
-    return withAmountFrom(rebased, effectiveMonth, trimmed);
+    return amountScope === 'month'
+      ? withAmountForMonth(rebased, effectiveMonth, trimmed, end)
+      : withAmountFrom(rebased, effectiveMonth, trimmed);
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -318,52 +344,32 @@ export function BudgetForm({
           />
         </label>
 
-        {/* Offered once the two scopes can actually differ — i.e. the budget has
-            an earlier month to leave alone, or later breakpoints that "all
-            months" would flatten. With a single amount edited at its start month
-            both do the same thing, so the choice would be noise. */}
-        {editing && (isBeforeMonth(start, startMonth) || hasHistory) && (
+        {/* Always shown when editing, never conditionally hidden: how far a
+            change reaches is the thing about this form people get wrong, and the
+            selected option spells out its own effect below. */}
+        {editing && (
           <div className="field">
             <span>{t('budgets.applyAmount')}</span>
             <div className="segmented" role="group" aria-label={t('budgets.applyAmount')}>
-              <button
-                type="button"
-                className={`segmented__option${amountScope === 'from' ? ' segmented__option--active' : ''}`}
-                aria-pressed={amountScope === 'from'}
-                onClick={() => setAmountScope('from')}
-              >
-                {t('budgets.fromMonth', { month: monthLabel(effectiveMonth) })}
-              </button>
-              <button
-                type="button"
-                className={`segmented__option${amountScope === 'all' ? ' segmented__option--active' : ''}`}
-                aria-pressed={amountScope === 'all'}
-                onClick={() => setAmountScope('all')}
-              >
-                {t('budgets.allMonths')}
-              </button>
+              {(['month', 'from', 'all'] as const).map((scope) => (
+                <button
+                  key={scope}
+                  type="button"
+                  className={`segmented__option${amountScope === scope ? ' segmented__option--active' : ''}`}
+                  aria-pressed={amountScope === scope}
+                  onClick={() => setAmountScope(scope)}
+                >
+                  {scope === 'all'
+                    ? t('budgets.allMonths')
+                    : t(scope === 'month' ? 'budgets.thisMonthOnly' : 'budgets.fromMonth', {
+                        month: monthLabel(effectiveMonth),
+                      })}
+                </button>
+              ))}
             </div>
-          </div>
-        )}
-
-        {/* The reason an inactive budget's row exists at all. Without this the
-            only fix is to realise the start month is the field that matters and
-            pick the right date by hand — so say it, and offer the one tap. */}
-        {editing && startsAfterViewed && (
-          <div className="budget-warning">
-            <p>
-              {t('budgets.startsLater', {
-                start: monthLabel(start),
-                month: monthLabel(startMonth),
-              })}
+            <p className="muted">
+              {t(`budgets.scopeHint.${amountScope}`, { month: monthLabel(effectiveMonth) })}
             </p>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => setStartDate(firstDayOf(startMonth))}
-            >
-              {t('budgets.startFromHere', { month: monthLabel(startMonth) })}
-            </button>
           </div>
         )}
 

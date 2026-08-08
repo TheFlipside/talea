@@ -418,11 +418,28 @@ free     = available − reserved
   a past to protect. The stakes are lower than for a rule — a rule's amount feeds
   the ledger, so a retroactive edit would move historical *balances*, whereas a
   budget's only feeds `reserved`, which never enters the chain — but showing a
-  month a plan it never had is still wrong. Setting a month's amount replaces
-  that month's segment only, leaving later breakpoints alone: unlike a rule's
-  hand-picked effective date, a budget's is whichever month the screen is
-  showing, and paging back to correct an earlier month must not wipe the plan for
-  later ones. Flattening the history is what the "All months" scope is for.
+  month a plan it never had is still wrong.
+- **How far a change reaches is an explicit three-way choice**, because "I only
+  meant to change this one month" is the mistake this form invites. Editing an
+  amount offers **{{month}} only** (the default — the narrowest), **From
+  {{month}}**, and **All months**, each spelling out its own effect beneath the
+  control:
+  - *only* writes the month's segment **and** one after it restoring whatever
+    was running there. A single-month change is just two breakpoints, so the
+    segment model expresses it exactly. Without it the only ways to lower one
+    month were to lower every later month too, or to end the budget after it —
+    which throws the later months away entirely.
+  - *from* writes the month's segment and leaves every other breakpoint alone,
+    so the new figure runs until the next planned change. Note this differs from
+    the recurring-rule form, which drops later breakpoints: a rule's effective
+    date is hand-picked and almost always the newest point, whereas a budget's is
+    whichever month the screen happens to be showing, and paging back to correct
+    an earlier month must not wipe the plan for later ones.
+  - *all* flattens the history to one segment. It is the only way to clear a
+    history, including back under `MAX_AMOUNT_SEGMENTS`.
+  The control is labelled with the month the write actually lands on, which is
+  the viewed month clamped into the budget's span — offering "From July" and then
+  writing August was a real bug.
 - **The start month is editable**, and re-anchors the history
   (`lib/budget.ts::reanchorAmounts`). Moving it **earlier** extends the base back
   over months that had no budget at all, so it cannot falsify anything — there
@@ -431,6 +448,12 @@ free     = available − reserved
   only way to bring an existing budget back to a month you paged to, and since a
   category holds at most one budget it is the only way to cover that month at
   all; the create form says as much when it hides an already-budgeted category.
+  Opening a budget from a month it doesn't reach **proposes that month** in the
+  start field (and symmetrically for the end, past a finished budget) — that is
+  why you opened it, and a field showing the proposal beats a notice explaining
+  that you have to go and change one. The cost is that saving an untouched form
+  extends the budget; it is visible in the field and non-destructive, since it
+  only covers months that had nothing.
 - **Deferred.** `UNIQUE (account_id, category_id)` is unconditional over time, so
   a category has at most one budget row ever. Dated amounts remove the reason
   that used to matter (changing the plan going forward no longer needs a

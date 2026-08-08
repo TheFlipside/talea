@@ -260,7 +260,12 @@
     "monthHint": "仅使用月份，日期将被忽略。",
     "categoryTaken": "已有预算的分类不会列出。若要覆盖其他月份，请改为修改该预算的开始月份。",
     "emptySummaryMonth": "该汇总账户的预算本月均未生效。",
-    "startsLater": "此预算自 {{start}} 开始，因此不覆盖 {{month}}。",
-    "startFromHere": "自 {{month}} 开始"
+    "thisMonthOnly": "仅 {{month}}",
+    "scopeHint": {
+      "month": "仅 {{month}} 改变，之后的月份保持原金额。",
+      "from": "{{month}} 及之后的月份改变，直到下一次计划变更为止。",
+      "all": "所有月份都改变，且清除所有计划变更。"
+    },
+    "beforeAccountStart": "早于此账户的首个月份（{{month}}）"
   }
 }

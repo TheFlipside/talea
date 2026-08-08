@@ -7,6 +7,7 @@ import {
   isBeforeMonth,
   isSameMonth,
   reanchorAmounts,
+  withAmountForMonth,
   withAmountFrom,
 } from '../budget';
 
@@ -188,5 +189,49 @@ describe('clashingExpenseRule', () => {
   it('counts a rule whose last month is the budget’s first', () => {
     const rules = [rule(1, '2025-01-01', { kind: 'until', date: '2026-08-31' })];
     expect(clashingExpenseRule(rules, 1, span)?.id).toBe(1);
+  });
+});
+
+describe('withAmountForMonth', () => {
+  it('changes one month and restores the next', () => {
+    // The reported flow: a budget of 100 from August, lowered to 90 for July
+    // alone after moving the start back. August must stay at 100.
+    expect(withAmountForMonth([seg(2026, 7, '100.00')], m(2026, 7), '90.00')).toEqual([
+      seg(2026, 7, '90.00'),
+      seg(2026, 8, '100.00'),
+    ]);
+  });
+
+  it('leaves an existing later breakpoint intact', () => {
+    const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00')];
+    expect(withAmountForMonth(history, m(2026, 8), '90.00')).toEqual([
+      seg(2026, 8, '90.00'),
+      seg(2026, 9, '100.00'),
+      seg(2026, 10, '120.00'),
+    ]);
+  });
+
+  it('restores the amount that month would have run at, not the base', () => {
+    const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00')];
+    // October is edited, so November must come back at October's 120.
+    expect(withAmountForMonth(history, m(2026, 10), '90.00')).toEqual([
+      seg(2026, 8, '100.00'),
+      seg(2026, 10, '90.00'),
+      seg(2026, 11, '120.00'),
+    ]);
+  });
+
+  it('adds no restore past the budget end', () => {
+    // Nothing runs after the last month, so a segment there could never apply.
+    expect(
+      withAmountForMonth([seg(2026, 8, '100.00')], m(2026, 8), '90.00', m(2026, 8)),
+    ).toEqual([seg(2026, 8, '90.00')]);
+  });
+
+  it('rolls into the next year in December', () => {
+    expect(withAmountForMonth([seg(2026, 12, '100.00')], m(2026, 12), '90.00')).toEqual([
+      seg(2026, 12, '90.00'),
+      seg(2027, 1, '100.00'),
+    ]);
   });
 });

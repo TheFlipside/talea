@@ -260,7 +260,12 @@
     "monthHint": "月のみが使われ、日は無視されます。",
     "categoryTaken": "すでに予算があるカテゴリーは表示されません。別の月を対象にするには、その予算の開始月を変更してください。",
     "emptySummaryMonth": "このサマリーの予算は今月どれも対象外です。",
-    "startsLater": "この予算は{{start}}に始まるため、{{month}}は対象外です。",
-    "startFromHere": "{{month}}から開始する"
+    "thisMonthOnly": "{{month}}のみ",
+    "scopeHint": {
+      "month": "{{month}}だけが変わり、以降の月は金額を保ちます。",
+      "from": "{{month}}と以降の月が、次の予定変更まで変わります。",
+      "all": "すべての月が変わり、予定していた変更は削除されます。"
+    },
+    "beforeAccountStart": "この口座の開始月（{{month}}）より前"
   }
 }
