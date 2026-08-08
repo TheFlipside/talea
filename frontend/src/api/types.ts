@@ -15,6 +15,7 @@ export type AccountId = number;
 export type EntryId = number;
 export type CategoryId = number;
 export type RecurringRuleId = number;
+export type BudgetId = number;
 
 /** A decimal money amount as a string. Never a JS number. */
 export type Money = string;
@@ -145,12 +146,55 @@ export interface Occurrence {
   category_id?: CategoryId | null;
 }
 
+/**
+ * A planned monthly amount for one category. Spending in that category consumes
+ * the reservation rather than stacking on top of it; the unspent remainder is
+ * what `MonthSummary.reserved` holds back. `end` is absent/null for open-ended.
+ */
+export interface Budget {
+  id: BudgetId;
+  account_id: AccountId;
+  category_id: CategoryId;
+  amount: Money;
+  start: Month;
+  end?: Month | null;
+}
+
+export interface NewBudget {
+  account_id: AccountId;
+  category_id: CategoryId;
+  amount: Money;
+  start: Month;
+  end?: Month | null;
+}
+
+/**
+ * One budget's progress within a month (read-only; derived, never stored).
+ * `reserved` is `max(0, planned - actual)`. A summary account's list
+ * concatenates its members' rows, tagged by `account_id`.
+ */
+export interface BudgetStatus {
+  budget_id: BudgetId;
+  account_id: AccountId;
+  category_id: CategoryId;
+  planned: Money;
+  actual: Money;
+  reserved: Money;
+}
+
 export interface MonthSummary {
   month: Month;
   carry_in: Money;
   income: Money;
   expenses: Money;
+  /** `carry_in + income - expenses` — the real end-of-month balance, which
+   *  chains into next month's `carry_in`. Budget-independent. */
   available: Money;
+  /** Still held back by this month's category budgets. Zero without budgets. */
+  reserved: Money;
+  /** `available - reserved`: free to spend on anything not already budgeted.
+   *  The ring and the home-screen widget follow this figure. */
+  free: Money;
 }
 
 /**

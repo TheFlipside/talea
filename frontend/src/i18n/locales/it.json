@@ -21,9 +21,10 @@
     "expenses": "Uscite",
     "available": "Disponibile a fine mese",
     "loading": "Caricamento del riepilogo…",
-    "ringSpent": "{{percent}} % dei fondi del mese spesi",
-    "ringRemaining": "{{percent}} % dei fondi del mese rimanenti",
-    "combinedHint": "Vista combinata e di sola lettura dei conti inclusi."
+    "ringSpent": "{{percent}}% dei fondi di questo mese impegnati",
+    "ringRemaining": "{{percent}}% dei fondi di questo mese liberi",
+    "combinedHint": "Vista combinata e di sola lettura dei conti inclusi.",
+    "free": "Libero da spendere"
   },
   "month": {
     "navigation": "Navigazione tra i mesi",
@@ -104,7 +105,7 @@
     "empty": "Ancora nessuna categoria.",
     "deleteAria": "Elimina {{name}}",
     "deleteTitle": "Eliminare la categoria?",
-    "deleteWarning": "I movimenti in «{{name}}» mantengono i loro importi ma perdono questa categoria.",
+    "deleteWarning": "Le voci in \"{{name}}\" mantengono gli importi ma perdono questa categoria. Il relativo budget viene eliminato.",
     "deleteConfirm": "Elimina"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Categorie",
     "recurring": "Ricorrenti",
     "stats": "Statistiche",
-    "settings": "Impostazioni"
+    "settings": "Impostazioni",
+    "budgets": "Budget"
   },
   "recurring": {
     "title": "Regole ricorrenti",
@@ -221,5 +223,36 @@
       "yearly_one": "Annuale",
       "yearly_other": "Ogni {{count}} anni"
     }
+  },
+  "budgets": {
+    "title": "Budget",
+    "add": "Aggiungi budget",
+    "empty": "Nessun budget per questo mese.",
+    "emptySummary": "Nessun budget sui conti membri di questo riepilogo.",
+    "notThisMonth": "Non attivo questo mese",
+    "new": "Nuovo budget",
+    "edit": "Modifica budget",
+    "create": "Crea budget",
+    "save": "Salva modifiche",
+    "amount": "Importo mensile ({{currency}})",
+    "pickCategory": "Scegli una categoria per questo budget.",
+    "allCategoriesBudgeted": "Ogni categoria ha già un budget su questo conto.",
+    "startsIn": "Inizia in",
+    "startsFrom": "da {{month}}",
+    "ranUntil": "fino a {{month}}",
+    "end": "Termina",
+    "endNever": "Mai",
+    "endUntil": "Nel mese",
+    "endMonth": "Mese finale",
+    "endMonthHint": "Conta solo il mese; il giorno viene ignorato.",
+    "endBeforeStart": "Il mese finale non può precedere quello iniziale.",
+    "over": "superato",
+    "ruleConflict": "Una spesa ricorrente di {{amount}} registra già questa categoria ogni mese. Un budget la sostituisce: gli acquisti reali vengono scalati dal budget.",
+    "ruleConflictDelete": "Elimina quella regola ricorrente",
+    "ruleConflictRow": "Una spesa ricorrente registra anche questa categoria ogni mese ed esaurisce il budget. Rimuovila nella schermata Ricorrenti.",
+    "deleteAria": "Elimina il budget di {{name}}",
+    "deleteTitle": "Eliminare il budget?",
+    "deleteWarning": "\"{{name}}\" non tratterrà più nulla dall'importo libero di questo mese.",
+    "deleteConfirm": "Elimina"
   }
 }

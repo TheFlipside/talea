@@ -21,9 +21,10 @@
     "expenses": "Gider",
     "available": "Ay sonuna kadar kullanılabilir",
     "loading": "Özet yükleniyor…",
-    "ringSpent": "Bu ayki fonların %{{percent}} kadarı harcandı",
-    "ringRemaining": "Bu ayki fonların %{{percent}} kadarı kaldı",
-    "combinedHint": "Dahil edilen hesapların birleşik, salt okunur görünümü."
+    "ringSpent": "Bu ayki kaynakların %{{percent}} kadarı bağlandı",
+    "ringRemaining": "Bu ayki kaynakların %{{percent}} kadarı serbest",
+    "combinedHint": "Dahil edilen hesapların birleşik, salt okunur görünümü.",
+    "free": "Serbest harcanabilir"
   },
   "month": {
     "navigation": "Ay gezinmesi",
@@ -104,7 +105,7 @@
     "empty": "Henüz kategori yok.",
     "deleteAria": "{{name}} sil",
     "deleteTitle": "Kategori silinsin mi?",
-    "deleteWarning": "«{{name}}» içindeki kayıtlar tutarlarını korur ancak bu kategoriyi kaybeder.",
+    "deleteWarning": "\"{{name}}\" içindeki kayıtlar tutarlarını korur ama bu kategoriyi kaybeder. Buna ait bütçe silinir.",
     "deleteConfirm": "Sil"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Kategoriler",
     "recurring": "Yinelenen",
     "stats": "İstatistik",
-    "settings": "Ayarlar"
+    "settings": "Ayarlar",
+    "budgets": "Bütçeler"
   },
   "recurring": {
     "title": "Yinelenen kurallar",
@@ -221,5 +223,36 @@
       "yearly_one": "Yıllık",
       "yearly_other": "Her {{count}} yılda bir"
     }
+  },
+  "budgets": {
+    "title": "Bütçeler",
+    "add": "Bütçe ekle",
+    "empty": "Bu ay için henüz bütçe yok.",
+    "emptySummary": "Bu özetin üye hesaplarında bütçe yok.",
+    "notThisMonth": "Bu ay etkin değil",
+    "new": "Yeni bütçe",
+    "edit": "Bütçeyi düzenle",
+    "create": "Bütçe oluştur",
+    "save": "Değişiklikleri kaydet",
+    "amount": "Aylık tutar ({{currency}})",
+    "pickCategory": "Bu bütçe için bir kategori seç.",
+    "allCategoriesBudgeted": "Bu hesapta her kategorinin zaten bir bütçesi var.",
+    "startsIn": "Başlangıç",
+    "startsFrom": "{{month}} tarihinden itibaren",
+    "ranUntil": "{{month}} tarihine kadar",
+    "end": "Bitiş",
+    "endNever": "Asla",
+    "endUntil": "Belirli ayda",
+    "endMonth": "Bitiş ayı",
+    "endMonthHint": "Yalnızca ay kullanılır; gün dikkate alınmaz.",
+    "endBeforeStart": "Bitiş ayı, başlangıç ayından önce olamaz.",
+    "over": "aşıldı",
+    "ruleConflict": "{{amount}} tutarında yinelenen bir gider bu kategoriyi zaten her ay işliyor. Bütçe onun yerini alır: bunun yerine gerçek alışverişlerin bütçeden düşülür.",
+    "ruleConflictDelete": "O yinelenen kuralı sil",
+    "ruleConflictRow": "Yinelenen bir gider de bu kategoriyi her ay işliyor ve bütçeyi tüketiyor. Yinelenen ekranından kaldır.",
+    "deleteAria": "{{name}} bütçesini sil",
+    "deleteTitle": "Bütçe silinsin mi?",
+    "deleteWarning": "\"{{name}}\" artık bu ayın serbest tutarından hiçbir şey ayırmayacak.",
+    "deleteConfirm": "Sil"
   }
 }

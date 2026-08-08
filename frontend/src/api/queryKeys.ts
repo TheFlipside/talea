@@ -33,6 +33,18 @@ export const queryKeys = {
   occurrencesByAccount: (accountId: AccountId) => ['occurrences', accountId] as const,
   /** Prefix matching every account's occurrences (e.g. after a category delete). */
   occurrencesAll: ['occurrences'] as const,
+  /** An account's budgets. */
+  budgets: (accountId: AccountId) => ['budgets', accountId] as const,
+  /** Prefix matching every account's budgets (e.g. after a category delete,
+   *  which cascades the budgets naming it). */
+  budgetsAll: ['budgets'] as const,
+  /** A month's budget progress (planned/actual/reserved) for an account. */
+  monthBudgets: (accountId: AccountId, month: Month) =>
+    ['monthBudgets', accountId, month.year, month.month] as const,
+  /** Prefix matching every cached month's budget progress for an account. */
+  monthBudgetsByAccount: (accountId: AccountId) => ['monthBudgets', accountId] as const,
+  /** Prefix matching every account's budget progress. */
+  monthBudgetsAll: ['monthBudgets'] as const,
   /** The stored Nextcloud backup settings (single, account-independent). */
   nextcloudConfig: ['nextcloudConfig'] as const,
 };

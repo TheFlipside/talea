@@ -13,14 +13,18 @@ import { Spinner } from './components/Spinner';
 import { DEFAULT_CATEGORIES } from './lib/categories';
 import { defaultCurrency } from './lib/locale';
 import { currentMonth } from './lib/month';
+import { BudgetsScreen } from './screens/BudgetsScreen';
 import { CategoryManagerScreen } from './screens/CategoryManagerScreen';
 import { ManageAccountsScreen } from './screens/ManageAccountsScreen';
 import { MonthScreen } from './screens/MonthScreen';
 import { RecurringManagerScreen } from './screens/RecurringManagerScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { StatsScreen } from './screens/StatsScreen';
-import { useActiveAccount, useNavigation } from './state/contexts';
+import { useActiveAccount, useNavigation, type Screen } from './state/contexts';
 import type { Account } from './api/types';
+
+/** Screens whose data is scoped to one account, so the switcher applies. */
+const ACCOUNT_SCOPED = new Set<Screen>(['month', 'stats', 'recurring', 'budgets']);
 
 function CurrentScreen({ active }: { active: Account }) {
   const { screen } = useNavigation();
@@ -33,6 +37,8 @@ function CurrentScreen({ active }: { active: Account }) {
       return <CategoryManagerScreen />;
     case 'recurring':
       return <RecurringManagerScreen account={active} />;
+    case 'budgets':
+      return <BudgetsScreen account={active} />;
     case 'stats':
       return <StatsScreen account={active} />;
     default:
@@ -141,9 +147,7 @@ function App() {
           {t('app.title')}
         </button>
         <div className="app__header-actions">
-          {(screen === 'month' || screen === 'stats' || screen === 'recurring') && (
-            <AccountSwitcher accounts={accounts} />
-          )}
+          {ACCOUNT_SCOPED.has(screen) && <AccountSwitcher accounts={accounts} />}
           <button
             type="button"
             className={`icon-btn${screen === 'settings' ? ' icon-btn--active' : ''}`}

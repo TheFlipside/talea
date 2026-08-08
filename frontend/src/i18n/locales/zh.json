@@ -21,9 +21,10 @@
     "expenses": "支出",
     "available": "本月底前可用",
     "loading": "正在加载概要…",
-    "ringSpent": "本月资金已花费 {{percent}}%",
-    "ringRemaining": "本月资金剩余 {{percent}}%",
-    "combinedHint": "所含账户的合并只读视图。"
+    "ringSpent": "本月资金已使用或预留 {{percent}}%",
+    "ringRemaining": "本月资金可自由支配 {{percent}}%",
+    "combinedHint": "所含账户的合并只读视图。",
+    "free": "可自由支配"
   },
   "month": {
     "navigation": "月份导航",
@@ -104,7 +105,7 @@
     "empty": "暂无类别。",
     "deleteAria": "删除 {{name}}",
     "deleteTitle": "删除类别？",
-    "deleteWarning": "“{{name}}”中的记录会保留金额，但会失去该类别。",
+    "deleteWarning": "“{{name}}”中的记录会保留金额，但不再属于此分类。该分类的预算将被删除。",
     "deleteConfirm": "删除"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "类别",
     "recurring": "周期",
     "stats": "统计",
-    "settings": "设置"
+    "settings": "设置",
+    "budgets": "预算"
   },
   "recurring": {
     "title": "周期规则",
@@ -221,5 +223,36 @@
       "yearly_one": "每年",
       "yearly_other": "每 {{count}} 年"
     }
+  },
+  "budgets": {
+    "title": "预算",
+    "add": "添加预算",
+    "empty": "本月还没有预算。",
+    "emptySummary": "该汇总账户的成员账户没有预算。",
+    "notThisMonth": "本月未生效",
+    "new": "新建预算",
+    "edit": "编辑预算",
+    "create": "创建预算",
+    "save": "保存更改",
+    "amount": "每月金额（{{currency}}）",
+    "pickCategory": "请为此预算选择一个分类。",
+    "allCategoriesBudgeted": "此账户的所有分类都已有预算。",
+    "startsIn": "开始于",
+    "startsFrom": "自 {{month}} 起",
+    "ranUntil": "至 {{month}}",
+    "end": "结束",
+    "endNever": "从不",
+    "endUntil": "指定月份",
+    "endMonth": "结束月份",
+    "endMonthHint": "仅使用月份，日期将被忽略。",
+    "endBeforeStart": "结束月份不能早于开始月份。",
+    "over": "超支",
+    "ruleConflict": "一条 {{amount}} 的周期性支出已经每月计入此分类。预算会取代它：改由你的实际消费抵扣预算。",
+    "ruleConflictDelete": "删除该周期性规则",
+    "ruleConflictRow": "一条周期性支出也每月计入此分类，会占满预算。请在“周期”页面中删除。",
+    "deleteAria": "删除 {{name}} 的预算",
+    "deleteTitle": "删除预算？",
+    "deleteWarning": "“{{name}}”将不再从本月可自由支配的金额中预留任何款项。",
+    "deleteConfirm": "删除"
   }
 }

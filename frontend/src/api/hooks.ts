@@ -12,6 +12,9 @@ import { queryKeys } from './queryKeys';
 import type {
   Account,
   AccountId,
+  Budget,
+  BudgetId,
+  BudgetStatus,
   Category,
   CategoryExpense,
   CategoryId,
@@ -22,6 +25,7 @@ import type {
   Month,
   MonthSummary,
   NewAccount,
+  NewBudget,
   NewCategory,
   NewEntry,
   NewRule,
@@ -35,23 +39,37 @@ import type {
  * Refresh everything that an entry change can affect. Carry-over couples every
  * later month, so we invalidate the account's entries AND *all* of its cached
  * month summaries (prefix match), not just the edited month.
+ *
+ * Budget progress is in there too: spending in a budgeted category consumes its
+ * reservation, which moves `reserved`/`free` on the month summary.
  */
 function invalidateAccountData(client: QueryClient, accountId: AccountId): void {
   void client.invalidateQueries({ queryKey: queryKeys.entries(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
 }
 
 /**
  * Refresh everything a recurring-rule change can affect: the rule list, the
- * month's occurrences, and (since rules feed the ledger) all month summaries and
- * category breakdowns for the account.
+ * month's occurrences, and (since rules feed the ledger) all month summaries,
+ * category breakdowns, and budget progress for the account — a rule's expansion
+ * counts toward a budget's actual just as an ad-hoc entry does.
  */
 function invalidateRuleData(client: QueryClient, accountId: AccountId): void {
   void client.invalidateQueries({ queryKey: queryKeys.rules(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
+}
+
+/** Refresh what a budget change affects: the budget list, the month's progress,
+ *  and the month summaries carrying `reserved`/`free` (and so the ring). */
+function invalidateBudgetData(client: QueryClient, accountId: AccountId): void {
+  void client.invalidateQueries({ queryKey: queryKeys.budgets(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
 }
 
 export function useAccounts() {
@@ -109,6 +127,8 @@ export function useDeleteAccount() {
     onSuccess: (_data, accountId) => {
       void client.invalidateQueries({ queryKey: queryKeys.accounts });
       invalidateAccountData(client, accountId);
+      // The account's budgets cascade away with it.
+      void client.invalidateQueries({ queryKey: queryKeys.budgets(accountId) });
     },
   });
 }
@@ -153,6 +173,13 @@ export function useDeleteCategory() {
       void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryAll });
       void client.invalidateQueries({ queryKey: queryKeys.rulesAll });
       void client.invalidateQueries({ queryKey: queryKeys.occurrencesAll });
+      // Budgets, unlike entries, are *deleted* with their category (a budget has
+      // nothing left to measure without one). That drops `reserved` and moves
+      // `free`, so — unlike the rows above — the month summaries really do change
+      // and every account's must be refreshed, or the ring goes stale.
+      void client.invalidateQueries({ queryKey: queryKeys.budgetsAll });
+      void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsAll });
+      void client.invalidateQueries({ queryKey: ['monthSummary'] });
     },
   });
 }
@@ -239,6 +266,7 @@ function invalidateOccurrenceData(client: QueryClient, accountId: AccountId): vo
   void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
   void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
+  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
 }
 
 export function useSkipOccurrence(accountId: AccountId) {
@@ -262,6 +290,46 @@ export function useDetachOccurrence(accountId: AccountId) {
       invalidateAccountData(client, accountId);
       void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
     },
+  });
+}
+
+// ---- Category budgets -------------------------------------------------------
+
+export function useBudgets(accountId: AccountId) {
+  return useQuery<Budget[], CommandError>({
+    queryKey: queryKeys.budgets(accountId),
+    queryFn: () => api.listBudgets(accountId),
+  });
+}
+
+export function useMonthBudgets(accountId: AccountId, month: Month) {
+  return useQuery<BudgetStatus[], CommandError>({
+    queryKey: queryKeys.monthBudgets(accountId, month),
+    queryFn: () => api.monthBudgets(accountId, month),
+  });
+}
+
+export function useCreateBudget(accountId: AccountId) {
+  const client = useQueryClient();
+  return useMutation<Budget, CommandError, NewBudget>({
+    mutationFn: api.createBudget,
+    onSuccess: () => invalidateBudgetData(client, accountId),
+  });
+}
+
+export function useUpdateBudget(accountId: AccountId) {
+  const client = useQueryClient();
+  return useMutation<Budget, CommandError, Budget>({
+    mutationFn: api.updateBudget,
+    onSuccess: () => invalidateBudgetData(client, accountId),
+  });
+}
+
+export function useDeleteBudget(accountId: AccountId) {
+  const client = useQueryClient();
+  return useMutation<void, CommandError, BudgetId>({
+    mutationFn: api.deleteBudget,
+    onSuccess: () => invalidateBudgetData(client, accountId),
   });
 }
 

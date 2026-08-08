@@ -60,7 +60,14 @@ export function useSettings(): SettingsValue {
 }
 
 /** Top-level screens reachable from the navigation bar / settings cog. */
-export type Screen = 'month' | 'accounts' | 'categories' | 'recurring' | 'stats' | 'settings';
+export type Screen =
+  | 'month'
+  | 'accounts'
+  | 'categories'
+  | 'recurring'
+  | 'budgets'
+  | 'stats'
+  | 'settings';
 
 export interface NavigationValue {
   screen: Screen;

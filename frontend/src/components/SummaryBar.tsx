@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 
 import type { AccountId } from '../api/types';
-import { useMonthSummary } from '../api/hooks';
-import { formatMoney } from '../lib/money';
+import { useMonthBudgets, useMonthSummary } from '../api/hooks';
+import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { ringView } from '../lib/ring';
 import { useSelectedMonth, useSettings } from '../state/contexts';
 import { BudgetRing } from './BudgetRing';
@@ -19,6 +19,9 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
   const { month } = useSelectedMonth();
   const { ringMode } = useSettings();
   const { data: summary, isPending, error } = useMonthSummary(accountId, month);
+  // Only to decide whether the "free to spend" figure is meaningful: without a
+  // budget this month it would just repeat "available".
+  const { data: budgets } = useMonthBudgets(accountId, month);
 
   if (isPending) {
     return <Spinner label={t('summary.loading')} />;
@@ -28,6 +31,10 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
   }
 
   const ring = ringView(summary, ringMode);
+  const hasBudgets = (budgets?.length ?? 0) > 0;
+  // `available` gets its own sign test: `ring.overspent` tracks `free`, which can
+  // be negative while `available` is still comfortably positive.
+  const availableNegative = parseMoneyForDisplay(summary.available) < 0;
 
   return (
     <section className="summary">
@@ -47,10 +54,18 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
         </div>
         <div>
           <dt>{t('summary.available')}</dt>
-          <dd className={`amount amount--total${ring.overspent ? ' amount--negative' : ''}`}>
+          <dd className={`amount amount--total${availableNegative ? ' amount--negative' : ''}`}>
             {formatMoney(summary.available, currency)}
           </dd>
         </div>
+        {hasBudgets && (
+          <div>
+            <dt>{t('summary.free')}</dt>
+            <dd className={`amount amount--total${ring.overspent ? ' amount--negative' : ''}`}>
+              {formatMoney(summary.free, currency)}
+            </dd>
+          </div>
+        )}
       </dl>
     </section>
   );

@@ -704,6 +704,20 @@ button {
   background: var(--surface);
 }
 
+/* Six items fit comfortably above ~360px; below that they need the room back,
+   so trim the horizontal padding rather than shrink the touch target. Must stay
+   after the base rules — a media query carries no extra specificity. */
+@media (max-width: 359px) {
+  .nav-bar {
+    padding-inline: 0.25rem;
+  }
+
+  .nav-bar__item {
+    padding-inline: 0.15rem;
+    font-size: 1.25rem;
+  }
+}
+
 /* ---- Generic screen layout ---- */
 .screen {
   padding: 1rem;
@@ -712,7 +726,8 @@ button {
 /* Fill the content height so the whole area stays swipeable for month paging
    even when the month has no data (an empty body would otherwise collapse the
    touch target to a couple of lines). */
-.stats-screen {
+.stats-screen,
+.budgets-screen {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1035,6 +1050,78 @@ button {
   line-height: 1.25rem;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* ---- Category budgets ---- */
+
+/* An overspent budget: the bar is clamped at 100%, so the colour carries the
+   "past the plan" signal. */
+.stats-row__fill--over {
+  background: var(--error);
+}
+
+.budgets-screen__section {
+  margin: 1.5rem 0 0.5rem;
+}
+
+/* The row is a positioning context for the delete button, which floats over the
+   head line so the progress bar keeps the full width. */
+.budget-row {
+  position: relative;
+}
+
+/* The tappable head (icon, label, spent/planned). Reset to look like the plain
+   row it replaces; the whole line opens the edit dialog. */
+.budget-row__main {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Leave room for the delete button so a long category label can't slide under it. */
+.budget-row__main .stats-row__head {
+  padding-right: 2rem;
+}
+
+.budget-row__delete {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+}
+
+/* Source-account accent, shown only in a summary account's combined list. */
+.budget-row__tag {
+  flex: 0 0 auto;
+  width: 0.4rem;
+  height: 1.1rem;
+  border-radius: 0.2rem;
+}
+
+.budget-row__warning,
+.budget-warning {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.budget-warning p {
+  margin: 0 0 0.5rem;
+}
+
+.budget-warning__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
 }
 
 /* ---- Confirm dialog ---- */

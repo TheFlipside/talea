@@ -54,6 +54,18 @@ export function RecurringIcon() {
   );
 }
 
+/** Concentric target: a planned amount to hit. Deliberately unlike the bars of
+ *  `StatsIcon`, which sits next to it in the nav bar. */
+export function BudgetsIcon() {
+  return (
+    <svg {...COMMON}>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
 export function StatsIcon() {
   return (
     <svg {...COMMON}>

@@ -21,9 +21,10 @@
     "expenses": "Ausgaben",
     "available": "Verfügbar bis Monatsende",
     "loading": "Übersicht wird geladen…",
-    "ringSpent": "{{percent}} % der Mittel dieses Monats ausgegeben",
-    "ringRemaining": "{{percent}} % der Mittel dieses Monats übrig",
-    "combinedHint": "Zusammengefasste, schreibgeschützte Ansicht der enthaltenen Konten."
+    "ringSpent": "{{percent}}% der Mittel dieses Monats gebunden",
+    "ringRemaining": "{{percent}}% der Mittel dieses Monats frei verfügbar",
+    "combinedHint": "Zusammengefasste, schreibgeschützte Ansicht der enthaltenen Konten.",
+    "free": "Frei verfügbar"
   },
   "month": {
     "navigation": "Monatsnavigation",
@@ -104,7 +105,7 @@
     "empty": "Noch keine Kategorien.",
     "deleteAria": "{{name}} löschen",
     "deleteTitle": "Kategorie löschen?",
-    "deleteWarning": "Einträge in „{{name}}“ behalten ihre Beträge, verlieren aber diese Kategorie.",
+    "deleteWarning": "Einträge in „{{name}}“ behalten ihre Beträge, verlieren aber diese Kategorie. Ein Budget dafür wird gelöscht.",
     "deleteConfirm": "Löschen"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Kategorien",
     "recurring": "Wiederkehrend",
     "stats": "Statistik",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "budgets": "Budgets"
   },
   "recurring": {
     "title": "Daueraufträge",
@@ -221,5 +223,36 @@
       "yearly_one": "Jährlich",
       "yearly_other": "Alle {{count}} Jahre"
     }
+  },
+  "budgets": {
+    "title": "Budgets",
+    "add": "Budget hinzufügen",
+    "empty": "Noch keine Budgets für diesen Monat.",
+    "emptySummary": "Keine Budgets auf den Mitgliedskonten dieser Übersicht.",
+    "notThisMonth": "In diesem Monat nicht aktiv",
+    "new": "Neues Budget",
+    "edit": "Budget bearbeiten",
+    "create": "Budget erstellen",
+    "save": "Änderungen speichern",
+    "amount": "Monatsbetrag ({{currency}})",
+    "pickCategory": "Wähle eine Kategorie für dieses Budget.",
+    "allCategoriesBudgeted": "Jede Kategorie hat auf diesem Konto bereits ein Budget.",
+    "startsIn": "Beginnt im",
+    "startsFrom": "ab {{month}}",
+    "ranUntil": "bis {{month}}",
+    "end": "Endet",
+    "endNever": "Nie",
+    "endUntil": "Im Monat",
+    "endMonth": "Endmonat",
+    "endMonthHint": "Es zählt nur der Monat; der Tag wird ignoriert.",
+    "endBeforeStart": "Der Endmonat darf nicht vor dem Startmonat liegen.",
+    "over": "über",
+    "ruleConflict": "Eine wiederkehrende Ausgabe von {{amount}} bucht diese Kategorie bereits jeden Monat. Ein Budget ersetzt sie: Stattdessen zählen deine tatsächlichen Käufe gegen das Budget.",
+    "ruleConflictDelete": "Diese wiederkehrende Regel löschen",
+    "ruleConflictRow": "Eine wiederkehrende Ausgabe bucht diese Kategorie ebenfalls jeden Monat und verbraucht so das Budget. Entferne sie im Bereich „Wiederkehrend“.",
+    "deleteAria": "Budget für {{name}} löschen",
+    "deleteTitle": "Budget löschen?",
+    "deleteWarning": "„{{name}}“ hält dann nichts mehr vom frei verfügbaren Betrag dieses Monats zurück.",
+    "deleteConfirm": "Löschen"
   }
 }
