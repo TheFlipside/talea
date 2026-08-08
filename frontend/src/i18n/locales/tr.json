@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "Nextcloud'dan geri yüklensin mi?",
     "restoreConfirmBody": "Bu, bu cihazdaki tüm verileri en son Nextcloud yedeğiyle değiştirir. Geri alınamaz.",
     "restoreConfirmAction": "Yerel verileri değiştir",
-    "backupHint": "Giriş parolanızı değil, bir Nextcloud uygulama parolası kullanın (Ayarlar → Güvenlik). Geri yükleme, her iki cihazda da aynı Talea sürümünü gerektirir."
+    "backupHint": "Giriş parolanızı değil, bir Nextcloud uygulama parolası kullanın (Ayarlar → Güvenlik). Geri yükleme, her iki cihazda da aynı Talea sürümünü gerektirir.",
+    "version": "Sürüm {{version}}"
   },
   "lock": {
     "reason": "Talea'nın kilidini aç",

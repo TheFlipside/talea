@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **App version in Settings** — the installed version is shown at the very
+  bottom of the Settings screen, so testers can report which build they are on
+  without digging through the OS app info. Read from the shell
+  (`tauri.conf.json`), translated in all 12 locales.
+
 ## 1.4.1 - 2026-06-02
 
 ### Fixed

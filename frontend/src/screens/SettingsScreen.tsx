@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -10,6 +10,7 @@ import {
   useNextcloudTest,
   useRestoreNow,
 } from '../api/hooks';
+import { getAppVersion } from '../lib/appVersion';
 import { AVAILABLE_LANGUAGES } from '../lib/languages';
 import type { RingMode } from '../lib/ring';
 import type { ThemePref } from '../lib/theme';
@@ -77,8 +78,36 @@ export function SettingsScreen() {
       <p className="settings-hint muted">{t('settings.appLockHint')}</p>
 
       <BackupSection />
+      <AppVersion />
     </section>
   );
+}
+
+/**
+ * The installed app version, shown at the very bottom of Settings so users can
+ * quote it in a bug report without digging through the OS app info. Where it
+ * can't be read (see [`getAppVersion`]) the line is simply left out.
+ */
+function AppVersion() {
+  const { t } = useTranslation();
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAppVersion().then((value) => {
+      if (!cancelled) {
+        setVersion(value);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (version === null) {
+    return null;
+  }
+  return <p className="settings-version muted">{t('settings.version', { version })}</p>;
 }
 
 /** A one-shot status line shown under the backup actions. */

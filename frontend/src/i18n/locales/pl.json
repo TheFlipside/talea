@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "Przywrócić z Nextcloud?",
     "restoreConfirmBody": "Spowoduje to zastąpienie wszystkich danych na tym urządzeniu najnowszą kopią z Nextcloud. Nie można tego cofnąć.",
     "restoreConfirmAction": "Zastąp dane lokalne",
-    "backupHint": "Użyj hasła aplikacji Nextcloud (Ustawienia → Bezpieczeństwo), a nie hasła logowania. Przywracanie wymaga tej samej wersji Talea na obu urządzeniach."
+    "backupHint": "Użyj hasła aplikacji Nextcloud (Ustawienia → Bezpieczeństwo), a nie hasła logowania. Przywracanie wymaga tej samej wersji Talea na obu urządzeniach.",
+    "version": "Wersja {{version}}"
   },
   "lock": {
     "reason": "Odblokuj Talea",

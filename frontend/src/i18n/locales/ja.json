@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "Nextcloud から復元しますか？",
     "restoreConfirmBody": "この端末のすべてのデータが最新の Nextcloud バックアップで置き換えられます。元に戻せません。",
     "restoreConfirmAction": "ローカルデータを置き換える",
-    "backupHint": "ログインパスワードではなく、Nextcloud のアプリパスワード（設定 → セキュリティ）を使用してください。復元するには両方の端末が同じ Talea のバージョンである必要があります。"
+    "backupHint": "ログインパスワードではなく、Nextcloud のアプリパスワード（設定 → セキュリティ）を使用してください。復元するには両方の端末が同じ Talea のバージョンである必要があります。",
+    "version": "バージョン {{version}}"
   },
   "lock": {
     "reason": "Talea のロックを解除",

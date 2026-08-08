@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "Restore from Nextcloud?",
     "restoreConfirmBody": "This replaces all data on this device with the latest Nextcloud backup. It can't be undone.",
     "restoreConfirmAction": "Replace local data",
-    "backupHint": "Use a Nextcloud app password (Settings → Security), not your login password. Restore needs both devices on the same Talea version."
+    "backupHint": "Use a Nextcloud app password (Settings → Security), not your login password. Restore needs both devices on the same Talea version.",
+    "version": "Version {{version}}"
   },
   "lock": {
     "reason": "Unlock Talea",

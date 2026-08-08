@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "Restaurar a partir do Nextcloud?",
     "restoreConfirmBody": "Isto substitui todos os dados deste dispositivo pela cópia de segurança mais recente do Nextcloud. Não pode ser anulado.",
     "restoreConfirmAction": "Substituir dados locais",
-    "backupHint": "Use uma palavra-passe de aplicação do Nextcloud (Definições → Segurança), não a palavra-passe de início de sessão. O restauro requer a mesma versão do Talea em ambos os dispositivos."
+    "backupHint": "Use uma palavra-passe de aplicação do Nextcloud (Definições → Segurança), não a palavra-passe de início de sessão. O restauro requer a mesma versão do Talea em ambos os dispositivos.",
+    "version": "Versão {{version}}"
   },
   "lock": {
     "reason": "Desbloquear o Talea",

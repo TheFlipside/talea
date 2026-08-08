@@ -801,6 +801,13 @@ button {
   color: var(--error);
 }
 
+/* Version line closing the Settings screen — deliberately quiet. */
+.settings-version {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
 /* ---- App lock screen ---- */
 .lock-screen {
   position: fixed;

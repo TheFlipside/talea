@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "从 Nextcloud 恢复？",
     "restoreConfirmBody": "这将用最新的 Nextcloud 备份替换本设备上的所有数据。此操作无法撤销。",
     "restoreConfirmAction": "替换本地数据",
-    "backupHint": "请使用 Nextcloud 应用专用密码（设置 → 安全），而不是登录密码。恢复时两台设备需使用相同版本的 Talea。"
+    "backupHint": "请使用 Nextcloud 应用专用密码（设置 → 安全），而不是登录密码。恢复时两台设备需使用相同版本的 Talea。",
+    "version": "版本 {{version}}"
   },
   "lock": {
     "reason": "解锁 Talea",

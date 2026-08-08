@@ -158,7 +158,8 @@
     "restoreConfirmTitle": "Herstellen vanaf Nextcloud?",
     "restoreConfirmBody": "Hiermee worden alle gegevens op dit apparaat vervangen door de laatste Nextcloud-back-up. Dit kan niet ongedaan worden gemaakt.",
     "restoreConfirmAction": "Lokale gegevens vervangen",
-    "backupHint": "Gebruik een Nextcloud-app-wachtwoord (Instellingen → Beveiliging), niet je inlogwachtwoord. Herstellen vereist dezelfde Talea-versie op beide apparaten."
+    "backupHint": "Gebruik een Nextcloud-app-wachtwoord (Instellingen → Beveiliging), niet je inlogwachtwoord. Herstellen vereist dezelfde Talea-versie op beide apparaten.",
+    "version": "Versie {{version}}"
   },
   "lock": {
     "reason": "Talea ontgrendelen",
