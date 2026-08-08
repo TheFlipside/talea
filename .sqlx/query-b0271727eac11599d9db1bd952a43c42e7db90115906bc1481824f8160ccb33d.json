@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", account_id AS \"account_id!\", category_id AS \"category_id!\",\n                  amount AS \"amount!\", start_year AS \"start_year!\",\n                  start_month AS \"start_month!\", end_year, end_month\n           FROM budget WHERE account_id = ? ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "account_id!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "account_id"
+          }
+        }
+      },
+      {
+        "name": "category_id!",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "name": "amount!",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "amount"
+          }
+        }
+      },
+      {
+        "name": "start_year!",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "start_year"
+          }
+        }
+      },
+      {
+        "name": "start_month!",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "start_month"
+          }
+        }
+      },
+      {
+        "name": "end_year",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "end_year"
+          }
+        }
+      },
+      {
+        "name": "end_month",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget",
+            "name": "end_month"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "b0271727eac11599d9db1bd952a43c42e7db90115906bc1481824f8160ccb33d"
+}

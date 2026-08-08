@@ -62,6 +62,21 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<Category>, RepoError> {
         .collect()
 }
 
+/// Whether a category with `id` exists.
+///
+/// Lets a budget naming a dead category fail with a friendly validation message
+/// instead of an opaque foreign-key error.
+///
+/// # Errors
+/// [`RepoError`] on a database error.
+pub async fn exists(pool: &SqlitePool, id: CategoryId) -> Result<bool, RepoError> {
+    let key = id_to_i64(id.get())?;
+    let row = sqlx::query!(r#"SELECT 1 AS "one!" FROM category WHERE id = ?"#, key)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.is_some())
+}
+
 /// Updates a category in place. Returns `true` if a row was updated.
 ///
 /// # Errors
@@ -84,8 +99,10 @@ pub async fn update(pool: &SqlitePool, category: &Category) -> Result<bool, Repo
     Ok(result.rows_affected() > 0)
 }
 
-/// Deletes a category (entries/rules referencing it have their `category_id`
-/// set to NULL). Returns `true` if a row was deleted.
+/// Deletes a category. Entries/rules referencing it have their `category_id` set
+/// to NULL; any **budget** for it is deleted with it (a budget names exactly one
+/// category and has nothing left to measure without it). Returns `true` if a row
+/// was deleted.
 ///
 /// # Errors
 /// [`RepoError`] on a database error.

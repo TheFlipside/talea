@@ -7,8 +7,9 @@
 
 use serde::Deserialize;
 use talea_core::{
-    Account, AccountId, AccountKind, Category, CategoryIcon, CategoryId, Currency, DomainError,
-    Entry, EntryId, EntryKind, Frequency, Money, Month, RecurringRule, RecurringRuleId, RuleEnd,
+    Account, AccountId, AccountKind, Budget, BudgetId, Category, CategoryIcon, CategoryId,
+    Currency, DomainError, Entry, EntryId, EntryKind, Frequency, Money, Month, RecurringRule,
+    RecurringRuleId, RuleEnd,
 };
 use time::Date;
 
@@ -114,6 +115,35 @@ impl NewEntry {
             self.date,
             self.note,
             self.category_id,
+        )
+    }
+}
+
+/// Create payload for a [`Budget`].
+///
+/// `end` defaults to open-ended. "At most one budget per category per account"
+/// is a cross-row rule the domain can't see; the command layer checks it.
+#[derive(Debug, Deserialize)]
+pub struct NewBudget {
+    pub account_id: AccountId,
+    pub category_id: CategoryId,
+    pub amount: Money,
+    pub start: Month,
+    #[serde(default)]
+    pub end: Option<Month>,
+}
+
+impl NewBudget {
+    /// # Errors
+    /// [`DomainError`] if the amount or the start/end ordering is invalid.
+    pub fn build(self) -> Result<Budget, DomainError> {
+        Budget::new(
+            BudgetId::new(DRAFT_ID),
+            self.account_id,
+            self.category_id,
+            self.amount,
+            self.start,
+            self.end,
         )
     }
 }
