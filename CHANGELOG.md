@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- **Category budgets** — a planned monthly amount for a category (groceries, say)
+  that is **held back** from the month, and that your real purchases in that
+  category **consume** rather than add to. Previously the only way to plan such a
+  cost was a recurring rule, which double-counted: the rule booked the full
+  amount *and* every actual purchase hit the ledger too. Now `reserved` is
+  `max(0, planned − actual)` per budget, and the month bar gains a **Free to
+  spend** figure (`available − reserved`) that the budget ring and the
+  home-screen widget follow. `Available` keeps its exact meaning, so the
+  carry-over chain is untouched and an unspent budget simply carries into next
+  month as ordinary surplus — this is a reservation overlay, not envelope
+  budgeting: no funding, no rollover, no enforced limit. Managed on a new
+  **Budgets** tab (month-aware, with a planned/actual bar per budget); one budget
+  per category per account; summary accounts show their members' budgets
+  read-only. Creating a budget for a category that already has a recurring
+  expense offers to retire that rule. Migration `0005`; budgets round-trip
+  through Nextcloud backup/restore. Translated in all 12 locales.
+
 - **App version in Settings** — the installed version is shown at the very
   bottom of the Settings screen, so testers can report which build they are on
   without digging through the OS app info. Read from the shell
