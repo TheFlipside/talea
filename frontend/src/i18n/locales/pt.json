@@ -253,6 +253,10 @@
     "deleteAria": "Eliminar o orçamento de {{name}}",
     "deleteTitle": "Eliminar orçamento?",
     "deleteWarning": "\"{{name}}\" deixará de reservar qualquer valor do montante livre deste mês.",
-    "deleteConfirm": "Eliminar"
+    "deleteConfirm": "Eliminar",
+    "applyAmount": "Aplicar a alteração do valor a",
+    "fromMonth": "A partir de {{month}}",
+    "allMonths": "Todos os meses",
+    "amountHistory": "Histórico de valores"
   }
 }

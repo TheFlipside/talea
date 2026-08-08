@@ -1160,7 +1160,7 @@ async fn budget_round_trips_with_and_without_an_end() {
     )
     .await
     .unwrap();
-    assert_eq!(open.amount(), Money::from_minor_units(40_000, 2));
+    assert_eq!(open.base_amount(), Money::from_minor_units(40_000, 2));
     assert_eq!(open.end(), None);
 
     let mut bounded_draft = new_budget(account.id(), rent.id(), 95_000);
@@ -1292,7 +1292,7 @@ async fn budget_on_a_summary_account_is_rejected() {
         budget.id(),
         summary.id(),
         budget.category_id(),
-        budget.amount(),
+        budget.base_amount(),
         budget.start(),
         None,
     )
@@ -1420,7 +1420,10 @@ async fn backup_round_trip_preserves_budgets() {
         .unwrap();
     let restored = repo::budget::for_account(&dst, account.id()).await.unwrap();
     assert_eq!(restored.len(), 1);
-    assert_eq!(restored[0].amount(), Money::from_minor_units(40_000, 2));
+    assert_eq!(
+        restored[0].base_amount(),
+        Money::from_minor_units(40_000, 2)
+    );
 }
 
 #[tokio::test]
@@ -1454,4 +1457,149 @@ async fn budget_before_the_account_anchor_is_inert() {
             .await
             .unwrap();
     assert_eq!(anchored.len(), 1);
+}
+
+#[tokio::test]
+async fn budget_amount_history_round_trips_and_is_not_retroactive() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let budget = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+    assert_eq!(budget.amounts().len(), 1);
+
+    // Raise to 450 from June, keeping the 400 base at the January start.
+    let raised = talea_core::Budget::new_with_amounts(
+        budget.id(),
+        budget.account_id(),
+        budget.category_id(),
+        vec![
+            talea_core::BudgetSegment::new(budget.start(), Money::from_minor_units(40_000, 2)),
+            talea_core::BudgetSegment::new(
+                Month::new(2026, 6).unwrap(),
+                Money::from_minor_units(45_000, 2),
+            ),
+        ],
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, raised.clone())
+        .await
+        .unwrap();
+
+    let loaded = repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded, vec![raised]);
+
+    // Each month reserves its own planned figure — the raise is not retroactive.
+    let may_rows =
+        crate::commands::month_budgets_inner(&pool, account.id(), Month::new(2026, 5).unwrap())
+            .await
+            .unwrap();
+    let june_rows =
+        crate::commands::month_budgets_inner(&pool, account.id(), Month::new(2026, 6).unwrap())
+            .await
+            .unwrap();
+    assert_eq!(may_rows[0].planned, Money::from_minor_units(40_000, 2));
+    assert_eq!(june_rows[0].planned, Money::from_minor_units(45_000, 2));
+
+    // And the month summary's reservation follows the same figure.
+    let may =
+        crate::commands::month_summary_inner(&pool, account.id(), Month::new(2026, 5).unwrap())
+            .await
+            .unwrap();
+    let june =
+        crate::commands::month_summary_inner(&pool, account.id(), Month::new(2026, 6).unwrap())
+            .await
+            .unwrap();
+    assert_eq!(may.reserved, Money::from_minor_units(40_000, 2));
+    assert_eq!(june.reserved, Money::from_minor_units(45_000, 2));
+}
+
+#[tokio::test]
+async fn updating_a_budget_replaces_its_breakpoints_wholesale() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let budget = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+
+    let with_breakpoint = talea_core::Budget::new_with_amounts(
+        budget.id(),
+        budget.account_id(),
+        budget.category_id(),
+        vec![
+            talea_core::BudgetSegment::new(budget.start(), Money::from_minor_units(40_000, 2)),
+            talea_core::BudgetSegment::new(
+                Month::new(2026, 6).unwrap(),
+                Money::from_minor_units(45_000, 2),
+            ),
+        ],
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, with_breakpoint)
+        .await
+        .unwrap();
+
+    // Saving a single-segment history again must clear the stored breakpoint,
+    // not leave it behind (the "all months" edit scope relies on this).
+    crate::commands::update_budget_inner(&pool, budget.clone())
+        .await
+        .unwrap();
+    let loaded = repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded, vec![budget]);
+}
+
+#[tokio::test]
+async fn deleting_a_budget_cascades_its_amount_history() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let budget = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+    let raised = talea_core::Budget::new_with_amounts(
+        budget.id(),
+        budget.account_id(),
+        budget.category_id(),
+        vec![
+            talea_core::BudgetSegment::new(budget.start(), Money::from_minor_units(40_000, 2)),
+            talea_core::BudgetSegment::new(
+                Month::new(2026, 6).unwrap(),
+                Money::from_minor_units(45_000, 2),
+            ),
+        ],
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, raised)
+        .await
+        .unwrap();
+
+    let budget_key = i64::try_from(budget.id().get()).unwrap();
+    assert!(repo::budget::delete(&pool, budget.id()).await.unwrap());
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM budget_amount WHERE budget_id = ?")
+        .bind(budget_key)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
 }

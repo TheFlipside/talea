@@ -22,12 +22,49 @@
 use serde::{Deserialize, Serialize};
 
 use crate::domain::entry::Entry;
-use crate::domain::error::{validate_amount, DomainError};
+use crate::domain::error::{validate_amount, DomainError, MAX_AMOUNT_SEGMENTS};
 use crate::domain::ids::{AccountId, BudgetId, CategoryId};
 use crate::domain::month::Month;
 use crate::domain::recurring::RecurringRule;
 use crate::domain::stats::expenses_by_category;
 use crate::money::Money;
+
+/// One step in a budget's amount history: `amount` applies from
+/// `effective_from` until a later segment supersedes it.
+///
+/// Month-keyed rather than date-keyed (unlike a rule's
+/// [`AmountSegment`](crate::domain::AmountSegment)) because a budget is defined
+/// per month throughout — `start` and `end` are months too. Validation of the
+/// ordering lives in [`Budget::new_with_amounts`], which owns the sequence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BudgetSegment {
+    effective_from: Month,
+    amount: Money,
+}
+
+impl BudgetSegment {
+    /// Creates a segment. Unvalidated on its own — the owning [`Budget`] checks
+    /// the amount and the sequence's anchoring and ordering.
+    #[must_use]
+    pub const fn new(effective_from: Month, amount: Money) -> Self {
+        Self {
+            effective_from,
+            amount,
+        }
+    }
+
+    /// The first month this amount applies to.
+    #[must_use]
+    pub const fn effective_from(&self) -> Month {
+        self.effective_from
+    }
+
+    /// The planned amount from [`effective_from`](BudgetSegment::effective_from).
+    #[must_use]
+    pub const fn amount(&self) -> Money {
+        self.amount
+    }
+}
 
 /// A planned monthly amount for one category on one account.
 ///
@@ -42,7 +79,9 @@ pub struct Budget {
     id: BudgetId,
     account_id: AccountId,
     category_id: CategoryId,
-    amount: Money,
+    /// Amount history, sorted ascending by `effective_from`; the first segment
+    /// is the base, anchored at `start`. Never empty.
+    amounts: Vec<BudgetSegment>,
     start: Month,
     /// `None` means open-ended.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -50,13 +89,13 @@ pub struct Budget {
 }
 
 /// Plain deserialization mirror; the `TryFrom` below routes it through
-/// [`Budget::new`] so a malformed budget from JSON is rejected.
+/// [`Budget::new_with_amounts`] so a malformed budget from JSON is rejected.
 #[derive(Deserialize)]
 struct BudgetRepr {
     id: BudgetId,
     account_id: AccountId,
     category_id: CategoryId,
-    amount: Money,
+    amounts: Vec<BudgetSegment>,
     start: Month,
     #[serde(default)]
     end: Option<Month>,
@@ -66,11 +105,11 @@ impl TryFrom<BudgetRepr> for Budget {
     type Error = DomainError;
 
     fn try_from(repr: BudgetRepr) -> Result<Self, Self::Error> {
-        Self::new(
+        Self::new_with_amounts(
             repr.id,
             repr.account_id,
             repr.category_id,
-            repr.amount,
+            repr.amounts,
             repr.start,
             repr.end,
         )
@@ -78,7 +117,7 @@ impl TryFrom<BudgetRepr> for Budget {
 }
 
 impl Budget {
-    /// Creates a category budget.
+    /// Creates a category budget with a single amount, effective from `start`.
     ///
     /// # Errors
     ///
@@ -93,7 +132,59 @@ impl Budget {
         start: Month,
         end: Option<Month>,
     ) -> Result<Self, DomainError> {
-        validate_amount(amount)?;
+        Self::new_with_amounts(
+            id,
+            account_id,
+            category_id,
+            vec![BudgetSegment::new(start, amount)],
+            start,
+            end,
+        )
+    }
+
+    /// Creates a category budget with a full amount history.
+    ///
+    /// `amounts` must be non-empty, at most [`MAX_AMOUNT_SEGMENTS`] long,
+    /// anchored at `start`, and strictly ascending — so every month resolves to
+    /// exactly one amount.
+    ///
+    /// # Errors
+    ///
+    /// [`DomainError::InvalidAmountSegments`] if the sequence is empty, not
+    /// anchored at `start`, or not strictly ascending;
+    /// [`DomainError::TooManyAmountSegments`] if it exceeds the cap;
+    /// [`DomainError::NonPositiveAmount`] / [`DomainError::AmountTooLarge`] for a
+    /// bad amount; [`DomainError::BudgetEndBeforeStart`] if `end` precedes
+    /// `start`.
+    pub fn new_with_amounts(
+        id: BudgetId,
+        account_id: AccountId,
+        category_id: CategoryId,
+        amounts: Vec<BudgetSegment>,
+        start: Month,
+        end: Option<Month>,
+    ) -> Result<Self, DomainError> {
+        let Some(first) = amounts.first() else {
+            return Err(DomainError::InvalidAmountSegments);
+        };
+        if amounts.len() > MAX_AMOUNT_SEGMENTS {
+            return Err(DomainError::TooManyAmountSegments {
+                len: amounts.len(),
+                max: MAX_AMOUNT_SEGMENTS,
+            });
+        }
+        if first.effective_from != start {
+            return Err(DomainError::InvalidAmountSegments);
+        }
+        // Strictly ascending, so `amount_in` resolves each month unambiguously.
+        for pair in amounts.windows(2) {
+            if pair[0].effective_from >= pair[1].effective_from {
+                return Err(DomainError::InvalidAmountSegments);
+            }
+        }
+        for segment in &amounts {
+            validate_amount(segment.amount)?;
+        }
         if let Some(end) = end {
             if end < start {
                 return Err(DomainError::BudgetEndBeforeStart { start, end });
@@ -103,7 +194,7 @@ impl Budget {
             id,
             account_id,
             category_id,
-            amount,
+            amounts,
             start,
             end,
         })
@@ -127,13 +218,19 @@ impl Budget {
         self.category_id
     }
 
-    /// The base planned amount.
+    /// The base planned amount, effective from [`start`](Budget::start).
     ///
     /// Prefer [`Budget::amount_in`] when computing a month's figures — see the
     /// note there.
     #[must_use]
-    pub const fn amount(&self) -> Money {
-        self.amount
+    pub fn base_amount(&self) -> Money {
+        self.amounts[0].amount
+    }
+
+    /// The full amount history, ascending by month. Never empty.
+    #[must_use]
+    pub fn amounts(&self) -> &[BudgetSegment] {
+        &self.amounts
     }
 
     /// The first month this budget applies to.
@@ -148,16 +245,21 @@ impl Budget {
         self.end
     }
 
-    /// The planned amount in effect for `month`.
+    /// The planned amount in effect for `month`: the last segment effective at
+    /// or before it.
     ///
-    /// A budget carries a single amount today, so this always returns
-    /// [`amount`](Budget::amount). It exists so no caller reads the base amount
-    /// directly — the same role [`RecurringRule::amount_on`] plays for rules —
-    /// leaving room to add forward-dated amount breakpoints later without
-    /// touching any of them.
+    /// Months before `start` cannot occur in practice (`applies_in` gates them),
+    /// but they resolve to the base amount rather than panicking.
     #[must_use]
-    pub const fn amount_in(&self, _month: Month) -> Money {
-        self.amount
+    pub fn amount_in(&self, month: Month) -> Money {
+        let mut current = self.amounts[0].amount;
+        for segment in &self.amounts {
+            if segment.effective_from > month {
+                break;
+            }
+            current = segment.amount;
+        }
+        current
     }
 
     /// Whether this budget reserves anything in `month`.
@@ -265,9 +367,9 @@ pub fn reserved_in(
 
 #[cfg(test)]
 mod tests {
-    use super::{budget_status, reserved_in, Budget};
+    use super::{budget_status, reserved_in, Budget, BudgetSegment};
     use crate::domain::entry::{Entry, EntryKind};
-    use crate::domain::error::DomainError;
+    use crate::domain::error::{DomainError, MAX_AMOUNT_SEGMENTS};
     use crate::domain::ids::{AccountId, BudgetId, CategoryId, EntryId, RecurringRuleId};
     use crate::domain::month::Month;
     use crate::domain::recurring::{FreqUnit, Frequency, RecurringRule, RuleEnd};
@@ -497,13 +599,18 @@ mod tests {
     fn round_trips_as_json() {
         let original = budget(40_000, None);
         let json = serde_json::to_string(&original).unwrap();
-        assert!(json.contains(r#""amount":"400.00""#), "{json}");
+        assert!(
+            json.contains(
+                r#""amounts":[{"effective_from":{"year":2026,"month":1},"amount":"400.00"}]"#
+            ),
+            "{json}"
+        );
         assert!(
             json.contains(r#""start":{"year":2026,"month":1}"#),
             "{json}"
         );
         // Open-ended budgets omit `end` entirely rather than sending null.
-        assert!(!json.contains("end"), "{json}");
+        assert!(!json.contains(r#""end""#), "{json}");
         assert_eq!(serde_json::from_str::<Budget>(&json).unwrap(), original);
 
         let bounded = budget(40_000, Some(m(2026, 6)));
@@ -516,15 +623,157 @@ mod tests {
     fn rejects_a_tampered_amount_at_deserialize() {
         // Invariants unreachable through the constructor still have to hold for
         // JSON arriving over IPC or out of storage.
-        let json = r#"{"id":1,"account_id":1,"category_id":1,"amount":"-5.00",
+        let json = r#"{"id":1,"account_id":1,"category_id":1,
+                       "amounts":[{"effective_from":{"year":2026,"month":1},"amount":"-5.00"}],
                        "start":{"year":2026,"month":1}}"#;
         assert!(serde_json::from_str::<Budget>(json).is_err());
     }
 
     #[test]
     fn rejects_numeric_json_to_keep_floats_out() {
-        let json = r#"{"id":1,"account_id":1,"category_id":1,"amount":400.0,
+        let json = r#"{"id":1,"account_id":1,"category_id":1,
+                       "amounts":[{"effective_from":{"year":2026,"month":1},"amount":400.0}],
                        "start":{"year":2026,"month":1}}"#;
         assert!(serde_json::from_str::<Budget>(json).is_err());
+    }
+
+    // ---- Amount history ----------------------------------------------------
+
+    /// A budget from Jan 2026 whose amount changes at the given breakpoints.
+    fn budget_with(segments: &[(Month, i64)]) -> Budget {
+        Budget::new_with_amounts(
+            BudgetId::new(1),
+            AccountId::new(1),
+            CategoryId::new(1),
+            segments
+                .iter()
+                .map(|(month, minor)| BudgetSegment::new(*month, money(*minor)))
+                .collect(),
+            m(2026, 1),
+            None,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_single_amount_applies_to_every_month() {
+        let b = budget(40_000, None);
+        assert_eq!(b.amount_in(m(2026, 1)), money(40_000));
+        assert_eq!(b.amount_in(m(2030, 7)), money(40_000));
+        assert_eq!(b.base_amount(), money(40_000));
+        assert_eq!(b.amounts().len(), 1);
+    }
+
+    #[test]
+    fn a_breakpoint_applies_from_its_month_onward() {
+        // 400 from January, raised to 450 from June.
+        let b = budget_with(&[(m(2026, 1), 40_000), (m(2026, 6), 45_000)]);
+        assert_eq!(b.amount_in(m(2026, 5)), money(40_000));
+        assert_eq!(b.amount_in(m(2026, 6)), money(45_000));
+        assert_eq!(b.amount_in(m(2027, 1)), money(45_000));
+        // The base is untouched, which is the whole point: past months keep the
+        // figure that was actually planned at the time.
+        assert_eq!(b.base_amount(), money(40_000));
+    }
+
+    #[test]
+    fn the_latest_applicable_breakpoint_wins() {
+        let b = budget_with(&[
+            (m(2026, 1), 40_000),
+            (m(2026, 6), 45_000),
+            (m(2026, 9), 50_000),
+        ]);
+        assert_eq!(b.amount_in(m(2026, 8)), money(45_000));
+        assert_eq!(b.amount_in(m(2026, 9)), money(50_000));
+    }
+
+    #[test]
+    fn reserving_uses_the_months_own_amount() {
+        let budgets = [budget_with(&[(m(2026, 1), 40_000), (m(2026, 6), 45_000)])];
+        assert_eq!(
+            budget_status(m(2026, 1), &budgets, &[], &[])[0].planned,
+            money(40_000)
+        );
+        assert_eq!(
+            budget_status(m(2026, 6), &budgets, &[], &[])[0].planned,
+            money(45_000)
+        );
+    }
+
+    #[test]
+    fn rejects_amounts_not_anchored_at_the_start() {
+        let err = Budget::new_with_amounts(
+            BudgetId::new(1),
+            AccountId::new(1),
+            CategoryId::new(1),
+            vec![BudgetSegment::new(m(2026, 2), money(40_000))],
+            m(2026, 1),
+            None,
+        );
+        assert_eq!(err, Err(DomainError::InvalidAmountSegments));
+    }
+
+    #[test]
+    fn rejects_empty_or_unordered_amounts() {
+        let build = |segments: Vec<BudgetSegment>| {
+            Budget::new_with_amounts(
+                BudgetId::new(1),
+                AccountId::new(1),
+                CategoryId::new(1),
+                segments,
+                m(2026, 1),
+                None,
+            )
+        };
+        assert_eq!(build(vec![]), Err(DomainError::InvalidAmountSegments));
+        // Descending.
+        assert_eq!(
+            build(vec![
+                BudgetSegment::new(m(2026, 1), money(40_000)),
+                BudgetSegment::new(m(2025, 12), money(45_000)),
+            ]),
+            Err(DomainError::InvalidAmountSegments)
+        );
+        // Duplicated month — a month must resolve to exactly one amount.
+        assert_eq!(
+            build(vec![
+                BudgetSegment::new(m(2026, 1), money(40_000)),
+                BudgetSegment::new(m(2026, 1), money(45_000)),
+            ]),
+            Err(DomainError::InvalidAmountSegments)
+        );
+    }
+
+    #[test]
+    fn rejects_too_many_amount_segments() {
+        // Bounds untrusted IPC input, as a rule's history does.
+        let segments: Vec<BudgetSegment> = (0..=MAX_AMOUNT_SEGMENTS)
+            .map(|i| {
+                let month = Month::new(2026 + i32::try_from(i).unwrap(), 1).unwrap();
+                BudgetSegment::new(month, money(40_000))
+            })
+            .collect();
+        assert!(matches!(
+            Budget::new_with_amounts(
+                BudgetId::new(1),
+                AccountId::new(1),
+                CategoryId::new(1),
+                segments,
+                m(2026, 1),
+                None,
+            ),
+            Err(DomainError::TooManyAmountSegments { .. })
+        ));
+    }
+
+    #[test]
+    fn amount_history_round_trips_through_json() {
+        let original = budget_with(&[(m(2026, 1), 40_000), (m(2026, 6), 45_000)]);
+        let json = serde_json::to_string(&original).unwrap();
+        assert!(
+            json.contains(r#""effective_from":{"year":2026,"month":6}"#),
+            "{json}"
+        );
+        assert_eq!(serde_json::from_str::<Budget>(&json).unwrap(), original);
     }
 }

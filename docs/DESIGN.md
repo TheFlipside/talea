@@ -399,24 +399,29 @@ free     = available − reserved
   member's reservation in it. The budget list concatenates members' rows (tagged
   by source account, as entries are), which keeps `Σ status.reserved` equal to
   the headline `reserved`. Summaries own no budgets and are read-only here.
-- **Persistence.** Migration `0005` adds the `budget` table (money TEXT, months
-  as `(year, month)` INTEGER pairs like `account.anchor_*`). `category_id`
-  cascades — unlike an entry, a budget names exactly one category and has nothing
-  left to measure without it. `budget` joins the backup/restore `TABLES` set.
-- **Deferred: effective-dated amount history**, and the two sharp edges that
-  follow from its absence. Changing a budget's amount **rewrites the past**:
-  every earlier month re-derives `planned`/`reserved`/`free` at the new figure.
-  No stored money moves (a reservation never enters the balance chain), so this
-  is a display inaccuracy, not corruption — but it is why the `start` month is
-  read-only, and the two are inconsistent until history lands. And because
-  `UNIQUE (account_id, category_id)` is unconditional over time, **ending a
-  budget does not free its category**: there is no way to run a successor at a
-  different amount from next month while keeping the old months truthful.
-  Both dissolve together once amounts are dated. The seam is already in place —
-  the amount sits directly on `budget.amount`, the shape `recurring_rule.amount`
-  had in `0001`, and `Budget::amount_in(month)` is the single read point — so a
-  `budget_amount` table can add forward-dated breakpoints exactly the way
-  `0002_rule_amount.sql` did for rules, without touching a caller. The `UNIQUE`
-  constraint would then relax to "no two *overlapping* budgets per category".
-- **Also deferred:** envelope rollover, budgets spanning several categories,
+- **Persistence.** Migration `0005` adds the `budget` table and `0006` its
+  `budget_amount` history (money TEXT, months as `(year, month)` INTEGER pairs
+  like `account.anchor_*`). `category_id` cascades — unlike an entry, a budget
+  names exactly one category and has nothing left to measure without it. Both
+  tables join the backup/restore `TABLES` set.
+- **Effective-dated amounts.** A budget carries an **amount history**, not one
+  figure: `budget.amount` is the base at its start month, and migration `0006`'s
+  `budget_amount` table holds later breakpoints — the same shape and rationale as
+  `0002_rule_amount.sql` for rules, with `Budget::amount_in(month)` as the single
+  read point. Raising groceries from 400 to 450 in June leaves January–May
+  reserving 400, so past months keep the figure that was actually planned at the
+  time. The form offers the same "From {{month}} onward / All months" choice
+  `RuleForm` does, defaulting to *onward*; it is offered only once the budget has
+  a past to protect. The stakes are lower than for a rule — a rule's amount feeds
+  the ledger, so a retroactive edit would move historical *balances*, whereas a
+  budget's only feeds `reserved`, which never enters the chain — but showing a
+  month a plan it never had is still wrong, and it is why `start` is read-only.
+- **Deferred.** `UNIQUE (account_id, category_id)` is unconditional over time, so
+  a category has at most one budget row ever. Dated amounts remove the reason
+  that used to matter (changing the plan going forward no longer needs a
+  successor row); what remains unexpressible is a *gap* — budgeted Jan–Jun,
+  unbudgeted Jul–Sep, budgeted again from Oct. Supporting that means relaxing the
+  constraint to "no two **overlapping** budgets per category", which SQLite can't
+  state declaratively: it needs a table rebuild plus a command-layer overlap
+  check. Also deferred: envelope rollover, budgets spanning several categories,
   non-monthly periods.

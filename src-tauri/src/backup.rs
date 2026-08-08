@@ -31,6 +31,7 @@ const TABLES: &[&str] = &[
     "account_member",
     "category",
     "budget",
+    "budget_amount",
     "recurring_rule",
     "entry",
     "rule_amount",

@@ -253,6 +253,10 @@
     "deleteAria": "Budget für {{name}} löschen",
     "deleteTitle": "Budget löschen?",
     "deleteWarning": "„{{name}}“ hält dann nichts mehr vom frei verfügbaren Betrag dieses Monats zurück.",
-    "deleteConfirm": "Löschen"
+    "deleteConfirm": "Löschen",
+    "applyAmount": "Betragsänderung anwenden auf",
+    "fromMonth": "Ab {{month}}",
+    "allMonths": "Alle Monate",
+    "amountHistory": "Betragsverlauf"
   }
 }

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { AccountId, Budget, Month, RecurringRule } from '../api/types';
+import type { AccountId, Budget, BudgetSegment, Month, RecurringRule } from '../api/types';
 import {
   useCategories,
   useCreateBudget,
   useDeleteRule,
   useUpdateBudget,
 } from '../api/hooks';
+import { amountInMonth, isBeforeMonth } from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
 import { isoDate, isoMonthOf } from '../lib/date';
 import { formatMoney, isMoneyInput, normalizeAmountInput } from '../lib/money';
@@ -33,8 +34,8 @@ interface BudgetFormProps {
 /** The first day of `month`, so the end-month picker can reuse `DatePicker`. */
 const firstDayOf = (month: Month): string => isoDate(month.year, month.month, 1);
 
-const isBefore = (a: Month, b: Month): boolean =>
-  a.year < b.year || (a.year === b.year && a.month < b.month);
+/** How an edited amount applies: to every month, or from one month onward. */
+type AmountScope = 'all' | 'from';
 
 export function BudgetForm({
   accountId,
@@ -46,8 +47,8 @@ export function BudgetForm({
   onClose,
 }: BudgetFormProps) {
   const { t } = useTranslation();
-  const create = useCreateBudget(accountId);
-  const update = useUpdateBudget(accountId);
+  const create = useCreateBudget();
+  const update = useUpdateBudget();
   const deleteRule = useDeleteRule(accountId);
   const { data: categories, isPending: categoriesPending } = useCategories();
 
@@ -55,9 +56,16 @@ export function BudgetForm({
   const [categoryId, setCategoryId] = useState(
     editing != null ? String(editing.category_id) : '',
   );
-  const [amount, setAmount] = useState(editing?.amount ?? '');
+  // The figure the *viewed* month actually reserves, not the newest one: editing
+  // while looking at May must show May's amount, or "unchanged" would compare
+  // against a later raise and silently discard the edit.
+  const viewedAmount = editing ? amountInMonth(editing.amounts, startMonth) : '';
+  const [amount, setAmount] = useState(viewedAmount);
   // Tracked so a pre-existing rule's amount only seeds an untouched field.
   const [amountTouched, setAmountTouched] = useState(editing != null);
+  // Amount-change scope (edit only): default to "from this month" so a raise
+  // never rewrites what earlier months were planned at.
+  const [amountScope, setAmountScope] = useState<AmountScope>('from');
   const [endKind, setEndKind] = useState<'never' | 'until'>(
     editing?.end != null ? 'until' : 'never',
   );
@@ -65,7 +73,7 @@ export function BudgetForm({
   // for a long-running budget the start is in the past, and proposing it would
   // silently retire the budget for every month since. Never before the start.
   const [endDate, setEndDate] = useState(
-    firstDayOf(editing?.end ?? (isBefore(startMonth, start) ? start : startMonth)),
+    firstDayOf(editing?.end ?? (isBeforeMonth(startMonth, start) ? start : startMonth)),
   );
   // Starts off: the category may be the list's default rather than a deliberate
   // choice, and deleting a recurring rule the user never aimed at is destructive.
@@ -122,6 +130,39 @@ export function BudgetForm({
   const mutationError = create.error ?? update.error ?? deleteRule.error;
   const errorMessage = localError ?? mutationError?.message ?? null;
   const busy = create.isPending || update.isPending || deleteRule.isPending;
+  const hasHistory = editing != null && editing.amounts.length > 1;
+
+  /**
+   * The amount history to persist on an edit. Simpler than the rule form's
+   * equivalent because a budget's `start` is read-only, so the base segment
+   * never needs re-anchoring:
+   *   - amount unchanged → keep the history exactly as it is;
+   *   - "all months"     → collapse to a single base segment at the new amount;
+   *   - "from"           → keep the base and any earlier breakpoints, then the
+   *                        new amount from the viewed month (dropping later
+   *                        ones, which the new figure supersedes).
+   */
+  function nextAmounts(budget: Budget, trimmed: string): BudgetSegment[] {
+    // Numeric compare (not string) so "400" vs the stored "400.00" reads as
+    // unchanged; a control decision only, never a stored money value, and
+    // amounts are bounded well within float precision by the core's cap.
+    if (Number(trimmed) === Number(viewedAmount)) {
+      return budget.amounts;
+    }
+    // Applying "from" at or before the start is the same as applying to all.
+    if (amountScope === 'all' || !isBeforeMonth(budget.start, startMonth)) {
+      return [{ effective_from: budget.start, amount: trimmed }];
+    }
+    return [
+      budget.amounts[0],
+      ...budget.amounts
+        .slice(1)
+        .filter(
+          (s) => isBeforeMonth(budget.start, s.effective_from) && isBeforeMonth(s.effective_from, startMonth),
+        ),
+      { effective_from: startMonth, amount: trimmed },
+    ];
+  }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -144,7 +185,12 @@ export function BudgetForm({
 
     if (editing) {
       update.mutate(
-        { ...editing, category_id: selected, amount: normalizedAmount, end },
+        {
+          ...editing,
+          category_id: selected,
+          amounts: nextAmounts(editing, normalizedAmount),
+          end,
+        },
         { onSuccess: onClose },
       );
       return;
@@ -210,6 +256,20 @@ export function BudgetForm({
           </div>
         )}
 
+        {hasHistory && (
+          <div className="rule-history">
+            <span className="muted">{t('budgets.amountHistory')}</span>
+            <ul>
+              {editing.amounts.map((s) => (
+                <li key={`${s.effective_from.year}-${s.effective_from.month}`}>
+                  {formatMoney(s.amount, currency)} ·{' '}
+                  {t('budgets.startsFrom', { month: monthLabel(s.effective_from) })}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <label className="field">
           <span>{t('budgets.amount', { currency })}</span>
           <input
@@ -224,6 +284,33 @@ export function BudgetForm({
             data-autofocus="true"
           />
         </label>
+
+        {/* Only offered once the budget has a past to protect: applying a change
+            "from this month" when that month is the start is the same as
+            applying it to all, so the choice would be meaningless. */}
+        {editing && isBeforeMonth(start, startMonth) && (
+          <div className="field">
+            <span>{t('budgets.applyAmount')}</span>
+            <div className="segmented" role="group" aria-label={t('budgets.applyAmount')}>
+              <button
+                type="button"
+                className={`segmented__option${amountScope === 'from' ? ' segmented__option--active' : ''}`}
+                aria-pressed={amountScope === 'from'}
+                onClick={() => setAmountScope('from')}
+              >
+                {t('budgets.fromMonth', { month: monthLabel(startMonth) })}
+              </button>
+              <button
+                type="button"
+                className={`segmented__option${amountScope === 'all' ? ' segmented__option--active' : ''}`}
+                aria-pressed={amountScope === 'all'}
+                onClick={() => setAmountScope('all')}
+              >
+                {t('budgets.allMonths')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Read-only, like an account's anchor month: moving a budget's start
             would retroactively rewrite past months' `free` figures. */}

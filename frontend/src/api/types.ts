@@ -146,6 +146,13 @@ export interface Occurrence {
   category_id?: CategoryId | null;
 }
 
+/** One step in a budget's amount history: `amount` from `effective_from` onward.
+ *  Month-keyed, unlike a rule's date-keyed `AmountSegment`. */
+export interface BudgetSegment {
+  effective_from: Month;
+  amount: Money;
+}
+
 /**
  * A planned monthly amount for one category. Spending in that category consumes
  * the reservation rather than stacking on top of it; the unspent remainder is
@@ -155,11 +162,13 @@ export interface Budget {
   id: BudgetId;
   account_id: AccountId;
   category_id: CategoryId;
-  amount: Money;
+  /** Amount history; the first segment is the base at `start`. Never empty. */
+  amounts: BudgetSegment[];
   start: Month;
   end?: Month | null;
 }
 
+/** Create payload: a budget starts with a single amount, effective at `start`. */
 export interface NewBudget {
   account_id: AccountId;
   category_id: CategoryId;

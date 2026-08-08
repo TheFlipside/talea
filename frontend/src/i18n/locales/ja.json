@@ -253,6 +253,10 @@
     "deleteAria": "{{name}} の予算を削除",
     "deleteTitle": "予算を削除しますか？",
     "deleteWarning": "「{{name}}」は今月の自由に使える額から何も確保しなくなります。",
-    "deleteConfirm": "削除"
+    "deleteConfirm": "削除",
+    "applyAmount": "金額の変更を適用する範囲",
+    "fromMonth": "{{month}}以降",
+    "allMonths": "すべての月",
+    "amountHistory": "金額の履歴"
   }
 }

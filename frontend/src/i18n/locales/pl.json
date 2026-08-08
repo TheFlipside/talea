@@ -259,6 +259,10 @@
     "deleteAria": "Usuń budżet dla {{name}}",
     "deleteTitle": "Usunąć budżet?",
     "deleteWarning": "„{{name}}” przestanie rezerwować cokolwiek z wolnych środków tego miesiąca.",
-    "deleteConfirm": "Usuń"
+    "deleteConfirm": "Usuń",
+    "applyAmount": "Zastosuj zmianę kwoty do",
+    "fromMonth": "Od {{month}} wzwyż",
+    "allMonths": "Wszystkie miesiące",
+    "amountHistory": "Historia kwot"
   }
 }

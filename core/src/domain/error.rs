@@ -123,11 +123,9 @@ pub enum DomainError {
     #[error("recurrence interval must be >= 1")]
     ZeroInterval,
 
-    /// A rule's amount segments were empty, out of order, or not anchored at the
-    /// rule's start date.
-    #[error(
-        "amount segments must be non-empty, start at the rule's start date, and ascend by date"
-    )]
+    /// A rule's or budget's amount segments were empty, out of order, or not
+    /// anchored at its start.
+    #[error("amount segments must be non-empty, start at the owner's start, and ascend")]
     InvalidAmountSegments,
 
     /// A rule carried more amount segments than [`MAX_AMOUNT_SEGMENTS`].

@@ -68,15 +68,16 @@ function invalidateRuleData(client: QueryClient, accountId: AccountId): void {
  * Refresh what a budget change affects: the budget list, the month's progress,
  * and the month summaries carrying `reserved`/`free` (and so the ring).
  *
- * Month summaries are invalidated for **every** account, not just this one: a
- * summary account's `reserved` is the sum of its members', so a member's budget
- * change staleness would otherwise reach the home-screen widget. Budget edits are
+ * Everything is invalidated for **every** account, not just this one: a summary
+ * account aggregates its members' budgets *and* their `reserved`, so scoping to
+ * the mutated account would leave the summary's list and its "Free to spend"
+ * figure stale — the latter visible on the home-screen widget. Budget edits are
  * rare (unlike entries, whose helpers stay account-scoped), so the wider sweep
  * costs nothing in practice.
  */
-function invalidateBudgetData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.budgets(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
+function invalidateBudgetData(client: QueryClient): void {
+  void client.invalidateQueries({ queryKey: queryKeys.budgetsAll });
+  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsAll });
   void client.invalidateQueries({ queryKey: ['monthSummary'] });
 }
 
@@ -317,27 +318,30 @@ export function useMonthBudgets(accountId: AccountId, month: Month) {
   });
 }
 
-export function useCreateBudget(accountId: AccountId) {
+// The budget mutations take no account id: their invalidation is deliberately
+// account-wide (see `invalidateBudgetData`).
+
+export function useCreateBudget() {
   const client = useQueryClient();
   return useMutation<Budget, CommandError, NewBudget>({
     mutationFn: api.createBudget,
-    onSuccess: () => invalidateBudgetData(client, accountId),
+    onSuccess: () => invalidateBudgetData(client),
   });
 }
 
-export function useUpdateBudget(accountId: AccountId) {
+export function useUpdateBudget() {
   const client = useQueryClient();
   return useMutation<Budget, CommandError, Budget>({
     mutationFn: api.updateBudget,
-    onSuccess: () => invalidateBudgetData(client, accountId),
+    onSuccess: () => invalidateBudgetData(client),
   });
 }
 
-export function useDeleteBudget(accountId: AccountId) {
+export function useDeleteBudget() {
   const client = useQueryClient();
   return useMutation<void, CommandError, BudgetId>({
     mutationFn: api.deleteBudget,
-    onSuccess: () => invalidateBudgetData(client, accountId),
+    onSuccess: () => invalidateBudgetData(client),
   });
 }
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Account, Budget, BudgetStatus, Category, CategoryId, Month } from '../api/types';
+import type { Account, Budget, BudgetStatus, Category, CategoryId } from '../api/types';
 import {
   useBudgets,
   useCategories,
@@ -15,14 +15,12 @@ import { ErrorBanner } from '../components/ErrorBanner';
 import { MonthNav } from '../components/MonthNav';
 import { Spinner } from '../components/Spinner';
 import { accountColor } from '../lib/accountColor';
+import { isBeforeMonth } from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
 import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { monthLabel } from '../lib/month';
 import { useSwipe } from '../lib/swipe';
 import { useSelectedMonth } from '../state/contexts';
-
-const isBefore = (a: Month, b: Month): boolean =>
-  a.year < b.year || (a.year === b.year && a.month < b.month);
 
 type Dialog =
   | { type: 'none' }
@@ -43,7 +41,7 @@ export function BudgetsScreen({ account }: { account: Account }) {
   const budgets = useBudgets(account.id);
   const rules = useRules(account.id);
   const { data: categories } = useCategories();
-  const del = useDeleteBudget(account.id);
+  const del = useDeleteBudget();
   const [dialog, setDialog] = useState<Dialog>({ type: 'none' });
   const close = () => setDialog({ type: 'none' });
 
@@ -100,6 +98,24 @@ export function BudgetsScreen({ account }: { account: Account }) {
   const inactive = (budgets.data ?? []).filter(
     (budget) => !statuses.data?.some((status) => status.budget_id === budget.id),
   );
+
+  /**
+   * Why a budget isn't running in the selected month. Branches on where that
+   * month sits rather than on whether an end exists — a budget that hasn't
+   * started yet would otherwise read as already finished. A budget can also be
+   * inactive for a third reason (the month predates the account's anchor, so the
+   * ledger doesn't cover it); that falls through to its start month, which is
+   * true if not the full story.
+   */
+  function inactiveReason(budget: Budget): string {
+    if (isBeforeMonth(month, budget.start)) {
+      return t('budgets.startsFrom', { month: monthLabel(budget.start) });
+    }
+    if (budget.end && isBeforeMonth(budget.end, month)) {
+      return t('budgets.ranUntil', { month: monthLabel(budget.end) });
+    }
+    return t('budgets.startsFrom', { month: monthLabel(budget.start) });
+  }
 
   if (statuses.isPending || budgets.isPending) {
     return <Spinner />;
@@ -185,16 +201,14 @@ export function BudgetsScreen({ account }: { account: Account }) {
                   <span className="account-list__icon">{icon(budget.category_id)}</span>
                   <span className="rule-row__main">
                     <span className="account-list__name">{label(budget.category_id)}</span>
-                    <span className="rule-row__meta">
-                      {/* Branch on where the selected month sits, not on whether
-                          an end exists: a bounded budget that hasn't started yet
-                          would otherwise read as already finished. */}
-                      {isBefore(month, budget.start)
-                        ? t('budgets.startsFrom', { month: monthLabel(budget.start) })
-                        : t('budgets.ranUntil', { month: monthLabel(budget.end ?? budget.start) })}
-                    </span>
+                    <span className="rule-row__meta">{inactiveReason(budget)}</span>
                   </span>
-                  <span className="amount">{formatMoney(budget.amount, account.currency)}</span>
+                  <span className="amount">
+                    {formatMoney(
+                      budget.amounts[budget.amounts.length - 1].amount,
+                      account.currency,
+                    )}
+                  </span>
                 </button>
                 <button
                   type="button"

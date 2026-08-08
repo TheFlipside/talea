@@ -253,6 +253,10 @@
     "deleteAria": "{{name}} bütçesini sil",
     "deleteTitle": "Bütçe silinsin mi?",
     "deleteWarning": "\"{{name}}\" artık bu ayın serbest tutarından hiçbir şey ayırmayacak.",
-    "deleteConfirm": "Sil"
+    "deleteConfirm": "Sil",
+    "applyAmount": "Tutar değişikliğini uygula",
+    "fromMonth": "{{month}} tarihinden itibaren",
+    "allMonths": "Tüm aylar",
+    "amountHistory": "Tutar geçmişi"
   }
 }

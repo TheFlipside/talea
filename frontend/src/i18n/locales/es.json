@@ -253,6 +253,10 @@
     "deleteAria": "Eliminar el presupuesto de {{name}}",
     "deleteTitle": "¿Eliminar presupuesto?",
     "deleteWarning": "«{{name}}» dejará de reservar nada del importe libre de este mes.",
-    "deleteConfirm": "Eliminar"
+    "deleteConfirm": "Eliminar",
+    "applyAmount": "Aplicar el cambio de importe a",
+    "fromMonth": "Desde {{month}} en adelante",
+    "allMonths": "Todos los meses",
+    "amountHistory": "Historial de importes"
   }
 }

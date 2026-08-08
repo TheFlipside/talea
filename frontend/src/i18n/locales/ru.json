@@ -259,6 +259,10 @@
     "deleteAria": "Удалить бюджет для {{name}}",
     "deleteTitle": "Удалить бюджет?",
     "deleteWarning": "«{{name}}» больше не будет удерживать средства из свободной суммы этого месяца.",
-    "deleteConfirm": "Удалить"
+    "deleteConfirm": "Удалить",
+    "applyAmount": "Применить изменение суммы к",
+    "fromMonth": "С {{month}} и далее",
+    "allMonths": "Ко всем месяцам",
+    "amountHistory": "История сумм"
   }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", account_id AS \"account_id!\", category_id AS \"category_id!\",\n                  amount AS \"amount!\", start_year AS \"start_year!\",\n                  start_month AS \"start_month!\", end_year, end_month\n           FROM budget WHERE account_id = ? ORDER BY id",
+  "query": "SELECT b.id AS \"id!\", b.account_id AS \"account_id!\", b.category_id AS \"category_id!\",\n                  b.amount AS \"amount!\", b.start_year AS \"start_year!\",\n                  b.start_month AS \"start_month!\", b.end_year, b.end_month,\n                  ba.effective_year AS \"seg_year?\", ba.effective_month AS \"seg_month?\",\n                  ba.amount AS \"seg_amount?\"\n           FROM budget b\n           LEFT JOIN budget_amount ba ON ba.budget_id = b.id\n           WHERE b.account_id = ?\n           ORDER BY b.id, ba.effective_year, ba.effective_month",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,39 @@
             "name": "end_month"
           }
         }
+      },
+      {
+        "name": "seg_year?",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget_amount",
+            "name": "effective_year"
+          }
+        }
+      },
+      {
+        "name": "seg_month?",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "budget_amount",
+            "name": "effective_month"
+          }
+        }
+      },
+      {
+        "name": "seg_amount?",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "budget_amount",
+            "name": "amount"
+          }
+        }
       }
     ],
     "parameters": {
@@ -103,8 +136,11 @@
       false,
       false,
       true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "b0271727eac11599d9db1bd952a43c42e7db90115906bc1481824f8160ccb33d"
+  "hash": "0dcbabf78f765508f6dcc02ea8a27599730a2d635a2f6d0cb2edafc81bdda196"
 }

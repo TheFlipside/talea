@@ -20,8 +20,12 @@ All notable changes to this project are documented in this file.
   **Budgets** tab (month-aware, with a planned/actual bar per budget); one budget
   per category per account; summary accounts show their members' budgets
   read-only. Creating a budget for a category that already has a recurring
-  expense offers to retire that rule. Migration `0005`; budgets round-trip
-  through Nextcloud backup/restore. Translated in all 12 locales.
+  expense offers to retire that rule. Budgets carry an **amount history** like
+  recurring rules do, so raising groceries from 400 to 450 in June leaves
+  January–May reserving 400 — the form offers the same "From {{month}} onward /
+  All months" choice, defaulting to onward. Migrations `0005`/`0006`; budgets and
+  their history round-trip through Nextcloud backup/restore. Translated in all 12
+  locales.
 
 - **App version in Settings** — the installed version is shown at the very
   bottom of the Settings screen, so testers can report which build they are on

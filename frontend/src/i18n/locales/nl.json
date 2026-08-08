@@ -253,6 +253,10 @@
     "deleteAria": "Budget voor {{name}} verwijderen",
     "deleteTitle": "Budget verwijderen?",
     "deleteWarning": "\"{{name}}\" houdt dan niets meer achter van het vrij besteedbare bedrag van deze maand.",
-    "deleteConfirm": "Verwijderen"
+    "deleteConfirm": "Verwijderen",
+    "applyAmount": "Bedragswijziging toepassen op",
+    "fromMonth": "Vanaf {{month}}",
+    "allMonths": "Alle maanden",
+    "amountHistory": "Bedragsgeschiedenis"
   }
 }

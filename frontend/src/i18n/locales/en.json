@@ -253,6 +253,10 @@
     "deleteAria": "Delete budget for {{name}}",
     "deleteTitle": "Delete budget?",
     "deleteWarning": "\"{{name}}\" will no longer hold anything back from this month's free-to-spend figure.",
-    "deleteConfirm": "Delete"
+    "deleteConfirm": "Delete",
+    "applyAmount": "Apply amount change to",
+    "fromMonth": "From {{month}} onward",
+    "allMonths": "All months",
+    "amountHistory": "Amount history"
   }
 }

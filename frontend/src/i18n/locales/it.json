@@ -253,6 +253,10 @@
     "deleteAria": "Elimina il budget di {{name}}",
     "deleteTitle": "Eliminare il budget?",
     "deleteWarning": "\"{{name}}\" non tratterrà più nulla dall'importo libero di questo mese.",
-    "deleteConfirm": "Elimina"
+    "deleteConfirm": "Elimina",
+    "applyAmount": "Applica la modifica dell'importo a",
+    "fromMonth": "Da {{month}} in poi",
+    "allMonths": "Tutti i mesi",
+    "amountHistory": "Cronologia degli importi"
   }
 }

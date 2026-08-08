@@ -253,6 +253,10 @@
     "deleteAria": "Supprimer le budget de {{name}}",
     "deleteTitle": "Supprimer le budget ?",
     "deleteWarning": "« {{name}} » ne réservera plus rien sur le montant libre de ce mois.",
-    "deleteConfirm": "Supprimer"
+    "deleteConfirm": "Supprimer",
+    "applyAmount": "Appliquer le changement de montant à",
+    "fromMonth": "À partir de {{month}}",
+    "allMonths": "Tous les mois",
+    "amountHistory": "Historique des montants"
   }
 }

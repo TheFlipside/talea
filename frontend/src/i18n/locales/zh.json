@@ -253,6 +253,10 @@
     "deleteAria": "删除 {{name}} 的预算",
     "deleteTitle": "删除预算？",
     "deleteWarning": "“{{name}}”将不再从本月可自由支配的金额中预留任何款项。",
-    "deleteConfirm": "删除"
+    "deleteConfirm": "删除",
+    "applyAmount": "金额变更应用于",
+    "fromMonth": "自 {{month}} 起",
+    "allMonths": "所有月份",
+    "amountHistory": "金额历史"
   }
 }

@@ -34,7 +34,7 @@ pub mod stats;
 pub(crate) mod date;
 
 pub use account::{Account, AccountKind, Currency};
-pub use budget::{budget_status, reserved_in, Budget, BudgetStatus};
+pub use budget::{budget_status, reserved_in, Budget, BudgetSegment, BudgetStatus};
 pub use category::{Category, CategoryIcon};
 pub use entry::{Entry, EntryKind};
 pub use error::{DomainError, MAX_LABEL_LEN, MAX_NOTE_LEN};
