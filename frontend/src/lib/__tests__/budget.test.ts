@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BudgetSegment } from '../../api/types';
-import { amountInMonth, isBeforeMonth } from '../budget';
+import { amountInMonth, isBeforeMonth, isSameMonth, withAmountFrom } from '../budget';
 
 const m = (year: number, month: number) => ({ year, month });
 const seg = (year: number, month: number, amount: string): BudgetSegment => ({
@@ -35,5 +35,57 @@ describe('amountInMonth', () => {
 
   it('falls back to the base before the first segment', () => {
     expect(amountInMonth(history, m(2025, 11))).toBe('400.00');
+  });
+
+  it('reports a named month at its own amount, not the newest one', () => {
+    // Regression: the "not active this month" row paired the start month's label
+    // with `amounts[amounts.length - 1]`, so 100 from August, raised to 120 in
+    // October and 130 in November, read as "from August: 130".
+    const raised = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00'), seg(2026, 11, '130.00')];
+    expect(amountInMonth(raised, m(2026, 8))).toBe('100.00');
+    expect(amountInMonth(raised, m(2026, 9))).toBe('100.00');
+    expect(amountInMonth(raised, m(2026, 10))).toBe('120.00');
+  });
+});
+
+describe('isSameMonth', () => {
+  it('compares both components', () => {
+    expect(isSameMonth(m(2026, 8), m(2026, 8))).toBe(true);
+    expect(isSameMonth(m(2026, 8), m(2026, 9))).toBe(false);
+    expect(isSameMonth(m(2026, 8), m(2027, 8))).toBe(false);
+  });
+});
+
+describe('withAmountFrom', () => {
+  const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00'), seg(2026, 11, '130.00')];
+
+  it('leaves later breakpoints alone', () => {
+    // The whole point: correcting August from the Budgets screen must not wipe
+    // the October and November plans as a side effect.
+    expect(withAmountFrom(history, m(2026, 8), '110.00')).toEqual([
+      seg(2026, 8, '110.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('replaces an existing segment for the same month', () => {
+    const out = withAmountFrom(history, m(2026, 10), '125.00');
+    expect(out).toHaveLength(3);
+    expect(out[1]).toEqual(seg(2026, 10, '125.00'));
+  });
+
+  it('inserts a new breakpoint in chronological order', () => {
+    expect(withAmountFrom(history, m(2026, 9), '105.00')).toEqual([
+      seg(2026, 8, '100.00'),
+      seg(2026, 9, '105.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('keeps the base anchored when the edited month is the first one', () => {
+    const out = withAmountFrom([seg(2026, 8, '100.00')], m(2026, 8), '110.00');
+    expect(out).toEqual([seg(2026, 8, '110.00')]);
   });
 });

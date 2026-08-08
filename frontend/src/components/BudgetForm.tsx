@@ -8,7 +8,7 @@ import {
   useDeleteRule,
   useUpdateBudget,
 } from '../api/hooks';
-import { amountInMonth, isBeforeMonth } from '../lib/budget';
+import { amountInMonth, isBeforeMonth, withAmountFrom } from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
 import { isoDate, isoMonthOf } from '../lib/date';
 import { formatMoney, isMoneyInput, normalizeAmountInput } from '../lib/money';
@@ -133,14 +133,26 @@ export function BudgetForm({
   const hasHistory = editing != null && editing.amounts.length > 1;
 
   /**
-   * The amount history to persist on an edit. Simpler than the rule form's
-   * equivalent because a budget's `start` is read-only, so the base segment
-   * never needs re-anchoring:
+   * The month an edit takes effect from: the one being viewed, clamped into the
+   * budget's own span so the base stays anchored at `start` and no breakpoint
+   * lands after `end`, where it could never apply.
+   */
+  function effectiveMonth(budget: Budget): Month {
+    if (isBeforeMonth(startMonth, budget.start)) {
+      return budget.start;
+    }
+    if (budget.end && isBeforeMonth(budget.end, startMonth)) {
+      return budget.end;
+    }
+    return startMonth;
+  }
+
+  /**
+   * The amount history to persist on an edit:
    *   - amount unchanged → keep the history exactly as it is;
    *   - "all months"     → collapse to a single base segment at the new amount;
-   *   - "from"           → keep the base and any earlier breakpoints, then the
-   *                        new amount from the viewed month (dropping later
-   *                        ones, which the new figure supersedes).
+   *   - "from"           → set the viewed month's segment, leaving every other
+   *                        breakpoint (earlier *and* later) alone.
    */
   function nextAmounts(budget: Budget, trimmed: string): BudgetSegment[] {
     // Numeric compare (not string) so "400" vs the stored "400.00" reads as
@@ -149,19 +161,10 @@ export function BudgetForm({
     if (Number(trimmed) === Number(viewedAmount)) {
       return budget.amounts;
     }
-    // Applying "from" at or before the start is the same as applying to all.
-    if (amountScope === 'all' || !isBeforeMonth(budget.start, startMonth)) {
+    if (amountScope === 'all') {
       return [{ effective_from: budget.start, amount: trimmed }];
     }
-    return [
-      budget.amounts[0],
-      ...budget.amounts
-        .slice(1)
-        .filter(
-          (s) => isBeforeMonth(budget.start, s.effective_from) && isBeforeMonth(s.effective_from, startMonth),
-        ),
-      { effective_from: startMonth, amount: trimmed },
-    ];
+    return withAmountFrom(budget.amounts, effectiveMonth(budget), trimmed);
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -285,10 +288,11 @@ export function BudgetForm({
           />
         </label>
 
-        {/* Only offered once the budget has a past to protect: applying a change
-            "from this month" when that month is the start is the same as
-            applying it to all, so the choice would be meaningless. */}
-        {editing && isBeforeMonth(start, startMonth) && (
+        {/* Offered once the two scopes can actually differ — i.e. the budget has
+            an earlier month to leave alone, or later breakpoints that "all
+            months" would flatten. With a single amount edited at its start month
+            both do the same thing, so the choice would be noise. */}
+        {editing && (isBeforeMonth(start, startMonth) || hasHistory) && (
           <div className="field">
             <span>{t('budgets.applyAmount')}</span>
             <div className="segmented" role="group" aria-label={t('budgets.applyAmount')}>

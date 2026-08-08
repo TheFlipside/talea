@@ -255,7 +255,7 @@
     "deleteWarning": "「{{name}}」は今月の自由に使える額から何も確保しなくなります。",
     "deleteConfirm": "削除",
     "applyAmount": "金額の変更を適用する範囲",
-    "fromMonth": "{{month}}以降",
+    "fromMonth": "{{month}}から",
     "allMonths": "すべての月",
     "amountHistory": "金額の履歴"
   }

@@ -261,7 +261,7 @@
     "deleteWarning": "„{{name}}” przestanie rezerwować cokolwiek z wolnych środków tego miesiąca.",
     "deleteConfirm": "Usuń",
     "applyAmount": "Zastosuj zmianę kwoty do",
-    "fromMonth": "Od {{month}} wzwyż",
+    "fromMonth": "Od {{month}}",
     "allMonths": "Wszystkie miesiące",
     "amountHistory": "Historia kwot"
   }

@@ -255,7 +255,7 @@
     "deleteWarning": "\"{{name}}\" non tratterrà più nulla dall'importo libero di questo mese.",
     "deleteConfirm": "Elimina",
     "applyAmount": "Applica la modifica dell'importo a",
-    "fromMonth": "Da {{month}} in poi",
+    "fromMonth": "Da {{month}}",
     "allMonths": "Tutti i mesi",
     "amountHistory": "Cronologia degli importi"
   }

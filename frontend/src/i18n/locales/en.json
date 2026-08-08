@@ -255,7 +255,7 @@
     "deleteWarning": "\"{{name}}\" will no longer hold anything back from this month's free-to-spend figure.",
     "deleteConfirm": "Delete",
     "applyAmount": "Apply amount change to",
-    "fromMonth": "From {{month}} onward",
+    "fromMonth": "From {{month}}",
     "allMonths": "All months",
     "amountHistory": "Amount history"
   }

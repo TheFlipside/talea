@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Account, Budget, BudgetStatus, Category, CategoryId } from '../api/types';
+import type { Account, Budget, BudgetStatus, Category, CategoryId, Month } from '../api/types';
 import {
   useBudgets,
   useCategories,
@@ -15,7 +15,7 @@ import { ErrorBanner } from '../components/ErrorBanner';
 import { MonthNav } from '../components/MonthNav';
 import { Spinner } from '../components/Spinner';
 import { accountColor } from '../lib/accountColor';
-import { isBeforeMonth } from '../lib/budget';
+import { amountInMonth, isBeforeMonth } from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
 import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { monthLabel } from '../lib/month';
@@ -100,21 +100,28 @@ export function BudgetsScreen({ account }: { account: Account }) {
   );
 
   /**
-   * Why a budget isn't running in the selected month. Branches on where that
-   * month sits rather than on whether an end exists — a budget that hasn't
-   * started yet would otherwise read as already finished. A budget can also be
-   * inactive for a third reason (the month predates the account's anchor, so the
-   * ledger doesn't cover it); that falls through to its start month, which is
-   * true if not the full story.
+   * Why a budget isn't running in the selected month, and **the month that
+   * answer names** — the amount shown beside it has to be the one in effect
+   * then, not the newest segment, or a budget of 100 from August raised to 130
+   * in November reads "from August: 130" when viewed from July.
+   *
+   * Branches on where the selected month sits rather than on whether an end
+   * exists: a budget that hasn't started yet would otherwise read as already
+   * finished. A budget can also be inactive for a third reason (the month
+   * predates the account's anchor, so the ledger doesn't cover it); that falls
+   * through to its start month, which is true if not the full story.
    */
-  function inactiveReason(budget: Budget): string {
-    if (isBeforeMonth(month, budget.start)) {
-      return t('budgets.startsFrom', { month: monthLabel(budget.start) });
-    }
+  function inactiveIn(budget: Budget): { label: string; at: Month } {
     if (budget.end && isBeforeMonth(budget.end, month)) {
-      return t('budgets.ranUntil', { month: monthLabel(budget.end) });
+      return {
+        label: t('budgets.ranUntil', { month: monthLabel(budget.end) }),
+        at: budget.end,
+      };
     }
-    return t('budgets.startsFrom', { month: monthLabel(budget.start) });
+    return {
+      label: t('budgets.startsFrom', { month: monthLabel(budget.start) }),
+      at: budget.start,
+    };
   }
 
   if (statuses.isPending || budgets.isPending) {
@@ -191,37 +198,37 @@ export function BudgetsScreen({ account }: { account: Account }) {
         <>
           <p className="muted budgets-screen__section">{t('budgets.notThisMonth')}</p>
           <ul className="account-list">
-            {inactive.map((budget) => (
-              <li key={budget.id} className="account-list__row">
-                <button
-                  type="button"
-                  className="account-list__main rule-row"
-                  onClick={() => setDialog({ type: 'edit', budget })}
-                >
-                  <span className="account-list__icon">{icon(budget.category_id)}</span>
-                  <span className="rule-row__main">
-                    <span className="account-list__name">{label(budget.category_id)}</span>
-                    <span className="rule-row__meta">{inactiveReason(budget)}</span>
-                  </span>
-                  <span className="amount">
-                    {formatMoney(
-                      budget.amounts[budget.amounts.length - 1].amount,
-                      account.currency,
-                    )}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  aria-label={t('budgets.deleteAria', { name: label(budget.category_id) })}
-                  onClick={() =>
-                    setDialog({ type: 'delete', budget, label: label(budget.category_id) })
-                  }
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
+            {inactive.map((budget) => {
+              const { label: reason, at } = inactiveIn(budget);
+              return (
+                <li key={budget.id} className="account-list__row">
+                  <button
+                    type="button"
+                    className="account-list__main rule-row"
+                    onClick={() => setDialog({ type: 'edit', budget })}
+                  >
+                    <span className="account-list__icon">{icon(budget.category_id)}</span>
+                    <span className="rule-row__main">
+                      <span className="account-list__name">{label(budget.category_id)}</span>
+                      <span className="rule-row__meta">{reason}</span>
+                    </span>
+                    <span className="amount">
+                      {formatMoney(amountInMonth(budget.amounts, at), account.currency)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label={t('budgets.deleteAria', { name: label(budget.category_id) })}
+                    onClick={() =>
+                      setDialog({ type: 'delete', budget, label: label(budget.category_id) })
+                    }
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

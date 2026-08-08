@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { AccountId } from '../api/types';
-import { useMonthBudgets, useMonthSummary } from '../api/hooks';
+import { useMonthSummary } from '../api/hooks';
 import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { ringView } from '../lib/ring';
 import { useSelectedMonth, useSettings } from '../state/contexts';
@@ -19,9 +19,6 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
   const { month } = useSelectedMonth();
   const { ringMode } = useSettings();
   const { data: summary, isPending, error } = useMonthSummary(accountId, month);
-  // Only to decide whether the "free to spend" figure is meaningful: without a
-  // budget this month it would just repeat "available".
-  const { data: budgets } = useMonthBudgets(accountId, month);
 
   if (isPending) {
     return <Spinner label={t('summary.loading')} />;
@@ -31,7 +28,13 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
   }
 
   const ring = ringView(summary, ringMode);
-  const hasBudgets = (budgets?.length ?? 0) > 0;
+  // Show "free to spend" exactly when it differs from "available" — i.e. when
+  // something is actually held back. Derived from the summary the ring already
+  // uses, rather than a second query: that query's pending/failed states could
+  // hide the row while the ring still reflected the reservation, leaving the two
+  // contradicting each other. Compare numerically, not `!== '0'`: `Money::zero()`
+  // renders as "0" but `planned - actual` at 2dp renders as "0.00".
+  const reserved = parseMoneyForDisplay(summary.reserved);
   // `available` gets its own sign test: `ring.overspent` tracks `free`, which can
   // be negative while `available` is still comfortably positive.
   const availableNegative = parseMoneyForDisplay(summary.available) < 0;
@@ -58,7 +61,7 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
             {formatMoney(summary.available, currency)}
           </dd>
         </div>
-        {hasBudgets && (
+        {reserved !== 0 && (
           <div>
             <dt>{t('summary.free')}</dt>
             <dd className={`amount amount--total${ring.overspent ? ' amount--negative' : ''}`}>

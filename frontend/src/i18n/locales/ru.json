@@ -261,7 +261,7 @@
     "deleteWarning": "«{{name}}» больше не будет удерживать средства из свободной суммы этого месяца.",
     "deleteConfirm": "Удалить",
     "applyAmount": "Применить изменение суммы к",
-    "fromMonth": "С {{month}} и далее",
+    "fromMonth": "С {{month}}",
     "allMonths": "Ко всем месяцам",
     "amountHistory": "История сумм"
   }
