@@ -250,7 +250,6 @@
     "endNever": "Nigdy",
     "endUntil": "W miesiącu",
     "endMonth": "Miesiąc końcowy",
-    "endMonthHint": "Liczy się tylko miesiąc; dzień jest pomijany.",
     "endBeforeStart": "Miesiąc końcowy nie może być wcześniejszy niż początkowy.",
     "over": "przekroczony",
     "ruleConflict": "Wydatek cykliczny {{amount}} już co miesiąc księguje tę kategorię. Budżet go zastępuje: to Twoje rzeczywiste zakupy pomniejszają budżet.",
@@ -263,6 +262,9 @@
     "applyAmount": "Zastosuj zmianę kwoty do",
     "fromMonth": "Od {{month}}",
     "allMonths": "Wszystkie miesiące",
-    "amountHistory": "Historia kwot"
+    "amountHistory": "Historia kwot",
+    "monthHint": "Liczy się tylko miesiąc; dzień jest pomijany.",
+    "categoryTaken": "Kategorie z istniejącym budżetem nie są wymienione. Aby objąć inny miesiąc, zmień miesiąc początkowy tamtego budżetu.",
+    "emptySummaryMonth": "Żaden budżet tego zestawienia nie jest aktywny w tym miesiącu."
   }
 }

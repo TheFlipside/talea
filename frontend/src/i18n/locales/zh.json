@@ -244,7 +244,6 @@
     "endNever": "从不",
     "endUntil": "指定月份",
     "endMonth": "结束月份",
-    "endMonthHint": "仅使用月份，日期将被忽略。",
     "endBeforeStart": "结束月份不能早于开始月份。",
     "over": "超支",
     "ruleConflict": "一条 {{amount}} 的周期性支出已经每月计入此分类。预算会取代它：改由你的实际消费抵扣预算。",
@@ -257,6 +256,9 @@
     "applyAmount": "金额变更应用于",
     "fromMonth": "自 {{month}} 起",
     "allMonths": "所有月份",
-    "amountHistory": "金额历史"
+    "amountHistory": "金额历史",
+    "monthHint": "仅使用月份，日期将被忽略。",
+    "categoryTaken": "已有预算的分类不会列出。若要覆盖其他月份，请改为修改该预算的开始月份。",
+    "emptySummaryMonth": "该汇总账户的预算本月均未生效。"
   }
 }

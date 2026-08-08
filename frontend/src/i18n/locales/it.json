@@ -244,7 +244,6 @@
     "endNever": "Mai",
     "endUntil": "Nel mese",
     "endMonth": "Mese finale",
-    "endMonthHint": "Conta solo il mese; il giorno viene ignorato.",
     "endBeforeStart": "Il mese finale non può precedere quello iniziale.",
     "over": "superato",
     "ruleConflict": "Una spesa ricorrente di {{amount}} registra già questa categoria ogni mese. Un budget la sostituisce: gli acquisti reali vengono scalati dal budget.",
@@ -257,6 +256,9 @@
     "applyAmount": "Applica la modifica dell'importo a",
     "fromMonth": "Da {{month}}",
     "allMonths": "Tutti i mesi",
-    "amountHistory": "Cronologia degli importi"
+    "amountHistory": "Cronologia degli importi",
+    "monthHint": "Conta solo il mese; il giorno viene ignorato.",
+    "categoryTaken": "Le categorie che hanno già un budget non sono elencate. Per coprire un altro mese, cambia l'inizio di quel budget.",
+    "emptySummaryMonth": "Nessun budget di questo riepilogo è attivo questo mese."
   }
 }

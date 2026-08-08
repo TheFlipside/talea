@@ -149,7 +149,15 @@ export function BudgetsScreen({ account }: { account: Account }) {
       <MonthNav />
 
       {statuses.data.length === 0 ? (
-        <p className="muted">{isSummary ? t('budgets.emptySummary') : t('budgets.empty')}</p>
+        // A summary can't show the "not active this month" list below (its rows
+        // are editable, and a summary owns nothing), so the empty message has to
+        // carry that distinction itself — otherwise a summary whose member
+        // budgets simply start later claims it has none at all.
+        <p className="muted">
+          {isSummary
+            ? t(budgets.data.length > 0 ? 'budgets.emptySummaryMonth' : 'budgets.emptySummary')
+            : t('budgets.empty')}
+        </p>
       ) : (
         <ul className="stats-list">
           {statuses.data.map((status) => (

@@ -403,7 +403,10 @@ free     = available − reserved
   `budget_amount` history (money TEXT, months as `(year, month)` INTEGER pairs
   like `account.anchor_*`). `category_id` cascades — unlike an entry, a budget
   names exactly one category and has nothing left to measure without it. Both
-  tables join the backup/restore `TABLES` set.
+  tables join the backup/restore `TABLES` set. Note `0006`'s header comment still
+  says the start month is read-only, which it no longer is: `sqlx` checksums
+  applied migrations, so editing even a comment would make every existing install
+  refuse to start. Applied migrations are immutable — this file is the record.
 - **Effective-dated amounts.** A budget carries an **amount history**, not one
   figure: `budget.amount` is the base at its start month, and migration `0006`'s
   `budget_amount` table holds later breakpoints — the same shape and rationale as
@@ -415,7 +418,19 @@ free     = available − reserved
   a past to protect. The stakes are lower than for a rule — a rule's amount feeds
   the ledger, so a retroactive edit would move historical *balances*, whereas a
   budget's only feeds `reserved`, which never enters the chain — but showing a
-  month a plan it never had is still wrong, and it is why `start` is read-only.
+  month a plan it never had is still wrong. Setting a month's amount replaces
+  that month's segment only, leaving later breakpoints alone: unlike a rule's
+  hand-picked effective date, a budget's is whichever month the screen is
+  showing, and paging back to correct an earlier month must not wipe the plan for
+  later ones. Flattening the history is what the "All months" scope is for.
+- **The start month is editable**, and re-anchors the history
+  (`lib/budget.ts::reanchorAmounts`). Moving it **earlier** extends the base back
+  over months that had no budget at all, so it cannot falsify anything — there
+  was nothing there. Moving it **later** drops the segments outside the new span
+  and re-anchors on whatever amount was in effect at the new start. This is the
+  only way to bring an existing budget back to a month you paged to, and since a
+  category holds at most one budget it is the only way to cover that month at
+  all; the create form says as much when it hides an already-budgeted category.
 - **Deferred.** `UNIQUE (account_id, category_id)` is unconditional over time, so
   a category has at most one budget row ever. Dated amounts remove the reason
   that used to matter (changing the plan going forward no longer needs a

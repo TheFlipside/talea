@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BudgetSegment } from '../../api/types';
-import { amountInMonth, isBeforeMonth, isSameMonth, withAmountFrom } from '../budget';
+import {
+  amountInMonth,
+  isBeforeMonth,
+  isSameMonth,
+  reanchorAmounts,
+  withAmountFrom,
+} from '../budget';
 
 const m = (year: number, month: number) => ({ year, month });
 const seg = (year: number, month: number, amount: string): BudgetSegment => ({
@@ -87,5 +93,46 @@ describe('withAmountFrom', () => {
   it('keeps the base anchored when the edited month is the first one', () => {
     const out = withAmountFrom([seg(2026, 8, '100.00')], m(2026, 8), '110.00');
     expect(out).toEqual([seg(2026, 8, '110.00')]);
+  });
+});
+
+describe('reanchorAmounts', () => {
+  const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00'), seg(2026, 11, '130.00')];
+
+  it('extends the base back when the start moves earlier', () => {
+    // Paging back to July and moving the start there must cover July onward at
+    // the base amount, without disturbing the October and November raises.
+    expect(reanchorAmounts(history, m(2026, 7))).toEqual([
+      seg(2026, 7, '100.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('drops segments outside the span and re-anchors when the start moves later', () => {
+    expect(reanchorAmounts(history, m(2026, 10))).toEqual([
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('re-anchors mid-segment on the amount then in effect', () => {
+    expect(reanchorAmounts(history, m(2026, 9))).toEqual([
+      seg(2026, 9, '100.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('drops a breakpoint that would merely restate the running amount', () => {
+    // Moving the start to July would otherwise leave July=100 followed by a
+    // redundant August=100 in the history list.
+    expect(reanchorAmounts([seg(2026, 8, '100.00')], m(2026, 7))).toEqual([
+      seg(2026, 7, '100.00'),
+    ]);
+  });
+
+  it('is a no-op when the start is unchanged', () => {
+    expect(reanchorAmounts(history, m(2026, 8))).toEqual(history);
   });
 });

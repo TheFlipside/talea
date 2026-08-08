@@ -244,7 +244,6 @@
     "endNever": "Nie",
     "endUntil": "Im Monat",
     "endMonth": "Endmonat",
-    "endMonthHint": "Es zählt nur der Monat; der Tag wird ignoriert.",
     "endBeforeStart": "Der Endmonat darf nicht vor dem Startmonat liegen.",
     "over": "über",
     "ruleConflict": "Eine wiederkehrende Ausgabe von {{amount}} bucht diese Kategorie bereits jeden Monat. Ein Budget ersetzt sie: Stattdessen zählen deine tatsächlichen Käufe gegen das Budget.",
@@ -257,6 +256,9 @@
     "applyAmount": "Betragsänderung anwenden auf",
     "fromMonth": "Ab {{month}}",
     "allMonths": "Alle Monate",
-    "amountHistory": "Betragsverlauf"
+    "amountHistory": "Betragsverlauf",
+    "monthHint": "Es zählt nur der Monat; der Tag wird ignoriert.",
+    "categoryTaken": "Kategorien mit einem bestehenden Budget werden nicht aufgeführt. Um einen anderen Monat abzudecken, ändere stattdessen dessen Startmonat.",
+    "emptySummaryMonth": "In diesem Monat ist keines der Budgets dieser Übersicht aktiv."
   }
 }

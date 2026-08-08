@@ -244,7 +244,6 @@
     "endNever": "Asla",
     "endUntil": "Belirli ayda",
     "endMonth": "Bitiş ayı",
-    "endMonthHint": "Yalnızca ay kullanılır; gün dikkate alınmaz.",
     "endBeforeStart": "Bitiş ayı, başlangıç ayından önce olamaz.",
     "over": "aşıldı",
     "ruleConflict": "{{amount}} tutarında yinelenen bir gider bu kategoriyi zaten her ay işliyor. Bütçe onun yerini alır: bunun yerine gerçek alışverişlerin bütçeden düşülür.",
@@ -257,6 +256,9 @@
     "applyAmount": "Tutar değişikliğini uygula",
     "fromMonth": "{{month}} tarihinden itibaren",
     "allMonths": "Tüm aylar",
-    "amountHistory": "Tutar geçmişi"
+    "amountHistory": "Tutar geçmişi",
+    "monthHint": "Yalnızca ay kullanılır; gün dikkate alınmaz.",
+    "categoryTaken": "Zaten bütçesi olan kategoriler listelenmez. Başka bir ayı kapsamak için o bütçenin başlangıç ayını değiştir.",
+    "emptySummaryMonth": "Bu özetin bütçelerinden hiçbiri bu ay etkin değil."
   }
 }

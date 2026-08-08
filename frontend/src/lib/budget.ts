@@ -38,6 +38,31 @@ export function withAmountFrom(
 }
 
 /**
+ * The history moved to a new start month, keeping every month's figure intact
+ * where it still exists.
+ *
+ * The domain requires the first segment to sit exactly on the budget's start, so
+ * changing the start has to rebuild the sequence:
+ * - moving it **earlier** extends the base amount back over months that had no
+ *   budget at all — it can't falsify anything, because there was nothing there;
+ * - moving it **later** drops the segments that fall outside the new span, and
+ *   re-anchors on whatever amount was in effect at the new start.
+ *
+ * A segment that merely restates the amount already running is dropped, so
+ * re-anchoring doesn't leave redundant entries in the history list.
+ */
+export function reanchorAmounts(
+  amounts: readonly BudgetSegment[],
+  start: Month,
+): BudgetSegment[] {
+  const rebuilt: BudgetSegment[] = [
+    { effective_from: start, amount: amountInMonth(amounts, start) },
+    ...amounts.filter((s) => isBeforeMonth(start, s.effective_from)),
+  ];
+  return rebuilt.filter((s, i) => i === 0 || s.amount !== rebuilt[i - 1].amount);
+}
+
+/**
  * The planned amount in effect for `month`: the last segment effective at or
  * before it. Mirrors the core's `Budget::amount_in`, so the form always shows
  * the figure the month being viewed actually reserves — not the newest one.

@@ -244,7 +244,6 @@
     "endNever": "Nunca",
     "endUntil": "En el mes",
     "endMonth": "Mes final",
-    "endMonthHint": "Solo se usa el mes; el día se ignora.",
     "endBeforeStart": "El mes final no puede ser anterior al inicial.",
     "over": "excedido",
     "ruleConflict": "Un gasto recurrente de {{amount}} ya registra esta categoría cada mes. Un presupuesto lo sustituye: tus compras reales se descuentan del presupuesto.",
@@ -257,6 +256,9 @@
     "applyAmount": "Aplicar el cambio de importe a",
     "fromMonth": "Desde {{month}}",
     "allMonths": "Todos los meses",
-    "amountHistory": "Historial de importes"
+    "amountHistory": "Historial de importes",
+    "monthHint": "Solo se usa el mes; el día se ignora.",
+    "categoryTaken": "Las categorías que ya tienen presupuesto no aparecen. Para cubrir otro mes, cambia el inicio de ese presupuesto.",
+    "emptySummaryMonth": "Ninguno de los presupuestos de este resumen está activo este mes."
   }
 }

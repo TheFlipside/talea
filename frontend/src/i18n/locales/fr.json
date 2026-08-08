@@ -244,7 +244,6 @@
     "endNever": "Jamais",
     "endUntil": "Au mois",
     "endMonth": "Mois de fin",
-    "endMonthHint": "Seul le mois compte ; le jour est ignoré.",
     "endBeforeStart": "Le mois de fin ne peut pas précéder le mois de début.",
     "over": "dépassé",
     "ruleConflict": "Une dépense récurrente de {{amount}} enregistre déjà cette catégorie chaque mois. Un budget la remplace : vos achats réels sont décomptés du budget.",
@@ -257,6 +256,9 @@
     "applyAmount": "Appliquer le changement de montant à",
     "fromMonth": "À partir de {{month}}",
     "allMonths": "Tous les mois",
-    "amountHistory": "Historique des montants"
+    "amountHistory": "Historique des montants",
+    "monthHint": "Seul le mois compte ; le jour est ignoré.",
+    "categoryTaken": "Les catégories ayant déjà un budget ne sont pas listées. Pour couvrir un autre mois, modifiez plutôt le début de ce budget.",
+    "emptySummaryMonth": "Aucun budget de ce résumé n'est actif ce mois-ci."
   }
 }

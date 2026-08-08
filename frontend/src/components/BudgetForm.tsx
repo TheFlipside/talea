@@ -8,7 +8,13 @@ import {
   useDeleteRule,
   useUpdateBudget,
 } from '../api/hooks';
-import { amountInMonth, isBeforeMonth, withAmountFrom } from '../lib/budget';
+import {
+  amountInMonth,
+  isBeforeMonth,
+  isSameMonth,
+  reanchorAmounts,
+  withAmountFrom,
+} from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
 import { isoDate, isoMonthOf } from '../lib/date';
 import { formatMoney, isMoneyInput, normalizeAmountInput } from '../lib/money';
@@ -52,7 +58,13 @@ export function BudgetForm({
   const deleteRule = useDeleteRule(accountId);
   const { data: categories, isPending: categoriesPending } = useCategories();
 
-  const start = editing?.start ?? startMonth;
+  // Editable: a budget's start is the answer to "from when does this apply?",
+  // and with effective-dated amounts moving it earlier only extends the base
+  // over months that had none. Without this there is no way to bring an existing
+  // budget back to a month you paged to — and since a category can hold only one
+  // budget, no way to cover that month at all.
+  const [startDate, setStartDate] = useState(firstDayOf(editing?.start ?? startMonth));
+  const start = isoMonthOf(startDate);
   const [categoryId, setCategoryId] = useState(
     editing != null ? String(editing.category_id) : '',
   );
@@ -82,6 +94,9 @@ export function BudgetForm({
   const [dropRule, setDropRule] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const someCategoryHidden = (categories ?? []).some(
+    (c) => c.id !== editing?.category_id && takenCategoryIds.includes(c.id),
+  );
   const categoryOptions = (categories ?? [])
     .filter((c) => c.id === editing?.category_id || !takenCategoryIds.includes(c.id))
     .map((c) => ({
@@ -134,37 +149,44 @@ export function BudgetForm({
 
   /**
    * The month an edit takes effect from: the one being viewed, clamped into the
-   * budget's own span so the base stays anchored at `start` and no breakpoint
-   * lands after `end`, where it could never apply.
+   * budget's span so the base stays anchored at `start` and no breakpoint lands
+   * after `end`, where it could never apply.
    */
-  function effectiveMonth(budget: Budget): Month {
-    if (isBeforeMonth(startMonth, budget.start)) {
-      return budget.start;
+  function effectiveMonth(end: Month | null): Month {
+    if (isBeforeMonth(startMonth, start)) {
+      return start;
     }
-    if (budget.end && isBeforeMonth(budget.end, startMonth)) {
-      return budget.end;
+    if (end && isBeforeMonth(end, startMonth)) {
+      return end;
     }
     return startMonth;
   }
 
   /**
-   * The amount history to persist on an edit:
-   *   - amount unchanged → keep the history exactly as it is;
-   *   - "all months"     → collapse to a single base segment at the new amount;
-   *   - "from"           → set the viewed month's segment, leaving every other
-   *                        breakpoint (earlier *and* later) alone.
+   * The amount history to persist on an edit. The start month is applied first
+   * (it decides where the base sits), then the amount change on top:
+   *   - "all months" → collapse to a single base segment at the new amount;
+   *   - "from"       → set the viewed month's segment, leaving every other
+   *                    breakpoint (earlier *and* later) alone.
    */
-  function nextAmounts(budget: Budget, trimmed: string): BudgetSegment[] {
+  function nextAmounts(budget: Budget, trimmed: string, end: Month | null): BudgetSegment[] {
+    const rebased = isSameMonth(budget.start, start)
+      ? budget.amounts
+      : reanchorAmounts(budget.amounts, start);
+
+    // Checked before the unchanged shortcut below: flattening is a structural
+    // change even when the figure itself is the same, and it is the only way to
+    // clear a history — including back under the segment cap.
+    if (amountScope === 'all') {
+      return [{ effective_from: start, amount: trimmed }];
+    }
     // Numeric compare (not string) so "400" vs the stored "400.00" reads as
     // unchanged; a control decision only, never a stored money value, and
     // amounts are bounded well within float precision by the core's cap.
     if (Number(trimmed) === Number(viewedAmount)) {
-      return budget.amounts;
+      return rebased;
     }
-    if (amountScope === 'all') {
-      return [{ effective_from: budget.start, amount: trimmed }];
-    }
-    return withAmountFrom(budget.amounts, effectiveMonth(budget), trimmed);
+    return withAmountFrom(rebased, effectiveMonth(end), trimmed);
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -191,7 +213,8 @@ export function BudgetForm({
         {
           ...editing,
           category_id: selected,
-          amounts: nextAmounts(editing, normalizedAmount),
+          amounts: nextAmounts(editing, normalizedAmount, end),
+          start,
           end,
         },
         { onSuccess: onClose },
@@ -235,6 +258,13 @@ export function BudgetForm({
               onChange={pickCategory}
               ariaLabel={t('entry.category')}
             />
+          )}
+          {/* A category holds at most one budget, so an already-budgeted one is
+              missing from the list even when its budget doesn't cover the month
+              being viewed. Say so, and point at the fix (moving that budget's
+              start), rather than leaving a silent gap. */}
+          {!editing && !categoriesPending && someCategoryHidden && (
+            <p className="muted">{t('budgets.categoryTaken')}</p>
           )}
         </div>
 
@@ -316,11 +346,14 @@ export function BudgetForm({
           </div>
         )}
 
-        {/* Read-only, like an account's anchor month: moving a budget's start
-            would retroactively rewrite past months' `free` figures. */}
         <div className="field">
           <span>{t('budgets.startsIn')}</span>
-          <p className="muted">{monthLabel(start)}</p>
+          <DatePicker
+            value={startDate}
+            onChange={setStartDate}
+            ariaLabel={t('budgets.startsIn')}
+          />
+          <p className="muted">{t('budgets.monthHint')}</p>
         </div>
 
         <div className="field">
@@ -345,7 +378,7 @@ export function BudgetForm({
                 onChange={setEndDate}
                 ariaLabel={t('budgets.endMonth')}
               />
-              <p className="muted">{t('budgets.endMonthHint')}</p>
+              <p className="muted">{t('budgets.monthHint')}</p>
             </>
           )}
         </div>

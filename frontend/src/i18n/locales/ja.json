@@ -244,7 +244,6 @@
     "endNever": "なし",
     "endUntil": "指定の月",
     "endMonth": "終了月",
-    "endMonthHint": "月のみが使われ、日は無視されます。",
     "endBeforeStart": "終了月を開始月より前にはできません。",
     "over": "超過",
     "ruleConflict": "{{amount}} の定期支出がすでに毎月このカテゴリーに計上されています。予算はそれを置き換えます。実際の買い物が予算から差し引かれます。",
@@ -257,6 +256,9 @@
     "applyAmount": "金額の変更を適用する範囲",
     "fromMonth": "{{month}}から",
     "allMonths": "すべての月",
-    "amountHistory": "金額の履歴"
+    "amountHistory": "金額の履歴",
+    "monthHint": "月のみが使われ、日は無視されます。",
+    "categoryTaken": "すでに予算があるカテゴリーは表示されません。別の月を対象にするには、その予算の開始月を変更してください。",
+    "emptySummaryMonth": "このサマリーの予算は今月どれも対象外です。"
   }
 }

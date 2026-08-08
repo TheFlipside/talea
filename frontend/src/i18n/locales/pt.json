@@ -244,7 +244,6 @@
     "endNever": "Nunca",
     "endUntil": "No mês",
     "endMonth": "Mês final",
-    "endMonthHint": "Só o mês conta; o dia é ignorado.",
     "endBeforeStart": "O mês final não pode ser anterior ao inicial.",
     "over": "excedido",
     "ruleConflict": "Uma despesa recorrente de {{amount}} já lança esta categoria todos os meses. Um orçamento substitui-a: as tuas compras reais é que contam para o orçamento.",
@@ -257,6 +256,9 @@
     "applyAmount": "Aplicar a alteração do valor a",
     "fromMonth": "A partir de {{month}}",
     "allMonths": "Todos os meses",
-    "amountHistory": "Histórico de valores"
+    "amountHistory": "Histórico de valores",
+    "monthHint": "Só o mês conta; o dia é ignorado.",
+    "categoryTaken": "As categorias que já têm orçamento não aparecem. Para cobrir outro mês, altera o início desse orçamento.",
+    "emptySummaryMonth": "Nenhum orçamento deste resumo está ativo este mês."
   }
 }

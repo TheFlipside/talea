@@ -244,7 +244,6 @@
     "endNever": "Nooit",
     "endUntil": "In maand",
     "endMonth": "Eindmaand",
-    "endMonthHint": "Alleen de maand telt; de dag wordt genegeerd.",
     "endBeforeStart": "De eindmaand kan niet vóór de startmaand liggen.",
     "over": "over",
     "ruleConflict": "Een terugkerende uitgave van {{amount}} boekt deze categorie al elke maand. Een budget vervangt die: je echte aankopen gaan van het budget af.",
@@ -257,6 +256,9 @@
     "applyAmount": "Bedragswijziging toepassen op",
     "fromMonth": "Vanaf {{month}}",
     "allMonths": "Alle maanden",
-    "amountHistory": "Bedragsgeschiedenis"
+    "amountHistory": "Bedragsgeschiedenis",
+    "monthHint": "Alleen de maand telt; de dag wordt genegeerd.",
+    "categoryTaken": "Categorieën met een bestaand budget staan er niet bij. Wijzig de startmaand van dat budget om een andere maand te dekken.",
+    "emptySummaryMonth": "Geen van de budgetten van dit overzicht is deze maand actief."
   }
 }

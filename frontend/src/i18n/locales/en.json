@@ -244,7 +244,6 @@
     "endNever": "Never",
     "endUntil": "In month",
     "endMonth": "End month",
-    "endMonthHint": "Only the month is used; the day is ignored.",
     "endBeforeStart": "The end month can't be before the start month.",
     "over": "over",
     "ruleConflict": "A recurring expense of {{amount}} already books this category every month. A budget replaces it: your real purchases count against the budget instead.",
@@ -257,6 +256,9 @@
     "applyAmount": "Apply amount change to",
     "fromMonth": "From {{month}}",
     "allMonths": "All months",
-    "amountHistory": "Amount history"
+    "amountHistory": "Amount history",
+    "monthHint": "Only the month is used; the day is ignored.",
+    "categoryTaken": "Categories with a budget already aren't listed. To cover a different month, change that budget's start instead.",
+    "emptySummaryMonth": "None of this summary's budgets are active this month."
   }
 }
