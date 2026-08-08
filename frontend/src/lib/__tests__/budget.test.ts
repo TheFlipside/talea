@@ -1,0 +1,297 @@
+import { describe, expect, it } from 'vitest';
+
+import type { BudgetSegment } from '../../api/types';
+import {
+  amountInMonth,
+  budgetedIn,
+  budgetKey,
+  clashingExpenseRule,
+  isBeforeMonth,
+  isSameMonth,
+  reanchorAmounts,
+  withAmountForMonth,
+  withAmountFrom,
+} from '../budget';
+
+const m = (year: number, month: number) => ({ year, month });
+const seg = (year: number, month: number, amount: string): BudgetSegment => ({
+  effective_from: m(year, month),
+  amount,
+});
+
+describe('isBeforeMonth', () => {
+  it('orders by year then month', () => {
+    expect(isBeforeMonth(m(2025, 12), m(2026, 1))).toBe(true);
+    expect(isBeforeMonth(m(2026, 1), m(2025, 12))).toBe(false);
+    expect(isBeforeMonth(m(2026, 5), m(2026, 6))).toBe(true);
+    expect(isBeforeMonth(m(2026, 6), m(2026, 6))).toBe(false);
+  });
+});
+
+describe('amountInMonth', () => {
+  const history = [seg(2026, 1, '400.00'), seg(2026, 6, '450.00'), seg(2026, 9, '500.00')];
+
+  it('returns the base when there is only one segment', () => {
+    expect(amountInMonth([seg(2026, 1, '400.00')], m(2030, 7))).toBe('400.00');
+  });
+
+  it('holds a segment until the next one starts', () => {
+    expect(amountInMonth(history, m(2026, 5))).toBe('400.00');
+    expect(amountInMonth(history, m(2026, 6))).toBe('450.00');
+    expect(amountInMonth(history, m(2026, 8))).toBe('450.00');
+    expect(amountInMonth(history, m(2026, 9))).toBe('500.00');
+    expect(amountInMonth(history, m(2027, 3))).toBe('500.00');
+  });
+
+  it('falls back to the base before the first segment', () => {
+    expect(amountInMonth(history, m(2025, 11))).toBe('400.00');
+  });
+
+  it('reports a named month at its own amount, not the newest one', () => {
+    // Regression: the "not active this month" row paired the start month's label
+    // with `amounts[amounts.length - 1]`, so 100 from August, raised to 120 in
+    // October and 130 in November, read as "from August: 130".
+    const raised = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00'), seg(2026, 11, '130.00')];
+    expect(amountInMonth(raised, m(2026, 8))).toBe('100.00');
+    expect(amountInMonth(raised, m(2026, 9))).toBe('100.00');
+    expect(amountInMonth(raised, m(2026, 10))).toBe('120.00');
+  });
+});
+
+describe('isSameMonth', () => {
+  it('compares both components', () => {
+    expect(isSameMonth(m(2026, 8), m(2026, 8))).toBe(true);
+    expect(isSameMonth(m(2026, 8), m(2026, 9))).toBe(false);
+    expect(isSameMonth(m(2026, 8), m(2027, 8))).toBe(false);
+  });
+});
+
+describe('withAmountFrom', () => {
+  const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00'), seg(2026, 11, '130.00')];
+
+  it('leaves later breakpoints alone', () => {
+    // The whole point: correcting August from the Budgets screen must not wipe
+    // the October and November plans as a side effect.
+    expect(withAmountFrom(history, m(2026, 8), '110.00')).toEqual([
+      seg(2026, 8, '110.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('replaces an existing segment for the same month', () => {
+    const out = withAmountFrom(history, m(2026, 10), '125.00');
+    expect(out).toHaveLength(3);
+    expect(out[1]).toEqual(seg(2026, 10, '125.00'));
+  });
+
+  it('inserts a new breakpoint in chronological order', () => {
+    expect(withAmountFrom(history, m(2026, 9), '105.00')).toEqual([
+      seg(2026, 8, '100.00'),
+      seg(2026, 9, '105.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('keeps the base anchored when the edited month is the first one', () => {
+    const out = withAmountFrom([seg(2026, 8, '100.00')], m(2026, 8), '110.00');
+    expect(out).toEqual([seg(2026, 8, '110.00')]);
+  });
+});
+
+describe('reanchorAmounts', () => {
+  const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00'), seg(2026, 11, '130.00')];
+
+  it('extends the base back when the start moves earlier', () => {
+    // Paging back to July and moving the start there must cover July onward at
+    // the base amount, without disturbing the October and November raises.
+    expect(reanchorAmounts(history, m(2026, 7))).toEqual([
+      seg(2026, 7, '100.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('drops segments outside the span and re-anchors when the start moves later', () => {
+    expect(reanchorAmounts(history, m(2026, 10))).toEqual([
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('re-anchors mid-segment on the amount then in effect', () => {
+    expect(reanchorAmounts(history, m(2026, 9))).toEqual([
+      seg(2026, 9, '100.00'),
+      seg(2026, 10, '120.00'),
+      seg(2026, 11, '130.00'),
+    ]);
+  });
+
+  it('drops a breakpoint that would merely restate the running amount', () => {
+    // Moving the start to July would otherwise leave July=100 followed by a
+    // redundant August=100 in the history list.
+    expect(reanchorAmounts([seg(2026, 8, '100.00')], m(2026, 7))).toEqual([
+      seg(2026, 7, '100.00'),
+    ]);
+  });
+
+  it('is a no-op when the start is unchanged', () => {
+    expect(reanchorAmounts(history, m(2026, 8))).toEqual(history);
+  });
+});
+
+describe('clashingExpenseRule', () => {
+  const rule = (
+    id: number,
+    start_date: string,
+    end: { kind: 'never' } | { kind: 'until'; date: string },
+    kind: 'expense' | 'income' = 'expense',
+    category_id: number | null = 1,
+    frequency: { unit: 'weekly' | 'monthly' | 'yearly'; interval: number } = {
+      unit: 'monthly',
+      interval: 1,
+    },
+  ) =>
+    ({
+      id,
+      account_id: 1,
+      amounts: [{ effective_from: start_date, amount: '400.00' }],
+      kind,
+      category_id,
+      start_date,
+      end,
+      frequency,
+    }) as never;
+
+  const span = { start: m(2026, 8), end: null };
+
+  it('finds an open-ended expense rule in the same category', () => {
+    const rules = [rule(1, '2026-01-01', { kind: 'never' })];
+    expect(clashingExpenseRule(rules, 1, span)?.id).toBe(1);
+  });
+
+  it('ignores income rules and other categories', () => {
+    expect(
+      clashingExpenseRule([rule(1, '2026-01-01', { kind: 'never' }, 'income')], 1, span),
+    ).toBeUndefined();
+    expect(
+      clashingExpenseRule([rule(1, '2026-01-01', { kind: 'never' }, 'expense', 2)], 1, span),
+    ).toBeUndefined();
+  });
+
+  it('ignores a rule that ended before the budget begins', () => {
+    // The destructive "delete this rule" offer must not fire on a rule that
+    // never overlaps: deleting it would be pure loss.
+    const rules = [rule(1, '2025-01-01', { kind: 'until', date: '2025-12-31' })];
+    expect(clashingExpenseRule(rules, 1, span)).toBeUndefined();
+  });
+
+  it('ignores a rule starting after the budget ends', () => {
+    const rules = [rule(1, '2027-01-01', { kind: 'never' })];
+    expect(clashingExpenseRule(rules, 1, { start: m(2026, 8), end: m(2026, 12) })).toBeUndefined();
+  });
+
+  it('ignores a cadence that skips months', () => {
+    // A yearly (or every-N-months) rule does not consume a monthly budget the
+    // way the warning claims, and the offer to delete it is destructive.
+    const yearly = [
+      rule(1, '2026-01-01', { kind: 'never' }, 'expense', 1, { unit: 'yearly', interval: 1 }),
+    ];
+    expect(clashingExpenseRule(yearly, 1, span)).toBeUndefined();
+    const everyOtherMonth = [
+      rule(1, '2026-01-01', { kind: 'never' }, 'expense', 1, { unit: 'monthly', interval: 2 }),
+    ];
+    expect(clashingExpenseRule(everyOtherMonth, 1, span)).toBeUndefined();
+    // A weekly cadence lands in every month, so it does clash.
+    const fortnightly = [
+      rule(1, '2026-01-01', { kind: 'never' }, 'expense', 1, { unit: 'weekly', interval: 2 }),
+    ];
+    expect(clashingExpenseRule(fortnightly, 1, span)?.id).toBe(1);
+  });
+
+  it('counts a rule whose last month is the budget’s first', () => {
+    const rules = [rule(1, '2025-01-01', { kind: 'until', date: '2026-08-31' })];
+    expect(clashingExpenseRule(rules, 1, span)?.id).toBe(1);
+  });
+});
+
+describe('withAmountForMonth', () => {
+  it('changes one month and restores the next', () => {
+    // The reported flow: a budget of 100 from August, lowered to 90 for July
+    // alone after moving the start back. August must stay at 100.
+    expect(withAmountForMonth([seg(2026, 7, '100.00')], m(2026, 7), '90.00')).toEqual([
+      seg(2026, 7, '90.00'),
+      seg(2026, 8, '100.00'),
+    ]);
+  });
+
+  it('leaves an existing later breakpoint intact', () => {
+    const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00')];
+    expect(withAmountForMonth(history, m(2026, 8), '90.00')).toEqual([
+      seg(2026, 8, '90.00'),
+      seg(2026, 9, '100.00'),
+      seg(2026, 10, '120.00'),
+    ]);
+  });
+
+  it('restores the amount that month would have run at, not the base', () => {
+    const history = [seg(2026, 8, '100.00'), seg(2026, 10, '120.00')];
+    // October is edited, so November must come back at October's 120.
+    expect(withAmountForMonth(history, m(2026, 10), '90.00')).toEqual([
+      seg(2026, 8, '100.00'),
+      seg(2026, 10, '90.00'),
+      seg(2026, 11, '120.00'),
+    ]);
+  });
+
+  it('adds no restore past the budget end', () => {
+    // Nothing runs after the last month, so a segment there could never apply.
+    expect(
+      withAmountForMonth([seg(2026, 8, '100.00')], m(2026, 8), '90.00', m(2026, 8)),
+    ).toEqual([seg(2026, 8, '90.00')]);
+  });
+
+  it('rolls into the next year in December', () => {
+    expect(withAmountForMonth([seg(2026, 12, '100.00')], m(2026, 12), '90.00')).toEqual([
+      seg(2026, 12, '90.00'),
+      seg(2027, 1, '100.00'),
+    ]);
+  });
+});
+
+describe('budgetedIn', () => {
+  const budget = (id: number, account_id: number, category_id: number, start: ReturnType<typeof m>, end?: ReturnType<typeof m>) =>
+    ({
+      id,
+      account_id,
+      category_id,
+      amounts: [{ effective_from: start, amount: '100.00' }],
+      start,
+      end: end ?? null,
+    }) as never;
+
+  it('includes a budget running in the month', () => {
+    const keys = budgetedIn([budget(1, 7, 3, m(2026, 8))], m(2026, 9));
+    expect(keys.has(budgetKey(7, 3))).toBe(true);
+  });
+
+  it('excludes a budget that has not started', () => {
+    expect(budgetedIn([budget(1, 7, 3, m(2026, 8))], m(2026, 7)).size).toBe(0);
+  });
+
+  it('excludes a budget that has ended, inclusive of its last month', () => {
+    const b = [budget(1, 7, 3, m(2026, 8), m(2026, 9))];
+    expect(budgetedIn(b, m(2026, 9)).has(budgetKey(7, 3))).toBe(true);
+    expect(budgetedIn(b, m(2026, 10)).size).toBe(0);
+  });
+
+  it('keys by account as well as category', () => {
+    // A summary account's list is its members' concatenated, so the same
+    // category on two accounts must not be conflated.
+    const keys = budgetedIn([budget(1, 7, 3, m(2026, 8)), budget(2, 9, 3, m(2026, 8))], m(2026, 8));
+    expect(keys.has(budgetKey(7, 3))).toBe(true);
+    expect(keys.has(budgetKey(9, 3))).toBe(true);
+    expect(keys.has(budgetKey(8, 3))).toBe(false);
+  });
+});

@@ -13,7 +13,7 @@ use talea_core::{
 };
 
 use crate::db;
-use crate::dto::{NewEntry, OccurrenceRef};
+use crate::dto::{NewBudget, NewEntry, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
@@ -212,9 +212,10 @@ async fn skip_and_detach_occurrence() {
 
     // load_account_data attaches the skip, so February expands to nothing while
     // January (unaffected) still does.
-    let (_a, _e, rules) = crate::commands::load_account_data(&pool, account.id())
+    let rules = crate::commands::load_account_data(&pool, account.id())
         .await
-        .unwrap();
+        .unwrap()
+        .rules;
     assert_eq!(rules[0].skips(), &[date(2026, TMonth::February, 5)]);
     assert!(rules[0].expand_in(Month::new(2026, 2).unwrap()).is_empty());
     assert_eq!(rules[0].expand_in(Month::new(2026, 1).unwrap()).len(), 1);
@@ -436,6 +437,7 @@ async fn ledger_query_matches_core_over_db() {
         account.anchor(),
         &entries,
         &rules,
+        &[],
     );
     assert_eq!(jan.income, Money::from_minor_units(50_000, 2));
     assert_eq!(jan.expenses, Money::from_minor_units(20_000, 2));
@@ -447,6 +449,7 @@ async fn ledger_query_matches_core_over_db() {
         account.anchor(),
         &entries,
         &rules,
+        &[],
     );
     assert_eq!(feb.carry_in, Money::from_minor_units(30_000, 2));
     assert_eq!(feb.available, Money::from_minor_units(10_000, 2)); // 300 - 200
@@ -548,12 +551,12 @@ async fn load_account_data_loads_or_reports_not_found() {
     .await
     .unwrap();
 
-    let (loaded, entries, rules) = crate::commands::load_account_data(&pool, account.id())
+    let data = crate::commands::load_account_data(&pool, account.id())
         .await
         .unwrap();
-    assert_eq!(loaded.id(), account.id());
-    assert_eq!(entries.len(), 1);
-    assert_eq!(rules.len(), 1);
+    assert_eq!(data.account.id(), account.id());
+    assert_eq!(data.entries.len(), 1);
+    assert_eq!(data.rules.len(), 1);
 }
 
 #[test]
@@ -1106,4 +1109,497 @@ async fn restore_rejects_a_different_schema_version() {
         .await
         .unwrap_err();
     assert!(matches!(err, CommandError::Backup(_)));
+}
+
+// ---- Category budgets -------------------------------------------------------
+
+async fn seed_category(pool: &SqlitePool, label: &str) -> Category {
+    let draft = Category::new(
+        CategoryId::new(0),
+        label.to_owned(),
+        CategoryIcon::Preset("tag".to_owned()),
+    )
+    .unwrap();
+    repo::category::insert(pool, &draft).await.unwrap()
+}
+
+fn new_budget(account_id: AccountId, category_id: CategoryId, minor: i64) -> NewBudget {
+    NewBudget {
+        account_id,
+        category_id,
+        amount: Money::from_minor_units(minor, 2),
+        start: Month::new(2026, 1).unwrap(),
+        end: None,
+    }
+}
+
+/// Inserts a March 2026 expense of `minor` classified under `category_id`.
+async fn seed_categorized_expense(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    category_id: CategoryId,
+    minor: i64,
+) {
+    let mut draft = new_entry(account_id, minor, EntryKind::Expense);
+    draft.category_id = Some(category_id);
+    repo::entry::insert(pool, &draft.build().unwrap())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn budget_round_trips_with_and_without_an_end() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let rent = seed_category(&pool, "Rent").await;
+
+    let open = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+    assert_eq!(open.base_amount(), Money::from_minor_units(40_000, 2));
+    assert_eq!(open.end(), None);
+
+    let mut bounded_draft = new_budget(account.id(), rent.id(), 95_000);
+    bounded_draft.end = Some(Month::new(2026, 6).unwrap());
+    let bounded = crate::commands::create_budget_inner(&pool, bounded_draft)
+        .await
+        .unwrap();
+    assert_eq!(bounded.end(), Some(Month::new(2026, 6).unwrap()));
+
+    let loaded = repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded, vec![open, bounded.clone()]);
+
+    // Update round-trips the changed amount and clears the end month.
+    let edited = talea_core::Budget::new(
+        bounded.id(),
+        bounded.account_id(),
+        bounded.category_id(),
+        Money::from_minor_units(99_000, 2),
+        bounded.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, edited.clone())
+        .await
+        .unwrap();
+    let loaded = repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded[1], edited);
+
+    assert!(repo::budget::delete(&pool, edited.id()).await.unwrap());
+    assert_eq!(
+        repo::budget::for_account(&pool, account.id())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn delete_category_cascades_its_budgets() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    crate::commands::create_budget_inner(&pool, new_budget(account.id(), groceries.id(), 40_000))
+        .await
+        .unwrap();
+
+    // Unlike entries (SET NULL), a budget cannot outlive its category.
+    assert!(repo::category::delete(&pool, groceries.id()).await.unwrap());
+    assert!(repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn delete_account_cascades_its_budgets() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    crate::commands::create_budget_inner(&pool, new_budget(account.id(), groceries.id(), 40_000))
+        .await
+        .unwrap();
+
+    assert!(repo::account::delete(&pool, account.id()).await.unwrap());
+    assert!(repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn duplicate_budget_per_category_is_rejected() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let first = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+
+    assert!(matches!(
+        crate::commands::create_budget_inner(
+            &pool,
+            new_budget(account.id(), groceries.id(), 10_000)
+        )
+        .await,
+        Err(CommandError::Validation(_))
+    ));
+
+    // Updating the existing budget must not collide with itself.
+    crate::commands::update_budget_inner(&pool, first)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn budget_on_a_summary_account_is_rejected() {
+    let (_dir, pool) = fixture().await;
+    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id()]))
+        .await
+        .unwrap();
+    let groceries = seed_category(&pool, "Groceries").await;
+
+    assert!(matches!(
+        crate::commands::create_budget_inner(
+            &pool,
+            new_budget(summary.id(), groceries.id(), 40_000)
+        )
+        .await,
+        Err(CommandError::Validation(_))
+    ));
+
+    // Nor may a crafted update move an existing budget onto the summary.
+    let budget =
+        crate::commands::create_budget_inner(&pool, new_budget(a.id(), groceries.id(), 40_000))
+            .await
+            .unwrap();
+    let moved = talea_core::Budget::new(
+        budget.id(),
+        summary.id(),
+        budget.category_id(),
+        budget.base_amount(),
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    assert!(matches!(
+        crate::commands::update_budget_inner(&pool, moved).await,
+        Err(CommandError::Validation(_))
+    ));
+}
+
+#[tokio::test]
+async fn budget_for_a_missing_category_is_rejected() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    assert!(matches!(
+        crate::commands::create_budget_inner(
+            &pool,
+            new_budget(account.id(), CategoryId::new(999), 40_000)
+        )
+        .await,
+        Err(CommandError::Validation(_))
+    ));
+}
+
+#[tokio::test]
+async fn month_summary_reserves_unspent_budget() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    seed_entry(&pool, account.id(), 200_000, EntryKind::Income).await; // +2000
+    let march = Month::new(2026, 3).unwrap();
+
+    let before = crate::commands::month_summary_inner(&pool, account.id(), march)
+        .await
+        .unwrap();
+    assert_eq!(before.reserved, Money::zero());
+    assert_eq!(before.free, before.available);
+
+    crate::commands::create_budget_inner(&pool, new_budget(account.id(), groceries.id(), 40_000))
+        .await
+        .unwrap();
+    seed_categorized_expense(&pool, account.id(), groceries.id(), 15_000).await; // -150
+
+    let after = crate::commands::month_summary_inner(&pool, account.id(), march)
+        .await
+        .unwrap();
+    // The budget moves no money: `available` is exactly the pre-budget figure
+    // minus the real 150 expense.
+    assert_eq!(
+        after.available,
+        before.available - Money::from_minor_units(15_000, 2)
+    );
+    assert_eq!(after.reserved, Money::from_minor_units(25_000, 2)); // 400 - 150
+    assert_eq!(after.free, after.available - after.reserved);
+
+    let statuses = crate::commands::month_budgets_inner(&pool, account.id(), march)
+        .await
+        .unwrap();
+    assert_eq!(statuses.len(), 1);
+    assert_eq!(statuses[0].planned, Money::from_minor_units(40_000, 2));
+    assert_eq!(statuses[0].actual, Money::from_minor_units(15_000, 2));
+    assert_eq!(statuses[0].reserved, Money::from_minor_units(25_000, 2));
+}
+
+#[tokio::test]
+async fn summary_account_concatenates_member_budget_statuses() {
+    let (_dir, pool) = fixture().await;
+    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+        .await
+        .unwrap();
+    let groceries = seed_category(&pool, "Groceries").await;
+
+    // A: 400 budgeted, 100 spent -> reserves 300. B: 200 budgeted, 300 spent ->
+    // overspent, reserves nothing. A merged-by-category row would claim 200.
+    crate::commands::create_budget_inner(&pool, new_budget(a.id(), groceries.id(), 40_000))
+        .await
+        .unwrap();
+    seed_categorized_expense(&pool, a.id(), groceries.id(), 10_000).await;
+    crate::commands::create_budget_inner(&pool, new_budget(b.id(), groceries.id(), 20_000))
+        .await
+        .unwrap();
+    seed_categorized_expense(&pool, b.id(), groceries.id(), 30_000).await;
+
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+        .await
+        .unwrap();
+    let march = Month::new(2026, 3).unwrap();
+    let statuses = crate::commands::month_budgets_inner(&pool, summary.id(), march)
+        .await
+        .unwrap();
+
+    // One row per member, each tagged with its source account.
+    assert_eq!(statuses.len(), 2);
+    assert_eq!(statuses[0].account_id, a.id());
+    assert_eq!(statuses[1].account_id, b.id());
+
+    // The rows and the headline figure agree, because both are per-member sums.
+    let total = statuses
+        .iter()
+        .fold(Money::zero(), |acc, s| acc + s.reserved);
+    assert_eq!(total, Money::from_minor_units(30_000, 2));
+    let combined = crate::commands::month_summary_inner(&pool, summary.id(), march)
+        .await
+        .unwrap();
+    assert_eq!(combined.reserved, total);
+    assert_eq!(combined.free, combined.available - combined.reserved);
+}
+
+#[tokio::test]
+async fn backup_round_trip_preserves_budgets() {
+    let (src_dir, src) = fixture().await;
+    let account = seed_account(&src).await;
+    let groceries = seed_category(&src, "Groceries").await;
+    crate::commands::create_budget_inner(&src, new_budget(account.id(), groceries.id(), 40_000))
+        .await
+        .unwrap();
+    let bytes = crate::backup::snapshot(&src, src_dir.path()).await.unwrap();
+
+    let (dst_dir, dst) = fixture().await;
+    crate::backup::restore(&dst, dst_dir.path(), &bytes)
+        .await
+        .unwrap();
+    let restored = repo::budget::for_account(&dst, account.id()).await.unwrap();
+    assert_eq!(restored.len(), 1);
+    assert_eq!(
+        restored[0].base_amount(),
+        Money::from_minor_units(40_000, 2)
+    );
+}
+
+#[tokio::test]
+async fn budget_before_the_account_anchor_is_inert() {
+    let (_dir, pool) = fixture().await;
+    // `seed_account` anchors at 2026-01, so 2025-12 predates the ledger.
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let mut draft = new_budget(account.id(), groceries.id(), 40_000);
+    draft.start = Month::new(2025, 12).unwrap();
+    crate::commands::create_budget_inner(&pool, draft)
+        .await
+        .unwrap();
+
+    let before_anchor = Month::new(2025, 12).unwrap();
+    let summary = crate::commands::month_summary_inner(&pool, account.id(), before_anchor)
+        .await
+        .unwrap();
+    let statuses = crate::commands::month_budgets_inner(&pool, account.id(), before_anchor)
+        .await
+        .unwrap();
+
+    // The rows and the headline must agree: a pre-anchor month reserves nothing.
+    assert_eq!(summary.reserved, Money::zero());
+    assert_eq!(summary.free, summary.available);
+    assert!(statuses.is_empty());
+
+    // From the anchor on, the same budget does apply.
+    let anchored =
+        crate::commands::month_budgets_inner(&pool, account.id(), Month::new(2026, 1).unwrap())
+            .await
+            .unwrap();
+    assert_eq!(anchored.len(), 1);
+}
+
+#[tokio::test]
+async fn budget_amount_history_round_trips_and_is_not_retroactive() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let budget = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+    assert_eq!(budget.amounts().len(), 1);
+
+    // Raise to 450 from June, keeping the 400 base at the January start.
+    let raised = talea_core::Budget::new_with_amounts(
+        budget.id(),
+        budget.account_id(),
+        budget.category_id(),
+        vec![
+            talea_core::BudgetSegment::new(budget.start(), Money::from_minor_units(40_000, 2)),
+            talea_core::BudgetSegment::new(
+                Month::new(2026, 6).unwrap(),
+                Money::from_minor_units(45_000, 2),
+            ),
+        ],
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, raised.clone())
+        .await
+        .unwrap();
+
+    let loaded = repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded, vec![raised]);
+
+    // Each month reserves its own planned figure — the raise is not retroactive.
+    let may_rows =
+        crate::commands::month_budgets_inner(&pool, account.id(), Month::new(2026, 5).unwrap())
+            .await
+            .unwrap();
+    let june_rows =
+        crate::commands::month_budgets_inner(&pool, account.id(), Month::new(2026, 6).unwrap())
+            .await
+            .unwrap();
+    assert_eq!(may_rows[0].planned, Money::from_minor_units(40_000, 2));
+    assert_eq!(june_rows[0].planned, Money::from_minor_units(45_000, 2));
+
+    // And the month summary's reservation follows the same figure.
+    let may =
+        crate::commands::month_summary_inner(&pool, account.id(), Month::new(2026, 5).unwrap())
+            .await
+            .unwrap();
+    let june =
+        crate::commands::month_summary_inner(&pool, account.id(), Month::new(2026, 6).unwrap())
+            .await
+            .unwrap();
+    assert_eq!(may.reserved, Money::from_minor_units(40_000, 2));
+    assert_eq!(june.reserved, Money::from_minor_units(45_000, 2));
+}
+
+#[tokio::test]
+async fn updating_a_budget_replaces_its_breakpoints_wholesale() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let budget = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+
+    let with_breakpoint = talea_core::Budget::new_with_amounts(
+        budget.id(),
+        budget.account_id(),
+        budget.category_id(),
+        vec![
+            talea_core::BudgetSegment::new(budget.start(), Money::from_minor_units(40_000, 2)),
+            talea_core::BudgetSegment::new(
+                Month::new(2026, 6).unwrap(),
+                Money::from_minor_units(45_000, 2),
+            ),
+        ],
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, with_breakpoint)
+        .await
+        .unwrap();
+
+    // Saving a single-segment history again must clear the stored breakpoint,
+    // not leave it behind (the "all months" edit scope relies on this).
+    crate::commands::update_budget_inner(&pool, budget.clone())
+        .await
+        .unwrap();
+    let loaded = repo::budget::for_account(&pool, account.id())
+        .await
+        .unwrap();
+    assert_eq!(loaded, vec![budget]);
+}
+
+#[tokio::test]
+async fn deleting_a_budget_cascades_its_amount_history() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    let groceries = seed_category(&pool, "Groceries").await;
+    let budget = crate::commands::create_budget_inner(
+        &pool,
+        new_budget(account.id(), groceries.id(), 40_000),
+    )
+    .await
+    .unwrap();
+    let raised = talea_core::Budget::new_with_amounts(
+        budget.id(),
+        budget.account_id(),
+        budget.category_id(),
+        vec![
+            talea_core::BudgetSegment::new(budget.start(), Money::from_minor_units(40_000, 2)),
+            talea_core::BudgetSegment::new(
+                Month::new(2026, 6).unwrap(),
+                Money::from_minor_units(45_000, 2),
+            ),
+        ],
+        budget.start(),
+        None,
+    )
+    .unwrap();
+    crate::commands::update_budget_inner(&pool, raised)
+        .await
+        .unwrap();
+
+    let budget_key = i64::try_from(budget.id().get()).unwrap();
+    assert!(repo::budget::delete(&pool, budget.id()).await.unwrap());
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM budget_amount WHERE budget_id = ?")
+        .bind(budget_key)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
 }

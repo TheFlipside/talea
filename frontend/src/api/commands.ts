@@ -11,6 +11,9 @@ import { call } from './client';
 import type {
   Account,
   AccountId,
+  Budget,
+  BudgetId,
+  BudgetStatus,
   Category,
   CategoryExpense,
   CategoryId,
@@ -20,6 +23,7 @@ import type {
   Month,
   MonthSummary,
   NewAccount,
+  NewBudget,
   NewCategory,
   NewEntry,
   NewRule,
@@ -107,6 +111,23 @@ export const detachOccurrence = (
   entry: NewEntry,
 ): Promise<Entry> =>
   call('detach_occurrence', { accountId, occurrence: { rule_id: ruleId, date }, entry });
+
+/** An account's budgets (a summary account concatenates its members'). */
+export const listBudgets = (accountId: AccountId): Promise<Budget[]> =>
+  call('list_budgets', { accountId });
+
+export const createBudget = (budget: NewBudget): Promise<Budget> =>
+  call('create_budget', { budget });
+
+export const updateBudget = (budget: Budget): Promise<Budget> =>
+  call('update_budget', { budget });
+
+export const deleteBudget = (id: BudgetId): Promise<void> =>
+  call('delete_budget', { id });
+
+/** Each budget's planned/actual/reserved figures for the given month. */
+export const monthBudgets = (accountId: AccountId, month: Month): Promise<BudgetStatus[]> =>
+  call('month_budgets', { accountId, month });
 
 // ---- Nextcloud backup / restore --------------------------------------------
 

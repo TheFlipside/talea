@@ -21,9 +21,10 @@
     "expenses": "支出",
     "available": "月末まで利用可能",
     "loading": "概要を読み込み中…",
-    "ringSpent": "今月の資金の {{percent}}% を使用",
-    "ringRemaining": "今月の資金の {{percent}}% が残り",
-    "combinedHint": "対象口座を合算した読み取り専用の表示です。"
+    "ringSpent": "今月の資金の{{percent}}%を使用・確保済み",
+    "ringRemaining": "今月の資金の{{percent}}%が自由に使えます",
+    "combinedHint": "対象口座を合算した読み取り専用の表示です。",
+    "free": "自由に使える額"
   },
   "month": {
     "navigation": "月の移動",
@@ -104,7 +105,7 @@
     "empty": "カテゴリはまだありません。",
     "deleteAria": "{{name}} を削除",
     "deleteTitle": "カテゴリを削除しますか？",
-    "deleteWarning": "「{{name}}」の記録は金額を保持しますが、このカテゴリを失います。",
+    "deleteWarning": "「{{name}}」の記録は金額を保持しますが、このカテゴリーは外れます。このカテゴリーの予算は削除されます。",
     "deleteConfirm": "削除"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "カテゴリ",
     "recurring": "繰り返し",
     "stats": "統計",
-    "settings": "設定"
+    "settings": "設定",
+    "budgets": "予算"
   },
   "recurring": {
     "title": "繰り返しルール",
@@ -221,5 +223,50 @@
       "yearly_one": "毎年",
       "yearly_other": "{{count}}年ごと"
     }
+  },
+  "budgets": {
+    "title": "予算",
+    "add": "予算を追加",
+    "empty": "今月の予算はまだありません。",
+    "emptySummary": "このサマリーのメンバー口座に予算はありません。",
+    "notThisMonth": "今月は対象外",
+    "new": "新しい予算",
+    "edit": "予算を編集",
+    "create": "予算を作成",
+    "save": "変更を保存",
+    "amount": "毎月の金額（{{currency}}）",
+    "pickCategory": "この予算のカテゴリーを選んでください。",
+    "allCategoriesBudgeted": "この口座ではすべてのカテゴリーに予算があります。",
+    "startsIn": "開始月",
+    "startsFrom": "{{month}}から",
+    "ranUntil": "{{month}}まで",
+    "end": "終了",
+    "endNever": "なし",
+    "endUntil": "指定の月",
+    "endMonth": "終了月",
+    "endBeforeStart": "終了月を開始月より前にはできません。",
+    "over": "超過",
+    "ruleConflict": "{{amount}} の定期支出がすでに毎月このカテゴリーに計上されています。予算はそれを置き換えます。実際の買い物が予算から差し引かれます。",
+    "ruleConflictDelete": "その定期ルールを削除する",
+    "ruleConflictRow": "定期支出も毎月このカテゴリーに計上され、予算を使い切ります。「定期」画面で削除してください。",
+    "deleteAria": "{{name}} の予算を削除",
+    "deleteTitle": "予算を削除しますか？",
+    "deleteWarning": "「{{name}}」は今月の自由に使える額から何も確保しなくなります。",
+    "deleteConfirm": "削除",
+    "applyAmount": "金額の変更を適用する範囲",
+    "fromMonth": "{{month}}から",
+    "allMonths": "すべての月",
+    "amountHistory": "金額の履歴",
+    "monthHint": "月のみが使われ、日は無視されます。",
+    "categoryTaken": "すでに予算があるカテゴリーは表示されません。別の月を対象にするには、その予算の開始月を変更してください。",
+    "emptySummaryMonth": "このサマリーの予算は今月どれも対象外です。",
+    "thisMonthOnly": "{{month}}のみ",
+    "scopeHint": {
+      "month": "{{month}}だけが変わり、以降の月は金額を保ちます。",
+      "from": "{{month}}と以降の月が、次の予定変更まで変わります。",
+      "all": "すべての月が変わり、予定していた変更は削除されます。"
+    },
+    "beforeAccountStart": "この口座の開始月（{{month}}）より前",
+    "countsToward": "このカテゴリーの予算に計上されます"
   }
 }

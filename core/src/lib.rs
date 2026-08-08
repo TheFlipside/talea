@@ -7,17 +7,18 @@
 //!
 //! - [`money`] — exact, never-floating-point monetary values.
 //! - [`domain`] — the budgeting domain model: a monthly cashflow ledger with
-//!   carry-over ([`Account`], [`Category`], [`Entry`], [`RecurringRule`], and the
-//!   [`domain::ledger`] summaries). See `docs/DESIGN.md`.
+//!   carry-over ([`Account`], [`Category`], [`Entry`], [`RecurringRule`],
+//!   [`Budget`], and the [`domain::ledger`] summaries). See `docs/DESIGN.md`.
 
 pub mod domain;
 pub mod money;
 
 pub use domain::{
-    balance_at_end_of, combine_summaries, expenses_by_category, month_summary, summaries_for_range,
-    Account, AccountId, AccountKind, AmountSegment, Category, CategoryExpense, CategoryIcon,
-    CategoryId, Currency, DomainError, Entry, EntryId, EntryKind, FreqUnit, Frequency, Month,
-    MonthSummary, RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
+    balance_at_end_of, budget_status, combine_summaries, expenses_by_category, month_summary,
+    reserved_in, summaries_for_range, Account, AccountId, AccountKind, AmountSegment, Budget,
+    BudgetId, BudgetSegment, BudgetStatus, Category, CategoryExpense, CategoryIcon, CategoryId,
+    Currency, DomainError, Entry, EntryId, EntryKind, FreqUnit, Frequency, Month, MonthSummary,
+    RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
 };
 pub use money::{Money, MoneyError};
 

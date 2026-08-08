@@ -14,6 +14,8 @@ interface OccurrenceRowProps {
   readOnly?: boolean;
   /** Owning-account label, shown only in the summary view. */
   accountTag?: AccountTag;
+  /** Whether a budget measures this row's category this month. */
+  budgeted?: boolean;
   onSelect: (occurrence: Occurrence) => void;
 }
 
@@ -29,6 +31,7 @@ export function OccurrenceRow({
   category,
   readOnly = false,
   accountTag,
+  budgeted = false,
   onSelect,
 }: OccurrenceRowProps) {
   const { t } = useTranslation();
@@ -47,6 +50,11 @@ export function OccurrenceRow({
           <span className="recurring-badge" title={t('recurring.fromRule')} aria-hidden="true">
             🔁
           </span>
+          {budgeted && (
+            <span className="budget-badge" title={t('budgets.countsToward')} aria-hidden="true">
+              🎯
+            </span>
+          )}
         </span>
         <span className="entry-row__date">
           {accountTag && (

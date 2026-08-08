@@ -10,7 +10,7 @@ export interface RingView {
   fraction: number;
   /** Rounded percentage, 0..100. */
   percent: number;
-  /** Whether the month is overspent (available < 0). */
+  /** Whether nothing is left to spend freely (free < 0). */
   overspent: boolean;
   /** Translation key for the accessible/label text. */
   labelKey: 'summary.ringSpent' | 'summary.ringRemaining';
@@ -21,22 +21,28 @@ function clamp01(n: number): number {
 }
 
 /**
- * Computes the ring view for a month summary. `spent` shows expenses over funds
- * available before spending; `remaining` shows what's left. Parsing here is
- * display-only — the figures of record stay strings from the backend.
+ * Computes the ring view for a month summary. The ring answers "can I still
+ * spend?", so it follows `free` (`available - reserved`) rather than
+ * `available`: money a category budget is still holding back isn't free.
+ *
+ * `spent` shows what's committed — `funds - free`, i.e. expenses *plus* the
+ * unspent reservation; `remaining` shows `free`. The two are exact complements
+ * while `free` is within `0..funds`, and with no budgets `reserved` is 0 and
+ * `free` equals `available`, so both reduce to the pre-budget behaviour.
+ *
+ * Parsing here is display-only — the figures of record stay strings from the
+ * backend.
  */
 export function ringView(summary: MonthSummary, mode: RingMode): RingView {
   const funds = parseMoneyForDisplay(summary.carry_in) + parseMoneyForDisplay(summary.income);
-  const spent = parseMoneyForDisplay(summary.expenses);
-  const available = parseMoneyForDisplay(summary.available);
+  const free = parseMoneyForDisplay(summary.free);
 
-  const fraction =
-    funds > 0 ? clamp01((mode === 'spent' ? spent : available) / funds) : 0;
+  const fraction = funds > 0 ? clamp01((mode === 'spent' ? funds - free : free) / funds) : 0;
 
   return {
     fraction,
     percent: Math.round(fraction * 100),
-    overspent: available < 0,
+    overspent: free < 0,
     labelKey: mode === 'spent' ? 'summary.ringSpent' : 'summary.ringRemaining',
   };
 }

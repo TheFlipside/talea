@@ -9,14 +9,15 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
 use talea_core::{
-    combine_summaries as core_combine_summaries, expenses_by_category as core_expenses_by_category,
-    month_summary as core_month_summary, summaries_for_range as core_summaries_for_range, Account,
-    AccountId, AccountKind, Category, CategoryExpense, CategoryId, Entry, EntryId, Month,
+    budget_status as core_budget_status, combine_summaries as core_combine_summaries,
+    expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
+    summaries_for_range as core_summaries_for_range, Account, AccountId, AccountKind, Budget,
+    BudgetId, BudgetStatus, Category, CategoryExpense, CategoryId, Entry, EntryId, Month,
     MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
 use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
-use crate::dto::{NewAccount, NewCategory, NewEntry, NewRule, OccurrenceRef};
+use crate::dto::{NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 use crate::webdav::WebDav;
@@ -417,14 +418,197 @@ pub async fn delete_rule(
     require_found(repo::rule::delete(state.inner(), id).await?)
 }
 
+// ---- Budget -----------------------------------------------------------------
+
+/// Cross-entity rules `core` can't see: the budget's account must exist and not
+/// be a summary (summaries hold no records of their own), its category must
+/// exist, and the account must not already budget that category.
+///
+/// `excluding` is the budget being updated, so an unchanged row doesn't collide
+/// with itself. The `UNIQUE (account_id, category_id)` constraint remains the
+/// race-proof backstop behind this friendlier check.
+async fn validate_budget(
+    pool: &SqlitePool,
+    budget: &Budget,
+    excluding: Option<BudgetId>,
+) -> Result<(), CommandError> {
+    reject_if_summary(pool, budget.account_id()).await?;
+    if !repo::category::exists(pool, budget.category_id()).await? {
+        return Err(CommandError::Validation(
+            "that category no longer exists".to_owned(),
+        ));
+    }
+    if repo::budget::exists_for_category(pool, budget.account_id(), budget.category_id(), excluding)
+        .await?
+    {
+        return Err(CommandError::Validation(
+            "this category already has a budget on this account".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Creates a category budget.
+///
+/// # Errors
+/// [`CommandError::Validation`] on invalid input, a summary account, a missing
+/// category, or a category that is already budgeted;
+/// [`CommandError::Database`] on a database error.
+#[tauri::command]
+pub async fn create_budget(
+    state: State<'_, SqlitePool>,
+    budget: NewBudget,
+) -> Result<Budget, CommandError> {
+    create_budget_inner(state.inner(), budget).await
+}
+
+/// `create_budget` against a pool, separated so it's testable.
+pub(crate) async fn create_budget_inner(
+    pool: &SqlitePool,
+    budget: NewBudget,
+) -> Result<Budget, CommandError> {
+    let draft = budget.build()?;
+    validate_budget(pool, &draft, None).await?;
+    Ok(repo::budget::insert(pool, &draft).await?)
+}
+
+/// Lists an account's budgets. A summary account concatenates its members'.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist;
+/// [`CommandError::Database`] / [`CommandError::Corrupt`] on a database error.
+#[tauri::command]
+pub async fn list_budgets(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+) -> Result<Vec<Budget>, CommandError> {
+    let pool = state.inner();
+    let mut out = Vec::new();
+    for id in ledger_source_accounts(pool, account_id).await? {
+        out.extend(repo::budget::for_account(pool, id).await?);
+    }
+    Ok(out)
+}
+
+/// Updates a budget.
+///
+/// # Errors
+/// [`CommandError::Validation`] as for [`create_budget`];
+/// [`CommandError::NotFound`] if it does not exist; [`CommandError::Database`].
+#[tauri::command]
+pub async fn update_budget(
+    state: State<'_, SqlitePool>,
+    budget: Budget,
+) -> Result<Budget, CommandError> {
+    update_budget_inner(state.inner(), budget).await
+}
+
+/// `update_budget` against a pool, separated so it's testable.
+pub(crate) async fn update_budget_inner(
+    pool: &SqlitePool,
+    budget: Budget,
+) -> Result<Budget, CommandError> {
+    // Checked against the *payload's* account_id, so a crafted call can't move a
+    // budget onto a summary account (as `update_entry` does for entries).
+    validate_budget(pool, &budget, Some(budget.id())).await?;
+    require_found(repo::budget::update(pool, &budget).await?)?;
+    Ok(budget)
+}
+
+/// Deletes a budget.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if it does not exist; [`CommandError::Database`].
+#[tauri::command]
+pub async fn delete_budget(state: State<'_, SqlitePool>, id: BudgetId) -> Result<(), CommandError> {
+    // No summary check: a summary account owns no budgets, so there is nothing
+    // to guard here.
+    require_found(repo::budget::delete(state.inner(), id).await?)
+}
+
+/// Each budget's progress within `month` for an account.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist;
+/// [`CommandError::Database`] / [`CommandError::Corrupt`] on a database error.
+#[tauri::command]
+pub async fn month_budgets(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    month: Month,
+) -> Result<Vec<BudgetStatus>, CommandError> {
+    month_budgets_inner(state.inner(), account_id, month).await
+}
+
+/// `month_budgets` against a pool (summary-aware), separated so it's testable.
+///
+/// A summary account **concatenates** its members' rows rather than merging them
+/// by category. That keeps `Σ status.reserved` equal to the month summary's
+/// `reserved`, which is itself a per-member sum: one member overspending a
+/// category must not cancel another member's reservation in it.
+pub(crate) async fn month_budgets_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    month: Month,
+) -> Result<Vec<BudgetStatus>, CommandError> {
+    let mut out = Vec::new();
+    for id in ledger_source_accounts(pool, account_id).await? {
+        let data = load_account_data(pool, id).await?;
+        // Months before the account's anchor predate its ledger: `month_summary`
+        // declares them inert (zero activity, zero `reserved`), so budgets must be
+        // inert here too — otherwise a row would claim a reservation the headline
+        // figure doesn't have, breaking `Σ status.reserved == summary.reserved`.
+        if month < data.account.anchor() {
+            continue;
+        }
+        out.extend(core_budget_status(
+            month,
+            &data.budgets,
+            &data.entries,
+            &data.rules,
+        ));
+    }
+    Ok(out)
+}
+
 // ---- Ledger queries ---------------------------------------------------------
+
+/// The accounts whose own records back `account_id`'s figures: a summary
+/// account's members, or the account itself.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist.
+async fn ledger_source_accounts(
+    pool: &SqlitePool,
+    account_id: AccountId,
+) -> Result<Vec<AccountId>, CommandError> {
+    let account = repo::account::get_full(pool, account_id)
+        .await?
+        .ok_or(CommandError::NotFound)?;
+    Ok(if account.kind() == AccountKind::Summary {
+        account.members().to_vec()
+    } else {
+        vec![account_id]
+    })
+}
+
+/// One account's ledger inputs, read from a single consistent snapshot.
+pub(crate) struct AccountData {
+    pub account: Account,
+    pub entries: Vec<Entry>,
+    pub rules: Vec<RecurringRule>,
+    pub budgets: Vec<Budget>,
+}
 
 pub(crate) async fn load_account_data(
     pool: &SqlitePool,
     account_id: AccountId,
-) -> Result<(Account, Vec<Entry>, Vec<RecurringRule>), CommandError> {
-    // One transaction so account, entries, and rules are read from a single
-    // consistent snapshot even if another command writes concurrently.
+) -> Result<AccountData, CommandError> {
+    // One transaction so account, entries, rules, and budgets are read from a
+    // single consistent snapshot even if another command writes concurrently.
+    // Budgets belong here rather than in a sibling loader: `reserved` is derived
+    // from budgets *and* entries together, so a second read transaction would let
+    // a concurrent write land between the two halves of one figure.
     let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;
     let account = repo::account::get(&mut *tx, account_id)
         .await?
@@ -432,8 +616,14 @@ pub(crate) async fn load_account_data(
     let entries = repo::entry::for_account(&mut *tx, account_id).await?;
     let rules = repo::rule::for_account(&mut *tx, account_id).await?;
     let skips = repo::skip::for_account(&mut *tx, account_id).await?;
+    let budgets = repo::budget::for_account(&mut *tx, account_id).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;
-    Ok((account, entries, attach_skips(rules, skips)))
+    Ok(AccountData {
+        account,
+        entries,
+        rules: attach_skips(rules, skips),
+        budgets,
+    })
 }
 
 /// Loads an account's recurring rules with their skips attached (verifying the
@@ -501,27 +691,31 @@ pub(crate) async fn month_summary_inner(
         .await?
         .ok_or(CommandError::NotFound)?;
     if account.kind() == AccountKind::Summary {
-        // Combine each member's own summary (members share the currency).
+        // Combine each member's own summary (members share the currency). Each
+        // member's budgets run against that member's own entries, so one member
+        // overspending a category can't cancel another's reservation in it.
         let mut parts = Vec::with_capacity(account.members().len());
         for member_id in account.members() {
-            let (member, entries, rules) = load_account_data(pool, *member_id).await?;
+            let data = load_account_data(pool, *member_id).await?;
             parts.push(core_month_summary(
                 month,
-                member.opening_balance(),
-                member.anchor(),
-                &entries,
-                &rules,
+                data.account.opening_balance(),
+                data.account.anchor(),
+                &data.entries,
+                &data.rules,
+                &data.budgets,
             ));
         }
         Ok(core_combine_summaries(month, &parts))
     } else {
-        let (_account, entries, rules) = load_account_data(pool, account_id).await?;
+        let data = load_account_data(pool, account_id).await?;
         Ok(core_month_summary(
             month,
             account.opening_balance(),
             account.anchor(),
-            &entries,
-            &rules,
+            &data.entries,
+            &data.rules,
+            &data.budgets,
         ))
     }
 }
@@ -553,20 +747,21 @@ pub async fn summaries_for_range(
         // month-by-month. The empty-data baseline gives the month skeleton so the
         // result is correct even for a summary with no members.
         let months: Vec<Month> =
-            core_summaries_for_range(from, to, talea_core::Money::zero(), from, &[], &[])
+            core_summaries_for_range(from, to, talea_core::Money::zero(), from, &[], &[], &[])
                 .into_iter()
                 .map(|s| s.month)
                 .collect();
         let mut member_ranges = Vec::with_capacity(account.members().len());
         for member_id in account.members() {
-            let (member, entries, rules) = load_account_data(pool, *member_id).await?;
+            let data = load_account_data(pool, *member_id).await?;
             member_ranges.push(core_summaries_for_range(
                 from,
                 to,
-                member.opening_balance(),
-                member.anchor(),
-                &entries,
-                &rules,
+                data.account.opening_balance(),
+                data.account.anchor(),
+                &data.entries,
+                &data.rules,
+                &data.budgets,
             ));
         }
         Ok(months
@@ -581,14 +776,15 @@ pub async fn summaries_for_range(
             })
             .collect())
     } else {
-        let (_account, entries, rules) = load_account_data(pool, account_id).await?;
+        let data = load_account_data(pool, account_id).await?;
         Ok(core_summaries_for_range(
             from,
             to,
             account.opening_balance(),
             account.anchor(),
-            &entries,
-            &rules,
+            &data.entries,
+            &data.rules,
+            &data.budgets,
         ))
     }
 }
@@ -615,23 +811,15 @@ pub(crate) async fn expenses_by_category_inner(
     account_id: AccountId,
     month: Month,
 ) -> Result<Vec<CategoryExpense>, CommandError> {
-    let account = repo::account::get_full(pool, account_id)
-        .await?
-        .ok_or(CommandError::NotFound)?;
-    let ids: Vec<AccountId> = if account.kind() == AccountKind::Summary {
-        account.members().to_vec()
-    } else {
-        vec![account_id]
-    };
     // Pool every relevant account's entries and rules, then run the existing
     // per-account categorisation once over the combined set (members share the
     // currency, so the totals are comparable).
     let mut entries = Vec::new();
     let mut rules = Vec::new();
-    for id in ids {
-        let (_account, member_entries, member_rules) = load_account_data(pool, id).await?;
-        entries.extend(member_entries);
-        rules.extend(member_rules);
+    for id in ledger_source_accounts(pool, account_id).await? {
+        let data = load_account_data(pool, id).await?;
+        entries.extend(data.entries);
+        rules.extend(data.rules);
     }
     Ok(core_expenses_by_category(month, &entries, &rules))
 }
@@ -649,16 +837,8 @@ pub async fn month_occurrences(
     month: Month,
 ) -> Result<Vec<VirtualEntry>, CommandError> {
     let pool = state.inner();
-    let account = repo::account::get_full(pool, account_id)
-        .await?
-        .ok_or(CommandError::NotFound)?;
-    let ids: Vec<AccountId> = if account.kind() == AccountKind::Summary {
-        account.members().to_vec()
-    } else {
-        vec![account_id]
-    };
     let mut out = Vec::new();
-    for id in ids {
+    for id in ledger_source_accounts(pool, account_id).await? {
         let rules = load_account_rules(pool, id).await?;
         out.extend(rules.iter().flat_map(|rule| rule.expand_in(month)));
     }

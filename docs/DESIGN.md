@@ -19,8 +19,7 @@ The sections below record the product and architecture decisions in full.
 
 ## 1. Budgeting model — 🟢 DECIDED: monthly cashflow ledger with carry-over
 
-Talea is a **month-focused cashflow ledger**, not envelope budgeting and not
-per-category limits.
+Talea is a **month-focused cashflow ledger**, not envelope budgeting.
 
 - The unit of attention is **the current month and upcoming months**. The main
   screen shows, for the selected month, a top bar with **income, expenses, and
@@ -33,7 +32,10 @@ per-category limits.
   month as `carry-in`. A surplus raises next month; an overspend reduces it.
   Months therefore form a **chain** per account.
 - **Categories are descriptive**, used for classification and the stats screen —
-  **not** funded envelopes and **not** spending limits. No per-category budget.
+  **not** funded envelopes. A category may carry a **budget** (§12): a planned
+  monthly amount that the month's spending in it consumes. That is a *plan*, not
+  a limit — nothing is ever refused for exceeding it, and an unspent budget
+  expires into ordinary carry-over rather than rolling forward.
 - A **"month" is a derived view** over dated entries, never a stored allocation
   row. The running balance is a cumulative sum, so no per-month table is needed.
 
@@ -83,10 +85,12 @@ Category (1) ─── (N) RecurringRule   # categories are GLOBAL (shared by ac
 `src-tauri/migrations/0001_init.sql` defines `STRICT` tables `account`,
 `category`, `entry`, `recurring_rule`. Money and dates are **TEXT** (decimal
 string; ISO-8601 `YYYY-MM-DD`); ids are `INTEGER PRIMARY KEY AUTOINCREMENT`;
-enum-likes are TEXT with `CHECK`s matching the domain's serde tokens. FKs:
-deleting an account cascades its entries/rules; deleting a category sets
-referencing `category_id`s to NULL. Index `entry(account_id, date)` for
-month-window queries. `core` never sees a connection — the `src-tauri` repository
+enum-likes are TEXT with `CHECK`s matching the domain's serde tokens. Later
+migrations add `rule_amount` (0002), `rule_skip` (0003), `account.kind` +
+`account_member` (0004), and `budget` (0005). FKs: deleting an account cascades
+its entries/rules/budgets; deleting a category sets referencing `category_id`s to
+NULL **except** on `budget`, which cascades (§12). Index `entry(account_id, date)`
+for month-window queries. `core` never sees a connection — the `src-tauri` repository
 maps rows↔domain through the validating constructors. Persistence uses `sqlx`
 (bundled SQLite, WAL, `foreign_keys=ON`) with compile-time-checked queries
 (committed `.sqlx` offline cache). The domain is reachable from the frontend only
@@ -126,6 +130,12 @@ Shows only an **abstract ring + percentage** of budget health. **Absolute figure
 never leave the core app** — only the ring fraction (0..1), a derived percent, an
 overspent flag, and the account name are published to the OS shared storage the
 widget reads. Actual numbers stay in-app, behind the optional biometric lock.
+
+Since §12 the ring follows **`free`** (`available − reserved`) rather than
+`available`, so a category budget's unspent remainder counts as committed. With
+no budgets `reserved` is zero and the ring is unchanged. Nothing about the
+boundary changes: `ringView` still emits only the fraction and the overspent
+flag, so no money crosses it.
 
 - **Configurable per widget:** each placed widget tracks one account (per-account
   currency means a widget can only ever reflect a single account — no
@@ -244,9 +254,11 @@ Accepted as known debt for the scaffold; revisit before a release:
   future widget's App Groups shared container (§6) must stay readable while
   locked, so it must **not** be `Complete`-protected.
 - **Update commands trust the payload's `account_id`.** `update_account`/
-  `update_entry`/`update_rule` locate the row by `id` and write the
-  client-supplied `account_id`, so a crafted IPC call could in principle move a
-  row between accounts. Harmless for a local single-user app (no privilege
+  `update_entry`/`update_rule`/`update_budget` locate the row by `id` and write
+  the client-supplied `account_id`, so a crafted IPC call could in principle move
+  a row between accounts. (Each still re-runs its cross-entity validation, so the
+  move can't break an invariant — a budget can't land on a summary account or
+  duplicate an existing category budget — only re-parent to another normal one.) Harmless for a local single-user app (no privilege
   boundary), but if a wider IPC/sync surface is ever added, scope the `WHERE` to
   the owning account and stop writing `account_id` on update. Rule amount history
   is already bounded (`MAX_AMOUNT_SEGMENTS`) alongside the note/amount caps.
@@ -331,3 +343,126 @@ deliberate, narrow amendment to the "no cross-account aggregation" stance of §2
   `TABLES` set, so summaries round-trip.
 - **Scope.** Covers the month view, the statistics screen, and the home-screen
   widget (a summary publishes the same abstract ring snapshot as any account).
+
+---
+
+## 12. Category budgets — 🟢 DONE (implemented)
+
+Everyday use exposed a gap in §1. A planned monthly cost that leaves the account
+in one lump (rent, a subscription) is a **recurring rule**. But a planned cost
+spent as many purchases across the month — groceries being the obvious one — has
+no good shape here: model it as a recurring rule and the rule's expansion *and*
+the real purchases both hit the ledger, so `available` is understated by the
+whole planned amount all month.
+
+A **budget** is the missing shape: a planned monthly amount for one category that
+is **held back**, and that the month's real spending in that category
+**consumes** rather than adds to.
+
+```
+reserved = Σ over budgets of max(0, planned − actual)
+free     = available − reserved
+```
+
+- **`available` is untouched.** It keeps its §1 meaning exactly
+  (`carry_in + income − expenses`), so `balance_at_end_of` and the carry-over
+  chain are budget-independent — `summaries_for_range` still chains `available`,
+  never `free`. A budget moves no money; it only annotates a month.
+- **Still not envelope budgeting.** There is no funding, no rollover, and no
+  limit enforced at entry time. An unspent reservation simply **expires** at
+  month end and the money carries into the next month as ordinary surplus. This
+  amends §1's "not per-category limits" only in that categories may now carry a
+  *plan*; they are still descriptive, and nothing is ever refused for exceeding
+  one.
+- **One category each.** At most one budget per category per account
+  (`UNIQUE (account_id, category_id)` plus a friendlier command-layer check).
+  `core` can't see that cross-row rule, exactly as with summary membership (§11).
+- **`actual` is what Statistics reports.** `core::budget_status` derives it from
+  `core::expenses_by_category`, so ad-hoc entries, recurring expansions, and
+  per-occurrence skips are all handled once, identically to the stats screen, in
+  one pass shared by every budget.
+- **Recurring-rule collision.** A recurring *expense* in a budgeted category
+  books its full amount every month, so it consumes the whole budget on day one
+  and leaves it inert while still double-counting against `available`. The
+  combination is legal (a fixed rule plus a budget for extras is reasonable), so
+  neither `core` nor the command layer refuses it; instead the budget form
+  detects it, seeds the amount from the rule, and offers to delete it, and the
+  Budgets screen flags any row where one still exists.
+- **UI.** Its own nav tab beside Recurring, month-aware like Statistics, with a
+  planned/actual progress bar per budget. On the month list, a row measured by a
+  budget carries a 🎯 badge next to the 🔁 one a recurring occurrence gets — the
+  same "here is why this row is more than a number" cue. Expenses only, since a
+  budget measures spending and `expenses_by_category` ignores income. The month bar gains a fourth figure,
+  **Free**, shown only when the month actually has budgets; the budget ring and
+  the home-screen widget now follow `free` rather than `available` — "can I spend
+  this?" is the question the ring is really answering. With no budgets,
+  `reserved` is zero and every figure reduces to the pre-budget behaviour.
+- **Summary accounts.** `reserved` is summed **per member**, not re-derived from
+  merged totals: one member overspending a category must not cancel another
+  member's reservation in it. The budget list concatenates members' rows (tagged
+  by source account, as entries are), which keeps `Σ status.reserved` equal to
+  the headline `reserved`. Summaries own no budgets and are read-only here.
+- **Persistence.** Migration `0005` adds the `budget` table and `0006` its
+  `budget_amount` history (money TEXT, months as `(year, month)` INTEGER pairs
+  like `account.anchor_*`). `category_id` cascades — unlike an entry, a budget
+  names exactly one category and has nothing left to measure without it. Both
+  tables join the backup/restore `TABLES` set. Note `0006`'s header comment still
+  says the start month is read-only, which it no longer is: `sqlx` checksums
+  applied migrations, so editing even a comment would make every existing install
+  refuse to start. Applied migrations are immutable — this file is the record.
+- **Effective-dated amounts.** A budget carries an **amount history**, not one
+  figure: `budget.amount` is the base at its start month, and migration `0006`'s
+  `budget_amount` table holds later breakpoints — the same shape and rationale as
+  `0002_rule_amount.sql` for rules, with `Budget::amount_in(month)` as the single
+  read point. Raising groceries from 400 to 450 in June leaves January–May
+  reserving 400, so past months keep the figure that was actually planned at the
+  time. The form offers the same "From {{month}} onward / All months" choice
+  `RuleForm` does, defaulting to *onward*; it is offered only once the budget has
+  a past to protect. The stakes are lower than for a rule — a rule's amount feeds
+  the ledger, so a retroactive edit would move historical *balances*, whereas a
+  budget's only feeds `reserved`, which never enters the chain — but showing a
+  month a plan it never had is still wrong.
+- **How far a change reaches is an explicit three-way choice**, because "I only
+  meant to change this one month" is the mistake this form invites. Editing an
+  amount offers **{{month}} only** (the default — the narrowest), **From
+  {{month}}**, and **All months**, each spelling out its own effect beneath the
+  control:
+  - *only* writes the month's segment **and** one after it restoring whatever
+    was running there. A single-month change is just two breakpoints, so the
+    segment model expresses it exactly. Without it the only ways to lower one
+    month were to lower every later month too, or to end the budget after it —
+    which throws the later months away entirely.
+  - *from* writes the month's segment and leaves every other breakpoint alone,
+    so the new figure runs until the next planned change. Note this differs from
+    the recurring-rule form, which drops later breakpoints: a rule's effective
+    date is hand-picked and almost always the newest point, whereas a budget's is
+    whichever month the screen happens to be showing, and paging back to correct
+    an earlier month must not wipe the plan for later ones.
+  - *all* flattens the history to one segment. It is the only way to clear a
+    history, including back under `MAX_AMOUNT_SEGMENTS`.
+  The control is labelled with the month the write actually lands on, which is
+  the viewed month clamped into the budget's span — offering "From July" and then
+  writing August was a real bug.
+- **The start month is editable**, and re-anchors the history
+  (`lib/budget.ts::reanchorAmounts`). Moving it **earlier** extends the base back
+  over months that had no budget at all, so it cannot falsify anything — there
+  was nothing there. Moving it **later** drops the segments outside the new span
+  and re-anchors on whatever amount was in effect at the new start. This is the
+  only way to bring an existing budget back to a month you paged to, and since a
+  category holds at most one budget it is the only way to cover that month at
+  all; the create form says as much when it hides an already-budgeted category.
+  Opening a budget from a month it doesn't reach **proposes that month** in the
+  start field (and symmetrically for the end, past a finished budget) — that is
+  why you opened it, and a field showing the proposal beats a notice explaining
+  that you have to go and change one. The cost is that saving an untouched form
+  extends the budget; it is visible in the field and non-destructive, since it
+  only covers months that had nothing.
+- **Deferred.** `UNIQUE (account_id, category_id)` is unconditional over time, so
+  a category has at most one budget row ever. Dated amounts remove the reason
+  that used to matter (changing the plan going forward no longer needs a
+  successor row); what remains unexpressible is a *gap* — budgeted Jan–Jun,
+  unbudgeted Jul–Sep, budgeted again from Oct. Supporting that means relaxing the
+  constraint to "no two **overlapping** budgets per category", which SQLite can't
+  state declaratively: it needs a table rebuild plus a command-layer overlap
+  check. Also deferred: envelope rollover, budgets spanning several categories,
+  non-monthly periods.

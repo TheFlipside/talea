@@ -21,9 +21,10 @@
     "expenses": "Despesas",
     "available": "Disponível até ao fim do mês",
     "loading": "A carregar o resumo…",
-    "ringSpent": "{{percent}} % dos fundos do mês gastos",
-    "ringRemaining": "{{percent}} % dos fundos do mês restantes",
-    "combinedHint": "Vista combinada e só de leitura das contas incluídas."
+    "ringSpent": "{{percent}}% dos fundos deste mês comprometidos",
+    "ringRemaining": "{{percent}}% dos fundos deste mês livres",
+    "combinedHint": "Vista combinada e só de leitura das contas incluídas.",
+    "free": "Livre para gastar"
   },
   "month": {
     "navigation": "Navegação por meses",
@@ -104,7 +105,7 @@
     "empty": "Ainda sem categorias.",
     "deleteAria": "Eliminar {{name}}",
     "deleteTitle": "Eliminar categoria?",
-    "deleteWarning": "Os movimentos em «{{name}}» mantêm os seus valores mas perdem esta categoria.",
+    "deleteWarning": "Os lançamentos em \"{{name}}\" mantêm os valores mas perdem esta categoria. O orçamento dela é eliminado.",
     "deleteConfirm": "Eliminar"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Categorias",
     "recurring": "Recorrentes",
     "stats": "Estatísticas",
-    "settings": "Definições"
+    "settings": "Definições",
+    "budgets": "Orçamentos"
   },
   "recurring": {
     "title": "Regras recorrentes",
@@ -221,5 +223,50 @@
       "yearly_one": "Anual",
       "yearly_other": "A cada {{count}} anos"
     }
+  },
+  "budgets": {
+    "title": "Orçamentos",
+    "add": "Adicionar orçamento",
+    "empty": "Ainda não há orçamentos para este mês.",
+    "emptySummary": "Sem orçamentos nas contas membro deste resumo.",
+    "notThisMonth": "Inativo este mês",
+    "new": "Novo orçamento",
+    "edit": "Editar orçamento",
+    "create": "Criar orçamento",
+    "save": "Guardar alterações",
+    "amount": "Valor mensal ({{currency}})",
+    "pickCategory": "Escolhe uma categoria para este orçamento.",
+    "allCategoriesBudgeted": "Todas as categorias já têm orçamento nesta conta.",
+    "startsIn": "Começa em",
+    "startsFrom": "desde {{month}}",
+    "ranUntil": "até {{month}}",
+    "end": "Termina",
+    "endNever": "Nunca",
+    "endUntil": "No mês",
+    "endMonth": "Mês final",
+    "endBeforeStart": "O mês final não pode ser anterior ao inicial.",
+    "over": "excedido",
+    "ruleConflict": "Uma despesa recorrente de {{amount}} já lança esta categoria todos os meses. Um orçamento substitui-a: as tuas compras reais é que contam para o orçamento.",
+    "ruleConflictDelete": "Eliminar essa regra recorrente",
+    "ruleConflictRow": "Uma despesa recorrente também lança esta categoria todos os meses e esgota o orçamento. Remove-a no ecrã Recorrentes.",
+    "deleteAria": "Eliminar o orçamento de {{name}}",
+    "deleteTitle": "Eliminar orçamento?",
+    "deleteWarning": "\"{{name}}\" deixará de reservar qualquer valor do montante livre deste mês.",
+    "deleteConfirm": "Eliminar",
+    "applyAmount": "Aplicar a alteração do valor a",
+    "fromMonth": "A partir de {{month}}",
+    "allMonths": "Todos os meses",
+    "amountHistory": "Histórico de valores",
+    "monthHint": "Só o mês conta; o dia é ignorado.",
+    "categoryTaken": "As categorias que já têm orçamento não aparecem. Para cobrir outro mês, altera o início desse orçamento.",
+    "emptySummaryMonth": "Nenhum orçamento deste resumo está ativo este mês.",
+    "thisMonthOnly": "Apenas {{month}}",
+    "scopeHint": {
+      "month": "Só {{month}} muda; os meses seguintes mantêm os seus valores.",
+      "from": "{{month}} e os meses seguintes mudam, até à próxima alteração planeada.",
+      "all": "Todos os meses mudam e as alterações planeadas são removidas."
+    },
+    "beforeAccountStart": "Antes do primeiro mês desta conta ({{month}})",
+    "countsToward": "Conta para o orçamento desta categoria"
   }
 }

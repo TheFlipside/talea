@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 1 AS \"one!\" FROM budget\n           WHERE account_id = ? AND category_id = ? AND id <> ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "one!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e43927e42fa0977b3eb9810ae491305e5373a253f1253b5620f80fbeba44b3a9"
+}

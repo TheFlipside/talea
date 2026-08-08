@@ -1,5 +1,7 @@
 //! A budgeting period: a single calendar month.
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 use time::Date;
 
@@ -137,6 +139,14 @@ impl Month {
     }
 }
 
+/// Renders as ISO-8601 `YYYY-MM` — the same zero-padded shape the persistence
+/// layer and the wire format use for dates, so error messages read consistently.
+impl fmt::Display for Month {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:04}-{:02}", self.year, self.month)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Month;
@@ -206,6 +216,13 @@ mod tests {
         assert_eq!(Month::containing(d), Month::new(2026, 3).unwrap());
         assert!(Month::new(2026, 3).unwrap().contains(d));
         assert!(!Month::new(2026, 4).unwrap().contains(d));
+    }
+
+    #[test]
+    fn displays_as_iso_year_month() {
+        assert_eq!(Month::new(2026, 3).unwrap().to_string(), "2026-03");
+        // Both components stay zero-padded, so months sort as text too.
+        assert_eq!(Month::new(7, 12).unwrap().to_string(), "0007-12");
     }
 
     #[test]

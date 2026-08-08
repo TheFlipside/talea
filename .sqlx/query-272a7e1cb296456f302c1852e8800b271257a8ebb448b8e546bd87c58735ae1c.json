@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE budget\n           SET account_id = ?, category_id = ?, amount = ?, start_year = ?,\n               start_month = ?, end_year = ?, end_month = ?\n           WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "272a7e1cb296456f302c1852e8800b271257a8ebb448b8e546bd87c58735ae1c"
+}

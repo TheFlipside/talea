@@ -21,9 +21,10 @@
     "expenses": "Expenses",
     "available": "Available to end of month",
     "loading": "Loading summary…",
-    "ringSpent": "{{percent}}% of this month's funds spent",
-    "ringRemaining": "{{percent}}% of this month's funds remaining",
-    "combinedHint": "Combined, read-only view of this summary's member accounts."
+    "ringSpent": "{{percent}}% of this month's funds committed",
+    "ringRemaining": "{{percent}}% of this month's funds free to spend",
+    "combinedHint": "Combined, read-only view of this summary's member accounts.",
+    "free": "Free to spend"
   },
   "month": {
     "navigation": "Month navigation",
@@ -104,7 +105,7 @@
     "empty": "No categories yet.",
     "deleteAria": "Delete {{name}}",
     "deleteTitle": "Delete category?",
-    "deleteWarning": "Entries in \"{{name}}\" keep their amounts but lose this category.",
+    "deleteWarning": "Entries in \"{{name}}\" keep their amounts but lose this category. Any budget for it is deleted.",
     "deleteConfirm": "Delete"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Categories",
     "recurring": "Recurring",
     "stats": "Stats",
-    "settings": "Settings"
+    "settings": "Settings",
+    "budgets": "Budgets"
   },
   "recurring": {
     "title": "Recurring rules",
@@ -221,5 +223,50 @@
       "yearly_one": "Yearly",
       "yearly_other": "Every {{count}} years"
     }
+  },
+  "budgets": {
+    "title": "Budgets",
+    "add": "Add budget",
+    "empty": "No budgets for this month yet.",
+    "emptySummary": "No budgets on this summary's member accounts.",
+    "notThisMonth": "Not active this month",
+    "new": "New budget",
+    "edit": "Edit budget",
+    "create": "Create budget",
+    "save": "Save changes",
+    "amount": "Monthly amount ({{currency}})",
+    "pickCategory": "Choose a category for this budget.",
+    "allCategoriesBudgeted": "Every category already has a budget on this account.",
+    "startsIn": "Starts in",
+    "startsFrom": "from {{month}}",
+    "ranUntil": "until {{month}}",
+    "end": "Ends",
+    "endNever": "Never",
+    "endUntil": "In month",
+    "endMonth": "End month",
+    "endBeforeStart": "The end month can't be before the start month.",
+    "over": "over",
+    "ruleConflict": "A recurring expense of {{amount}} already books this category every month. A budget replaces it: your real purchases count against the budget instead.",
+    "ruleConflictDelete": "Delete that recurring rule",
+    "ruleConflictRow": "A recurring expense also books this category every month, which uses up the budget. Remove it on the Recurring screen.",
+    "deleteAria": "Delete budget for {{name}}",
+    "deleteTitle": "Delete budget?",
+    "deleteWarning": "\"{{name}}\" will no longer hold anything back from this month's free-to-spend figure.",
+    "deleteConfirm": "Delete",
+    "applyAmount": "Apply amount change to",
+    "fromMonth": "From {{month}}",
+    "allMonths": "All months",
+    "amountHistory": "Amount history",
+    "monthHint": "Only the month is used; the day is ignored.",
+    "categoryTaken": "Categories with a budget already aren't listed. To cover a different month, change that budget's start instead.",
+    "emptySummaryMonth": "None of this summary's budgets are active this month.",
+    "thisMonthOnly": "{{month}} only",
+    "scopeHint": {
+      "month": "Only {{month}} changes; later months keep their amounts.",
+      "from": "{{month}} and the months after it change, up to the next planned change.",
+      "all": "Every month changes, and any planned changes are cleared."
+    },
+    "beforeAccountStart": "Before this account's first month ({{month}})",
+    "countsToward": "Counts toward this category's budget"
   }
 }

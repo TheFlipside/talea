@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { AccountId } from '../api/types';
 import { useMonthSummary } from '../api/hooks';
-import { formatMoney } from '../lib/money';
+import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { ringView } from '../lib/ring';
 import { useSelectedMonth, useSettings } from '../state/contexts';
 import { BudgetRing } from './BudgetRing';
@@ -28,6 +28,16 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
   }
 
   const ring = ringView(summary, ringMode);
+  // Show "free to spend" exactly when it differs from "available" — i.e. when
+  // something is actually held back. Derived from the summary the ring already
+  // uses, rather than a second query: that query's pending/failed states could
+  // hide the row while the ring still reflected the reservation, leaving the two
+  // contradicting each other. Compare numerically, not `!== '0'`: `Money::zero()`
+  // renders as "0" but `planned - actual` at 2dp renders as "0.00".
+  const reserved = parseMoneyForDisplay(summary.reserved);
+  // `available` gets its own sign test: `ring.overspent` tracks `free`, which can
+  // be negative while `available` is still comfortably positive.
+  const availableNegative = parseMoneyForDisplay(summary.available) < 0;
 
   return (
     <section className="summary">
@@ -47,10 +57,18 @@ export function SummaryBar({ accountId, currency }: SummaryBarProps) {
         </div>
         <div>
           <dt>{t('summary.available')}</dt>
-          <dd className={`amount amount--total${ring.overspent ? ' amount--negative' : ''}`}>
+          <dd className={`amount amount--total${availableNegative ? ' amount--negative' : ''}`}>
             {formatMoney(summary.available, currency)}
           </dd>
         </div>
+        {reserved !== 0 && (
+          <div>
+            <dt>{t('summary.free')}</dt>
+            <dd className={`amount amount--total${ring.overspent ? ' amount--negative' : ''}`}>
+              {formatMoney(summary.free, currency)}
+            </dd>
+          </div>
+        )}
       </dl>
     </section>
   );

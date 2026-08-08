@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO budget_amount\n                   (budget_id, effective_year, effective_month, amount)\n               VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "38c8add554e6414c2179d7c410b4242578aab6b70b9eba640c7ea47ec57178e3"
+}

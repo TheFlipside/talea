@@ -4,7 +4,7 @@
 //! types. The token strings here MUST match the `CHECK` constraints in the
 //! migration and the domain's serde `rename_all = "snake_case"` output.
 
-use talea_core::{CategoryIcon, EntryKind, FreqUnit, RuleEnd};
+use talea_core::{CategoryIcon, EntryKind, FreqUnit, Month, RuleEnd};
 use time::Date;
 
 use crate::error::RepoError;
@@ -20,6 +20,41 @@ pub(crate) fn date_to_text(date: Date) -> String {
 pub(crate) fn date_from_text(text: &str) -> Result<Date, RepoError> {
     let fmt = time::macros::format_description!("[year]-[month]-[day]");
     Date::parse(text, fmt).map_err(|e| RepoError::Corrupt(format!("invalid date {text:?}: {e}")))
+}
+
+/// Splits a [`Month`] into its `(year, month)` `INTEGER` columns.
+pub(crate) fn month_to_columns(month: Month) -> (i64, i64) {
+    (i64::from(month.year()), i64::from(month.month()))
+}
+
+/// Rebuilds a [`Month`] from its `(year, month)` `INTEGER` columns.
+///
+/// # Errors
+/// [`RepoError::Corrupt`] if the stored pair is out of range — the migration's
+/// `CHECK`s make that unreachable short of external tampering.
+pub(crate) fn month_from_columns(year: i64, month: i64) -> Result<Month, RepoError> {
+    let corrupt = || RepoError::Corrupt(format!("invalid month {year}-{month}"));
+    let year = i32::try_from(year).map_err(|_| corrupt())?;
+    let month = u8::try_from(month).map_err(|_| corrupt())?;
+    Month::new(year, month).map_err(|e| RepoError::corrupt(&e))
+}
+
+/// Rebuilds an optional [`Month`] from its nullable `(year, month)` columns.
+///
+/// # Errors
+/// [`RepoError::Corrupt`] if exactly one of the pair is NULL (the migration's
+/// paired-nullability `CHECK` forbids it) or the pair is out of range.
+pub(crate) fn opt_month_from_columns(
+    year: Option<i64>,
+    month: Option<i64>,
+) -> Result<Option<Month>, RepoError> {
+    match (year, month) {
+        (None, None) => Ok(None),
+        (Some(year), Some(month)) => month_from_columns(year, month).map(Some),
+        _ => Err(RepoError::Corrupt(
+            "month columns must both be set or both be NULL".to_owned(),
+        )),
+    }
 }
 
 /// Maps a typed id's raw value to the `i64` `SQLite` binds.

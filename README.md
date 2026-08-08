@@ -25,6 +25,11 @@ day-to-day development.
 - **Categories** — a global, descriptive list (emoji / preset icons).
 - **Recurring rules** — weekly / monthly / yearly + every-N, with effective-dated
   amounts and single-occurrence skip or edit.
+- **Category budgets** — a planned monthly amount per category that is held back
+  from what's free to spend, and consumed by your actual purchases in it rather
+  than added on top, with effective-dated amounts so a raise doesn't rewrite past
+  months. Not envelopes: nothing is refused for going over, and an unspent budget
+  just carries over as ordinary surplus.
 - **Statistics** — per-month expenses broken down by category.
 - **Budget ring + home-screen widget** — an abstract health ring on Android & iOS;
   the actual figures stay in-app.

@@ -704,6 +704,20 @@ button {
   background: var(--surface);
 }
 
+/* Six items fit comfortably above ~360px; below that they need the room back,
+   so trim the horizontal padding rather than shrink the touch target. Must stay
+   after the base rules — a media query carries no extra specificity. */
+@media (max-width: 359px) {
+  .nav-bar {
+    padding-inline: 0.25rem;
+  }
+
+  .nav-bar__item {
+    padding-inline: 0.15rem;
+    font-size: 1.25rem;
+  }
+}
+
 /* ---- Generic screen layout ---- */
 .screen {
   padding: 1rem;
@@ -712,7 +726,8 @@ button {
 /* Fill the content height so the whole area stays swipeable for month paging
    even when the month has no data (an empty body would otherwise collapse the
    touch target to a couple of lines). */
-.stats-screen {
+.stats-screen,
+.budgets-screen {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -929,7 +944,8 @@ button {
   color: var(--muted);
 }
 
-.recurring-badge {
+.recurring-badge,
+.budget-badge {
   margin-left: 0.35rem;
   font-size: 0.85em;
 }
@@ -1035,6 +1051,92 @@ button {
   line-height: 1.25rem;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* ---- Category budgets ---- */
+
+/* An overspent budget: the bar is clamped at 100%, so the colour carries the
+   "past the plan" signal. */
+.stats-row__fill--over {
+  background: var(--error);
+}
+
+.budgets-screen__section {
+  margin: 1.5rem 0 0.5rem;
+}
+
+/* Head line and delete button share a flex row, so the button reserves its own
+   space instead of overlaying the amounts. The progress bar below still spans
+   the full width. */
+.budget-row__top {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+/* The tappable head (icon, label, spent/planned). Reset to look like the plain
+   row it replaces; the whole line opens the edit dialog. `min-width: 0` lets the
+   label ellipsis kick in rather than pushing the button off the row. */
+.budget-row__top > .stats-row__head,
+.budget-row__main {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.budget-row__main {
+  cursor: pointer;
+}
+
+/* The margin now lives on `__top`, which owns the spacing before the bar. */
+.budget-row__top .stats-row__head {
+  margin-bottom: 0;
+}
+
+.budget-row__delete {
+  flex: 0 0 auto;
+}
+
+/* A budget row carries two figures ("spent / planned"), so keep them on one line
+   and let the category label ellipsis absorb a narrow screen instead. */
+.budget-row .stats-row__head .amount {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Source-account accent, shown only in a summary account's combined list. */
+.budget-row__tag {
+  flex: 0 0 auto;
+  width: 0.4rem;
+  height: 1.1rem;
+  border-radius: 0.2rem;
+}
+
+.budget-row__warning,
+.budget-warning {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.budget-warning p {
+  margin: 0 0 0.5rem;
+}
+
+.budget-warning__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
 }
 
 /* ---- Confirm dialog ---- */

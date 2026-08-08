@@ -21,9 +21,10 @@
     "expenses": "Uitgaven",
     "available": "Beschikbaar tot einde maand",
     "loading": "Overzicht laden…",
-    "ringSpent": "{{percent}} % van het maandbudget besteed",
-    "ringRemaining": "{{percent}} % van het maandbudget over",
-    "combinedHint": "Gecombineerde, alleen-lezen weergave van de opgenomen rekeningen."
+    "ringSpent": "{{percent}}% van de middelen van deze maand vastgelegd",
+    "ringRemaining": "{{percent}}% van de middelen van deze maand vrij te besteden",
+    "combinedHint": "Gecombineerde, alleen-lezen weergave van de opgenomen rekeningen.",
+    "free": "Vrij te besteden"
   },
   "month": {
     "navigation": "Maandnavigatie",
@@ -104,7 +105,7 @@
     "empty": "Nog geen categorieën.",
     "deleteAria": "{{name}} verwijderen",
     "deleteTitle": "Categorie verwijderen?",
-    "deleteWarning": "Boekingen in „{{name}}” behouden hun bedragen maar verliezen deze categorie.",
+    "deleteWarning": "Boekingen in \"{{name}}\" behouden hun bedragen maar verliezen deze categorie. Een budget ervoor wordt verwijderd.",
     "deleteConfirm": "Verwijderen"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Categorieën",
     "recurring": "Terugkerend",
     "stats": "Statistieken",
-    "settings": "Instellingen"
+    "settings": "Instellingen",
+    "budgets": "Budgetten"
   },
   "recurring": {
     "title": "Terugkerende regels",
@@ -221,5 +223,50 @@
       "yearly_one": "Jaarlijks",
       "yearly_other": "Elke {{count}} jaar"
     }
+  },
+  "budgets": {
+    "title": "Budgetten",
+    "add": "Budget toevoegen",
+    "empty": "Nog geen budgetten voor deze maand.",
+    "emptySummary": "Geen budgetten op de deelrekeningen van dit overzicht.",
+    "notThisMonth": "Deze maand niet actief",
+    "new": "Nieuw budget",
+    "edit": "Budget bewerken",
+    "create": "Budget aanmaken",
+    "save": "Wijzigingen opslaan",
+    "amount": "Maandbedrag ({{currency}})",
+    "pickCategory": "Kies een categorie voor dit budget.",
+    "allCategoriesBudgeted": "Elke categorie heeft al een budget op deze rekening.",
+    "startsIn": "Begint in",
+    "startsFrom": "vanaf {{month}}",
+    "ranUntil": "tot {{month}}",
+    "end": "Eindigt",
+    "endNever": "Nooit",
+    "endUntil": "In maand",
+    "endMonth": "Eindmaand",
+    "endBeforeStart": "De eindmaand kan niet vóór de startmaand liggen.",
+    "over": "over",
+    "ruleConflict": "Een terugkerende uitgave van {{amount}} boekt deze categorie al elke maand. Een budget vervangt die: je echte aankopen gaan van het budget af.",
+    "ruleConflictDelete": "Die terugkerende regel verwijderen",
+    "ruleConflictRow": "Een terugkerende uitgave boekt deze categorie ook elke maand en gebruikt het budget op. Verwijder die in het scherm Terugkerend.",
+    "deleteAria": "Budget voor {{name}} verwijderen",
+    "deleteTitle": "Budget verwijderen?",
+    "deleteWarning": "\"{{name}}\" houdt dan niets meer achter van het vrij besteedbare bedrag van deze maand.",
+    "deleteConfirm": "Verwijderen",
+    "applyAmount": "Bedragswijziging toepassen op",
+    "fromMonth": "Vanaf {{month}}",
+    "allMonths": "Alle maanden",
+    "amountHistory": "Bedragsgeschiedenis",
+    "monthHint": "Alleen de maand telt; de dag wordt genegeerd.",
+    "categoryTaken": "Categorieën met een bestaand budget staan er niet bij. Wijzig de startmaand van dat budget om een andere maand te dekken.",
+    "emptySummaryMonth": "Geen van de budgetten van dit overzicht is deze maand actief.",
+    "thisMonthOnly": "Alleen {{month}}",
+    "scopeHint": {
+      "month": "Alleen {{month}} verandert; latere maanden houden hun bedragen.",
+      "from": "{{month}} en de maanden erna veranderen, tot de volgende geplande wijziging.",
+      "all": "Elke maand verandert en geplande wijzigingen worden verwijderd."
+    },
+    "beforeAccountStart": "Vóór de eerste maand van deze rekening ({{month}})",
+    "countsToward": "Telt mee voor het budget van deze categorie"
   }
 }

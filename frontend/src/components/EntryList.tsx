@@ -1,8 +1,15 @@
 import { useTranslation } from 'react-i18next';
 
 import type { Account, AccountId, Category, Entry, Occurrence } from '../api/types';
-import { useAccounts, useCategories, useEntries, useMonthOccurrences } from '../api/hooks';
+import {
+  useAccounts,
+  useBudgets,
+  useCategories,
+  useEntries,
+  useMonthOccurrences,
+} from '../api/hooks';
 import { accountColor } from '../lib/accountColor';
+import { budgetedIn, budgetKey, isBeforeMonth } from '../lib/budget';
 import { filterEntriesToMonth } from '../lib/entries';
 import { mergeMonthItems } from '../lib/monthItems';
 import { useSelectedMonth } from '../state/contexts';
@@ -40,6 +47,9 @@ export function EntryList({
   const { data: categories } = useCategories();
   // Only needed to label rows by source account in the summary (read-only) view.
   const { data: accounts } = useAccounts();
+  // Just the budget rows — cheap, and enough to mark which rows count against
+  // one. The figures themselves live on the Budgets screen.
+  const { data: budgets } = useBudgets(accountId);
 
   if (entries.isPending || occurrences.isPending) {
     return <Spinner label={t('entry.loading')} />;
@@ -60,6 +70,33 @@ export function EntryList({
     const owner = accountById.get(id);
     return owner ? { name: owner.name, color: accountColor(owner.id) } : undefined;
   };
+  const budgetKeys = budgetedIn(budgets ?? [], month);
+  /**
+   * Whether this row is measured by a budget, so the list shows *why* a purchase
+   * matters — the same cue the 🔁 badge gives a recurring occurrence.
+   *
+   * Expenses only: a budget measures spending, and `expenses_by_category`
+   * ignores income, so an income row in a budgeted category counts for nothing.
+   */
+  const budgeted = (
+    ownerId: AccountId,
+    kind: Entry['kind'],
+    categoryId?: number | null,
+  ): boolean => {
+    if (kind !== 'expense' || categoryId == null) {
+      return false;
+    }
+    // Months before the owning account's anchor sit outside its ledger, and
+    // `month_budgets` skips them — so nothing is reserved there to point at.
+    // An unknown owner (the account list still loading) withholds the badge
+    // rather than guessing: a missing badge for a moment beats a wrong one.
+    const owner = accountById.get(ownerId);
+    if (!owner || isBeforeMonth(month, owner.anchor)) {
+      return false;
+    }
+    return budgetKeys.has(budgetKey(ownerId, categoryId));
+  };
+
   // Stored entries (this month) and rule occurrences merged into one ordered list
   // (data is present past the isPending guard; `?? []` just satisfies the types).
   const items = mergeMonthItems(
@@ -82,6 +119,7 @@ export function EntryList({
             category={category(item.entry.category_id)}
             readOnly={readOnly}
             accountTag={tagFor(item.entry.account_id)}
+            budgeted={budgeted(item.entry.account_id, item.entry.kind, item.entry.category_id)}
             onEdit={onEdit}
           />
         ) : (
@@ -92,6 +130,11 @@ export function EntryList({
             category={category(item.occurrence.category_id)}
             readOnly={readOnly}
             accountTag={tagFor(item.occurrence.account_id)}
+            budgeted={budgeted(
+              item.occurrence.account_id,
+              item.occurrence.kind,
+              item.occurrence.category_id,
+            )}
             onSelect={onSelectOccurrence}
           />
         ),

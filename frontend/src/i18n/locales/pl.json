@@ -21,9 +21,10 @@
     "expenses": "Wydatki",
     "available": "Dostępne do końca miesiąca",
     "loading": "Ładowanie podsumowania…",
-    "ringSpent": "Wydano {{percent}} % środków w tym miesiącu",
-    "ringRemaining": "Pozostało {{percent}} % środków w tym miesiącu",
-    "combinedHint": "Połączony widok uwzględnionych kont, tylko do odczytu."
+    "ringSpent": "{{percent}}% środków tego miesiąca zajęte",
+    "ringRemaining": "{{percent}}% środków tego miesiąca wolne",
+    "combinedHint": "Połączony widok uwzględnionych kont, tylko do odczytu.",
+    "free": "Wolne środki"
   },
   "month": {
     "navigation": "Nawigacja po miesiącach",
@@ -104,7 +105,7 @@
     "empty": "Brak kategorii.",
     "deleteAria": "Usuń {{name}}",
     "deleteTitle": "Usunąć kategorię?",
-    "deleteWarning": "Wpisy w „{{name}}” zachowają kwoty, ale stracą tę kategorię.",
+    "deleteWarning": "Wpisy w „{{name}}” zachowają kwoty, ale stracą tę kategorię. Budżet dla niej zostanie usunięty.",
     "deleteConfirm": "Usuń"
   },
   "defaultCategories": {
@@ -174,7 +175,8 @@
     "categories": "Kategorie",
     "recurring": "Cykliczne",
     "stats": "Statystyki",
-    "settings": "Ustawienia"
+    "settings": "Ustawienia",
+    "budgets": "Budżety"
   },
   "recurring": {
     "title": "Reguły cykliczne",
@@ -227,5 +229,50 @@
       "yearly_many": "Co {{count}} lat",
       "yearly_other": "Co {{count}} roku"
     }
+  },
+  "budgets": {
+    "title": "Budżety",
+    "add": "Dodaj budżet",
+    "empty": "Brak budżetów na ten miesiąc.",
+    "emptySummary": "Brak budżetów na kontach składowych tego zestawienia.",
+    "notThisMonth": "Nieaktywny w tym miesiącu",
+    "new": "Nowy budżet",
+    "edit": "Edytuj budżet",
+    "create": "Utwórz budżet",
+    "save": "Zapisz zmiany",
+    "amount": "Kwota miesięczna ({{currency}})",
+    "pickCategory": "Wybierz kategorię dla tego budżetu.",
+    "allCategoriesBudgeted": "Każda kategoria ma już budżet na tym koncie.",
+    "startsIn": "Zaczyna się w",
+    "startsFrom": "od {{month}}",
+    "ranUntil": "do {{month}}",
+    "end": "Kończy się",
+    "endNever": "Nigdy",
+    "endUntil": "W miesiącu",
+    "endMonth": "Miesiąc końcowy",
+    "endBeforeStart": "Miesiąc końcowy nie może być wcześniejszy niż początkowy.",
+    "over": "przekroczony",
+    "ruleConflict": "Wydatek cykliczny {{amount}} już co miesiąc księguje tę kategorię. Budżet go zastępuje: to Twoje rzeczywiste zakupy pomniejszają budżet.",
+    "ruleConflictDelete": "Usuń tę regułę cykliczną",
+    "ruleConflictRow": "Wydatek cykliczny również co miesiąc księguje tę kategorię i zużywa budżet. Usuń go na ekranie Cykliczne.",
+    "deleteAria": "Usuń budżet dla {{name}}",
+    "deleteTitle": "Usunąć budżet?",
+    "deleteWarning": "„{{name}}” przestanie rezerwować cokolwiek z wolnych środków tego miesiąca.",
+    "deleteConfirm": "Usuń",
+    "applyAmount": "Zastosuj zmianę kwoty do",
+    "fromMonth": "Od {{month}}",
+    "allMonths": "Wszystkie miesiące",
+    "amountHistory": "Historia kwot",
+    "monthHint": "Liczy się tylko miesiąc; dzień jest pomijany.",
+    "categoryTaken": "Kategorie z istniejącym budżetem nie są wymienione. Aby objąć inny miesiąc, zmień miesiąc początkowy tamtego budżetu.",
+    "emptySummaryMonth": "Żaden budżet tego zestawienia nie jest aktywny w tym miesiącu.",
+    "thisMonthOnly": "Tylko {{month}}",
+    "scopeHint": {
+      "month": "Zmieni się tylko {{month}}; późniejsze miesiące zachowają swoje kwoty.",
+      "from": "Zmienią się {{month}} i kolejne miesiące, aż do następnej zaplanowanej zmiany.",
+      "all": "Zmienią się wszystkie miesiące, a zaplanowane zmiany zostaną usunięte."
+    },
+    "beforeAccountStart": "Przed pierwszym miesiącem tego konta ({{month}})",
+    "countsToward": "Wlicza się do budżetu tej kategorii"
   }
 }

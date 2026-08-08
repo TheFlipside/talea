@@ -45,8 +45,9 @@ never depend on Tauri, the filesystem, or SQL.
 
 ## Product Model — DECIDED (see docs/DESIGN.md)
 
-Talea is a **month-focused cashflow ledger** — NOT envelope budgeting, NOT
-per-category limits.
+Talea is a **month-focused cashflow ledger** — NOT envelope budgeting. Categories
+may carry a **budget** (a planned monthly amount, DESIGN.md §12), but that is a
+plan, not an enforced limit, and it never rolls over.
 
 - **Available to end of month** = `carry-in + Σ income − Σ expenses` for the
   month (ad-hoc entries **and** expanded recurring rules). **Carry-over is on**:
@@ -55,7 +56,9 @@ per-category limits.
   `Category` (global, label + icon/emoji; descriptive only), `Entry`
   (account, positive `amount`, `Income|Expense`, date, optional note + category),
   `RecurringRule` (dateless entry template + `start`/`end`/frequency, expanded
-  per month). A "month" is a **derived view**, never a stored row.
+  per month), `Budget` (a planned monthly amount for one category, consumed by
+  that month's spending in it). A "month" is a **derived view**, never a stored
+  row.
 - **Recurrence:** configurable weekly/monthly/yearly + every-N (mind month-end
   clamping). **Currency:** per-account, no conversion, no cross-account totals.
 

@@ -14,6 +14,8 @@ interface EntryRowProps {
   readOnly?: boolean;
   /** Owning-account label, shown only in the summary view. */
   accountTag?: AccountTag;
+  /** Whether a budget measures this row's category this month. */
+  budgeted?: boolean;
   onEdit: (entry: Entry) => void;
 }
 
@@ -23,6 +25,7 @@ export function EntryRow({
   category,
   readOnly = false,
   accountTag,
+  budgeted = false,
   onEdit,
 }: EntryRowProps) {
   const { t } = useTranslation();
@@ -37,7 +40,14 @@ export function EntryRow({
         {category ? categoryIconText(category.icon) : income ? '＋' : '－'}
       </span>
       <span className="entry-row__main">
-        <span className="entry-row__title">{title}</span>
+        <span className="entry-row__title">
+          {title}
+          {budgeted && (
+            <span className="budget-badge" title={t('budgets.countsToward')} aria-hidden="true">
+              🎯
+            </span>
+          )}
+        </span>
         <span className="entry-row__date">
           {accountTag && (
             <span className="entry-row__account">
