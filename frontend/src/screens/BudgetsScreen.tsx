@@ -15,7 +15,7 @@ import { ErrorBanner } from '../components/ErrorBanner';
 import { MonthNav } from '../components/MonthNav';
 import { Spinner } from '../components/Spinner';
 import { accountColor } from '../lib/accountColor';
-import { amountInMonth, isBeforeMonth } from '../lib/budget';
+import { amountInMonth, clashingExpenseRule, isBeforeMonth } from '../lib/budget';
 import { categoryIconText } from '../lib/categories';
 import { formatMoney, parseMoneyForDisplay } from '../lib/money';
 import { monthLabel } from '../lib/month';
@@ -84,13 +84,11 @@ export function BudgetsScreen({ account }: { account: Account }) {
    * rules, and a summary owns none. The clash — and the fix for it — lives on the
    * member account, whose own Budgets screen flags it.
    */
-  function clashingRuleFor(categoryId: CategoryId) {
+  function clashingRuleFor(budget: Budget) {
     if (isSummary) {
       return undefined;
     }
-    return (rules.data ?? []).find(
-      (rule) => rule.kind === 'expense' && rule.category_id === categoryId,
-    );
+    return clashingExpenseRule(rules.data ?? [], budget.category_id, budget);
   }
 
   /** Budgets that exist but don't apply to the selected month, so they stay
@@ -169,7 +167,10 @@ export function BudgetsScreen({ account }: { account: Account }) {
               label={label(status.category_id)}
               overLabel={t('budgets.over')}
               ruleWarning={
-                clashingRuleFor(status.category_id) ? t('budgets.ruleConflictRow') : null
+                (() => {
+                  const budget = budgetById.get(status.budget_id);
+                  return budget && clashingRuleFor(budget) ? t('budgets.ruleConflictRow') : null;
+                })()
               }
               tagColor={isSummary ? accountColor(status.account_id) : null}
               onEdit={

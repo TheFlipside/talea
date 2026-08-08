@@ -136,8 +136,9 @@ export function useDeleteAccount() {
     onSuccess: (_data, accountId) => {
       void client.invalidateQueries({ queryKey: queryKeys.accounts });
       invalidateAccountData(client, accountId);
-      // The account's budgets cascade away with it.
-      void client.invalidateQueries({ queryKey: queryKeys.budgets(accountId) });
+      // The account's budgets cascade away with it, and a summary that contained
+      // it would otherwise keep listing them — hence the account-wide sweep.
+      invalidateBudgetData(client);
     },
   });
 }

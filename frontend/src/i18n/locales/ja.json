@@ -259,6 +259,8 @@
     "amountHistory": "金額の履歴",
     "monthHint": "月のみが使われ、日は無視されます。",
     "categoryTaken": "すでに予算があるカテゴリーは表示されません。別の月を対象にするには、その予算の開始月を変更してください。",
-    "emptySummaryMonth": "このサマリーの予算は今月どれも対象外です。"
+    "emptySummaryMonth": "このサマリーの予算は今月どれも対象外です。",
+    "startsLater": "この予算は{{start}}に始まるため、{{month}}は対象外です。",
+    "startFromHere": "{{month}}から開始する"
   }
 }

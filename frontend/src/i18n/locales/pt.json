@@ -259,6 +259,8 @@
     "amountHistory": "Histórico de valores",
     "monthHint": "Só o mês conta; o dia é ignorado.",
     "categoryTaken": "As categorias que já têm orçamento não aparecem. Para cobrir outro mês, altera o início desse orçamento.",
-    "emptySummaryMonth": "Nenhum orçamento deste resumo está ativo este mês."
+    "emptySummaryMonth": "Nenhum orçamento deste resumo está ativo este mês.",
+    "startsLater": "Este orçamento começa em {{start}}, por isso não cobre {{month}}.",
+    "startFromHere": "Começar em {{month}}"
   }
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { BudgetSegment } from '../../api/types';
 import {
   amountInMonth,
+  clashingExpenseRule,
   isBeforeMonth,
   isSameMonth,
   reanchorAmounts,
@@ -134,5 +135,58 @@ describe('reanchorAmounts', () => {
 
   it('is a no-op when the start is unchanged', () => {
     expect(reanchorAmounts(history, m(2026, 8))).toEqual(history);
+  });
+});
+
+describe('clashingExpenseRule', () => {
+  const rule = (
+    id: number,
+    start_date: string,
+    end: { kind: 'never' } | { kind: 'until'; date: string },
+    kind: 'expense' | 'income' = 'expense',
+    category_id: number | null = 1,
+  ) =>
+    ({
+      id,
+      account_id: 1,
+      amounts: [{ effective_from: start_date, amount: '400.00' }],
+      kind,
+      category_id,
+      start_date,
+      end,
+      frequency: { unit: 'monthly' as const, interval: 1 },
+    }) as never;
+
+  const span = { start: m(2026, 8), end: null };
+
+  it('finds an open-ended expense rule in the same category', () => {
+    const rules = [rule(1, '2026-01-01', { kind: 'never' })];
+    expect(clashingExpenseRule(rules, 1, span)?.id).toBe(1);
+  });
+
+  it('ignores income rules and other categories', () => {
+    expect(
+      clashingExpenseRule([rule(1, '2026-01-01', { kind: 'never' }, 'income')], 1, span),
+    ).toBeUndefined();
+    expect(
+      clashingExpenseRule([rule(1, '2026-01-01', { kind: 'never' }, 'expense', 2)], 1, span),
+    ).toBeUndefined();
+  });
+
+  it('ignores a rule that ended before the budget begins', () => {
+    // The destructive "delete this rule" offer must not fire on a rule that
+    // never overlaps: deleting it would be pure loss.
+    const rules = [rule(1, '2025-01-01', { kind: 'until', date: '2025-12-31' })];
+    expect(clashingExpenseRule(rules, 1, span)).toBeUndefined();
+  });
+
+  it('ignores a rule starting after the budget ends', () => {
+    const rules = [rule(1, '2027-01-01', { kind: 'never' })];
+    expect(clashingExpenseRule(rules, 1, { start: m(2026, 8), end: m(2026, 12) })).toBeUndefined();
+  });
+
+  it('counts a rule whose last month is the budget’s first', () => {
+    const rules = [rule(1, '2025-01-01', { kind: 'until', date: '2026-08-31' })];
+    expect(clashingExpenseRule(rules, 1, span)?.id).toBe(1);
   });
 });

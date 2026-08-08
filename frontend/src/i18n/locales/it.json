@@ -259,6 +259,8 @@
     "amountHistory": "Cronologia degli importi",
     "monthHint": "Conta solo il mese; il giorno viene ignorato.",
     "categoryTaken": "Le categorie che hanno già un budget non sono elencate. Per coprire un altro mese, cambia l'inizio di quel budget.",
-    "emptySummaryMonth": "Nessun budget di questo riepilogo è attivo questo mese."
+    "emptySummaryMonth": "Nessun budget di questo riepilogo è attivo questo mese.",
+    "startsLater": "Questo budget inizia in {{start}}, quindi non copre {{month}}.",
+    "startFromHere": "Inizia da {{month}}"
   }
 }

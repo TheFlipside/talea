@@ -259,6 +259,8 @@
     "amountHistory": "Tutar geçmişi",
     "monthHint": "Yalnızca ay kullanılır; gün dikkate alınmaz.",
     "categoryTaken": "Zaten bütçesi olan kategoriler listelenmez. Başka bir ayı kapsamak için o bütçenin başlangıç ayını değiştir.",
-    "emptySummaryMonth": "Bu özetin bütçelerinden hiçbiri bu ay etkin değil."
+    "emptySummaryMonth": "Bu özetin bütçelerinden hiçbiri bu ay etkin değil.",
+    "startsLater": "Bu bütçe {{start}} tarihinde başlıyor, bu yüzden {{month}} ayını kapsamıyor.",
+    "startFromHere": "{{month}} tarihinden başlat"
   }
 }

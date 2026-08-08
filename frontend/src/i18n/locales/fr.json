@@ -259,6 +259,8 @@
     "amountHistory": "Historique des montants",
     "monthHint": "Seul le mois compte ; le jour est ignoré.",
     "categoryTaken": "Les catégories ayant déjà un budget ne sont pas listées. Pour couvrir un autre mois, modifiez plutôt le début de ce budget.",
-    "emptySummaryMonth": "Aucun budget de ce résumé n'est actif ce mois-ci."
+    "emptySummaryMonth": "Aucun budget de ce résumé n'est actif ce mois-ci.",
+    "startsLater": "Ce budget commence en {{start}} et ne couvre donc pas {{month}}.",
+    "startFromHere": "Commencer en {{month}}"
   }
 }

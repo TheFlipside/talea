@@ -259,6 +259,8 @@
     "amountHistory": "金额历史",
     "monthHint": "仅使用月份，日期将被忽略。",
     "categoryTaken": "已有预算的分类不会列出。若要覆盖其他月份，请改为修改该预算的开始月份。",
-    "emptySummaryMonth": "该汇总账户的预算本月均未生效。"
+    "emptySummaryMonth": "该汇总账户的预算本月均未生效。",
+    "startsLater": "此预算自 {{start}} 开始，因此不覆盖 {{month}}。",
+    "startFromHere": "自 {{month}} 开始"
   }
 }

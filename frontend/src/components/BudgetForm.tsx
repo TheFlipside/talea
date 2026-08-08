@@ -10,6 +10,7 @@ import {
 } from '../api/hooks';
 import {
   amountInMonth,
+  clashingExpenseRule,
   isBeforeMonth,
   isSameMonth,
   reanchorAmounts,
@@ -116,13 +117,14 @@ export function BudgetForm({
   const selectedCategoryId = categoryId === '' ? (categoryOptions[0]?.value ?? '') : categoryId;
   const selected = selectedCategoryId === '' ? null : Number(selectedCategoryId);
 
-  // A recurring expense in the same category books its full amount every month,
-  // so it would consume the whole budget on day one and leave it inert (while
-  // still double-counting against `available`). Offer to retire it.
+  // The picker returns a full date; a budget only has month granularity.
+  // Declared before its first use below — `const` has no hoisting.
+  const end: Month | null = endKind === 'never' ? null : isoMonthOf(endDate);
+
+  // A recurring expense overlapping this budget's span would consume it on day
+  // one while still double-counting against `available`. Offer to retire it.
   const clashingRule =
-    selected == null
-      ? undefined
-      : rules.find((rule) => rule.kind === 'expense' && rule.category_id === selected);
+    selected == null ? undefined : clashingExpenseRule(rules, selected, { start, end });
 
   function pickCategory(value: string) {
     setCategoryId(value);
@@ -135,10 +137,7 @@ export function BudgetForm({
     // Clearing when there is no rule matters: otherwise switching from Rent to
     // Groceries would leave Rent's amount behind as if the user had typed it.
     const id = value === '' ? null : Number(value);
-    const rule =
-      id == null
-        ? undefined
-        : rules.find((r) => r.kind === 'expense' && r.category_id === id);
+    const rule = id == null ? undefined : clashingExpenseRule(rules, id, { start, end });
     setAmount(rule ? rule.amounts[rule.amounts.length - 1].amount : '');
   }
 
@@ -148,28 +147,31 @@ export function BudgetForm({
   const hasHistory = editing != null && editing.amounts.length > 1;
 
   /**
-   * The month an edit takes effect from: the one being viewed, clamped into the
-   * budget's span so the base stays anchored at `start` and no breakpoint lands
-   * after `end`, where it could never apply.
+   * The month an amount edit actually takes effect from: the one being viewed,
+   * clamped into the budget's span so the base stays anchored at `start` and no
+   * breakpoint lands after `end`, where it could never apply.
+   *
+   * The scope control is labelled with *this*, not the viewed month — viewing
+   * July a budget that starts in August would otherwise offer "From July" and
+   * then quietly write August.
    */
-  function effectiveMonth(end: Month | null): Month {
-    if (isBeforeMonth(startMonth, start)) {
-      return start;
-    }
-    if (end && isBeforeMonth(end, startMonth)) {
-      return end;
-    }
-    return startMonth;
-  }
+  const effectiveMonth: Month = isBeforeMonth(startMonth, start)
+    ? start
+    : end && isBeforeMonth(end, startMonth)
+      ? end
+      : startMonth;
+
+  /** Whether the budget's start leaves the viewed month uncovered. */
+  const startsAfterViewed = isBeforeMonth(startMonth, start);
 
   /**
    * The amount history to persist on an edit. The start month is applied first
    * (it decides where the base sits), then the amount change on top:
    *   - "all months" → collapse to a single base segment at the new amount;
-   *   - "from"       → set the viewed month's segment, leaving every other
-   *                    breakpoint (earlier *and* later) alone.
+   *   - "from"       → set that month's segment, leaving every other breakpoint
+   *                    (earlier *and* later) alone.
    */
-  function nextAmounts(budget: Budget, trimmed: string, end: Month | null): BudgetSegment[] {
+  function nextAmounts(budget: Budget, trimmed: string): BudgetSegment[] {
     const rebased = isSameMonth(budget.start, start)
       ? budget.amounts
       : reanchorAmounts(budget.amounts, start);
@@ -186,7 +188,7 @@ export function BudgetForm({
     if (Number(trimmed) === Number(viewedAmount)) {
       return rebased;
     }
-    return withAmountFrom(rebased, effectiveMonth(end), trimmed);
+    return withAmountFrom(rebased, effectiveMonth, trimmed);
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -200,9 +202,7 @@ export function BudgetForm({
       setLocalError(t('entry.invalidAmount'));
       return;
     }
-    // The picker returns a full date; a budget only has month granularity.
-    const end: Month | null = endKind === 'never' ? null : isoMonthOf(endDate);
-    if (end && (end.year < start.year || (end.year === start.year && end.month < start.month))) {
+    if (end && isBeforeMonth(end, start)) {
       setLocalError(t('budgets.endBeforeStart'));
       return;
     }
@@ -213,7 +213,7 @@ export function BudgetForm({
         {
           ...editing,
           category_id: selected,
-          amounts: nextAmounts(editing, normalizedAmount, end),
+          amounts: nextAmounts(editing, normalizedAmount),
           start,
           end,
         },
@@ -332,7 +332,7 @@ export function BudgetForm({
                 aria-pressed={amountScope === 'from'}
                 onClick={() => setAmountScope('from')}
               >
-                {t('budgets.fromMonth', { month: monthLabel(startMonth) })}
+                {t('budgets.fromMonth', { month: monthLabel(effectiveMonth) })}
               </button>
               <button
                 type="button"
@@ -343,6 +343,27 @@ export function BudgetForm({
                 {t('budgets.allMonths')}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* The reason an inactive budget's row exists at all. Without this the
+            only fix is to realise the start month is the field that matters and
+            pick the right date by hand — so say it, and offer the one tap. */}
+        {editing && startsAfterViewed && (
+          <div className="budget-warning">
+            <p>
+              {t('budgets.startsLater', {
+                start: monthLabel(start),
+                month: monthLabel(startMonth),
+              })}
+            </p>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setStartDate(firstDayOf(startMonth))}
+            >
+              {t('budgets.startFromHere', { month: monthLabel(startMonth) })}
+            </button>
           </div>
         )}
 

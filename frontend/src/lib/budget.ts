@@ -1,6 +1,7 @@
 /** Pure helpers over a budget's month-keyed amount history. */
 
-import type { BudgetSegment, Money, Month } from '../api/types';
+import type { BudgetSegment, CategoryId, Money, Month, RecurringRule } from '../api/types';
+import { isoMonthOf } from './date';
 
 /** Whether `a` is strictly earlier than `b`. */
 export function isBeforeMonth(a: Month, b: Month): boolean {
@@ -79,4 +80,40 @@ export function amountInMonth(amounts: readonly BudgetSegment[], month: Month): 
     current = segment.amount;
   }
   return current;
+}
+
+/** The months a budget covers; `end` absent or null means open-ended. */
+export interface BudgetSpan {
+  start: Month;
+  end?: Month | null;
+}
+
+/**
+ * A recurring **expense** rule that books `categoryId` during `span`.
+ *
+ * Such a rule charges its full amount every month it runs, so it would consume
+ * the budget on day one while still double-counting against `available` — the
+ * form offers to retire it and the screen flags it. The date check matters
+ * because that offer is destructive: a rule that already ended (or hasn't begun)
+ * shares the category but never overlaps, so deleting it would be pure loss.
+ */
+export function clashingExpenseRule(
+  rules: readonly RecurringRule[],
+  categoryId: CategoryId,
+  span: BudgetSpan,
+): RecurringRule | undefined {
+  return rules.find((rule) => {
+    if (rule.kind !== 'expense' || rule.category_id !== categoryId) {
+      return false;
+    }
+    const ruleStart = isoMonthOf(rule.start_date);
+    const ruleEnd = rule.end.kind === 'until' ? isoMonthOf(rule.end.date) : null;
+    if (ruleEnd && isBeforeMonth(ruleEnd, span.start)) {
+      return false; // the rule finished before the budget begins
+    }
+    if (span.end && isBeforeMonth(span.end, ruleStart)) {
+      return false; // the budget finishes before the rule begins
+    }
+    return true;
+  });
 }
