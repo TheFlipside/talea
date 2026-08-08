@@ -3,6 +3,7 @@
 use thiserror::Error;
 use time::Date;
 
+use crate::domain::month::Month;
 use crate::money::{Money, MoneyError};
 
 /// Maximum length (in characters) of a free-text note on an entry or rule.
@@ -145,6 +146,18 @@ pub enum DomainError {
         start: Date,
         /// The offending end date.
         end: Date,
+    },
+
+    /// A budget's end month preceded its start month.
+    ///
+    /// Deliberately separate from [`DomainError::EndBeforeStart`], which is
+    /// `Date`-typed and worded for recurrence.
+    #[error("budget end month {end} is before its start month {start}")]
+    BudgetEndBeforeStart {
+        /// The budget's start month.
+        start: Month,
+        /// The offending end month.
+        end: Month,
     },
 
     /// A monetary value failed to parse.

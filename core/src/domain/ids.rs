@@ -48,6 +48,10 @@ define_id!(
     /// Identifies a [`RecurringRule`](crate::domain::RecurringRule).
     RecurringRuleId
 );
+define_id!(
+    /// Identifies a [`Budget`](crate::domain::Budget).
+    BudgetId
+);
 
 #[cfg(test)]
 mod tests {
