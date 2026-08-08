@@ -266,6 +266,7 @@
       "from": "{{month}} 及之后的月份改变，直到下一次计划变更为止。",
       "all": "所有月份都改变，且清除所有计划变更。"
     },
-    "beforeAccountStart": "早于此账户的首个月份（{{month}}）"
+    "beforeAccountStart": "早于此账户的首个月份（{{month}}）",
+    "countsToward": "计入此分类的预算"
   }
 }

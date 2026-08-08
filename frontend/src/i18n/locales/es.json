@@ -266,6 +266,7 @@
       "from": "Cambian {{month}} y los meses siguientes, hasta el próximo cambio planificado.",
       "all": "Cambian todos los meses y se eliminan los cambios planificados."
     },
-    "beforeAccountStart": "Antes del primer mes de esta cuenta ({{month}})"
+    "beforeAccountStart": "Antes del primer mes de esta cuenta ({{month}})",
+    "countsToward": "Cuenta para el presupuesto de esta categoría"
   }
 }

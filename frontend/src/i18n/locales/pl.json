@@ -272,6 +272,7 @@
       "from": "Zmienią się {{month}} i kolejne miesiące, aż do następnej zaplanowanej zmiany.",
       "all": "Zmienią się wszystkie miesiące, a zaplanowane zmiany zostaną usunięte."
     },
-    "beforeAccountStart": "Przed pierwszym miesiącem tego konta ({{month}})"
+    "beforeAccountStart": "Przed pierwszym miesiącem tego konta ({{month}})",
+    "countsToward": "Wlicza się do budżetu tej kategorii"
   }
 }

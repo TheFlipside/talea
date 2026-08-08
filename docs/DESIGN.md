@@ -389,7 +389,10 @@ free     = available − reserved
   detects it, seeds the amount from the rule, and offers to delete it, and the
   Budgets screen flags any row where one still exists.
 - **UI.** Its own nav tab beside Recurring, month-aware like Statistics, with a
-  planned/actual progress bar per budget. The month bar gains a fourth figure,
+  planned/actual progress bar per budget. On the month list, a row measured by a
+  budget carries a 🎯 badge next to the 🔁 one a recurring occurrence gets — the
+  same "here is why this row is more than a number" cue. Expenses only, since a
+  budget measures spending and `expenses_by_category` ignores income. The month bar gains a fourth figure,
   **Free**, shown only when the month actually has budgets; the budget ring and
   the home-screen widget now follow `free` rather than `available` — "can I spend
   this?" is the question the ring is really answering. With no budgets,

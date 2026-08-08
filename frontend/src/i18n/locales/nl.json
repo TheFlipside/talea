@@ -266,6 +266,7 @@
       "from": "{{month}} en de maanden erna veranderen, tot de volgende geplande wijziging.",
       "all": "Elke maand verandert en geplande wijzigingen worden verwijderd."
     },
-    "beforeAccountStart": "Vóór de eerste maand van deze rekening ({{month}})"
+    "beforeAccountStart": "Vóór de eerste maand van deze rekening ({{month}})",
+    "countsToward": "Telt mee voor het budget van deze categorie"
   }
 }

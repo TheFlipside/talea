@@ -89,23 +89,12 @@ export function BudgetForm({
       editing && isBeforeMonth(startMonth, editing.start) ? startMonth : (editing?.start ?? startMonth),
     ),
   );
-  const start = isoMonthOf(startDate);
-  const storedEffectiveMonth = editing
-    ? clampToSpan(startMonth, editing.start, editing.end)
-    : startMonth;
   const [categoryId, setCategoryId] = useState(
     editing != null ? String(editing.category_id) : '',
   );
-  // The figure of the month this edit will actually land on — the viewed month,
-  // clamped into the budget's stored span exactly as `effectiveMonth` clamps the
-  // write. Not the newest segment: editing while looking at May must show May's
-  // amount, or "unchanged" would compare against a later raise and silently
-  // discard the edit. Computed from the stored budget so it stays a fixed
-  // baseline while the form is open.
-  const viewedAmount = editing ? amountInMonth(editing.amounts, storedEffectiveMonth) : '';
-  const [amount, setAmount] = useState(viewedAmount);
-  // Tracked so a pre-existing rule's amount only seeds an untouched field.
-  const [amountTouched, setAmountTouched] = useState(editing != null);
+  // `null` while the field is untouched, so it can follow the start month below
+  // instead of freezing at whatever it showed when the form opened.
+  const [amountInput, setAmountInput] = useState<string | null>(null);
   const [amountScope, setAmountScope] = useState<AmountScope>('month');
   const [endKind, setEndKind] = useState<'never' | 'until'>(
     editing?.end != null ? 'until' : 'never',
@@ -114,11 +103,9 @@ export function BudgetForm({
   // proposal above. Extending a start backwards covers months that had no budget
   // at all; un-ending a budget someone deliberately ended is a different thing,
   // and doing it as a side effect of opening the form to fix an amount would be
-  // a genuine surprise. A budget with no end defaults to the viewed month, never
-  // before the start.
-  const [endDate, setEndDate] = useState(
-    firstDayOf(editing?.end ?? (isBeforeMonth(startMonth, start) ? start : startMonth)),
-  );
+  // a genuine surprise. A budget with no end defaults to the viewed month, which
+  // the start proposal guarantees is never before the start.
+  const [endDate, setEndDate] = useState(firstDayOf(editing?.end ?? startMonth));
   // Starts off: the category may be the list's default rather than a deliberate
   // choice, and deleting a recurring rule the user never aimed at is destructive.
   // `pickCategory` turns it on, so an explicit pick still gets the helpful
@@ -148,9 +135,22 @@ export function BudgetForm({
   const selectedCategoryId = categoryId === '' ? (categoryOptions[0]?.value ?? '') : categoryId;
   const selected = selectedCategoryId === '' ? null : Number(selectedCategoryId);
 
-  // The picker returns a full date; a budget only has month granularity.
-  // Declared before its first use below — `const` has no hoisting.
+  // The pickers return full dates; a budget only has month granularity. All
+  // derived, so every figure below follows the *edited* span rather than the
+  // stored one — the two disagreeing is how a start moved past a breakpoint used
+  // to save an amount the field never showed.
+  const start = isoMonthOf(startDate);
   const end: Month | null = endKind === 'never' ? null : isoMonthOf(endDate);
+  const effectiveMonth: Month = clampToSpan(startMonth, start, end);
+  /** The stored history re-anchored to the edited start, if it moved. */
+  const rebasedAmounts =
+    editing && !isSameMonth(editing.start, start)
+      ? reanchorAmounts(editing.amounts, start)
+      : (editing?.amounts ?? []);
+  /** What the month being edited runs at right now — the field's untouched value
+   *  and the baseline "unchanged" compares against. */
+  const currentAmount = editing ? amountInMonth(rebasedAmounts, effectiveMonth) : '';
+  const amount = amountInput ?? currentAmount;
 
   // A recurring expense overlapping this budget's span would consume it on day
   // one while still double-counting against `available`. Offer to retire it.
@@ -160,7 +160,7 @@ export function BudgetForm({
   function pickCategory(value: string) {
     setCategoryId(value);
     setDropRule(true);
-    if (amountTouched) {
+    if (amountInput !== null) {
       return;
     }
     // Seed from the rule this budget is about to replace — a plain suggestion the
@@ -169,7 +169,7 @@ export function BudgetForm({
     // Groceries would leave Rent's amount behind as if the user had typed it.
     const id = value === '' ? null : Number(value);
     const rule = id == null ? undefined : clashingExpenseRule(rules, id, { start, end });
-    setAmount(rule ? rule.amounts[rule.amounts.length - 1].amount : '');
+    setAmountInput(rule ? rule.amounts[rule.amounts.length - 1].amount : '');
   }
 
   const mutationError = create.error ?? update.error ?? deleteRule.error;
@@ -178,28 +178,14 @@ export function BudgetForm({
   const hasHistory = editing != null && editing.amounts.length > 1;
 
   /**
-   * The month an amount edit actually takes effect from: the one being viewed,
-   * clamped into the budget's span so the base stays anchored at `start` and no
-   * breakpoint lands after `end`, where it could never apply.
-   *
-   * The scope control is labelled with *this*, not the viewed month — viewing
-   * July a budget that starts in August would otherwise offer "From July" and
-   * then quietly write August.
-   */
-  const effectiveMonth: Month = clampToSpan(startMonth, start, end);
-
-  /**
-   * The amount history to persist on an edit. The start month is applied first
-   * (it decides where the base sits), then the amount change on top:
+   * The amount history to persist on an edit. `rebasedAmounts` has already moved
+   * the base to the edited start; this layers the amount change on top:
    *   - "all months" → collapse to a single base segment at the new amount;
    *   - "from"       → set that month's segment, leaving every other breakpoint
-   *                    (earlier *and* later) alone.
+   *                    (earlier *and* later) alone;
+   *   - "month"      → that plus a breakpoint after it restoring the old figure.
    */
-  function nextAmounts(budget: Budget, trimmed: string): BudgetSegment[] {
-    const rebased = isSameMonth(budget.start, start)
-      ? budget.amounts
-      : reanchorAmounts(budget.amounts, start);
-
+  function nextAmounts(trimmed: string): BudgetSegment[] {
     // Checked before the unchanged shortcut below: flattening is a structural
     // change even when the figure itself is the same, and it is the only way to
     // clear a history — including back under the segment cap.
@@ -209,12 +195,12 @@ export function BudgetForm({
     // Numeric compare (not string) so "400" vs the stored "400.00" reads as
     // unchanged; a control decision only, never a stored money value, and
     // amounts are bounded well within float precision by the core's cap.
-    if (Number(trimmed) === Number(viewedAmount)) {
-      return rebased;
+    if (Number(trimmed) === Number(currentAmount)) {
+      return rebasedAmounts;
     }
     return amountScope === 'month'
-      ? withAmountForMonth(rebased, effectiveMonth, trimmed, end)
-      : withAmountFrom(rebased, effectiveMonth, trimmed);
+      ? withAmountForMonth(rebasedAmounts, effectiveMonth, trimmed, end)
+      : withAmountFrom(rebasedAmounts, effectiveMonth, trimmed);
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -239,7 +225,7 @@ export function BudgetForm({
         {
           ...editing,
           category_id: selected,
-          amounts: nextAmounts(editing, normalizedAmount),
+          amounts: nextAmounts(normalizedAmount),
           start,
           end,
         },
@@ -334,10 +320,7 @@ export function BudgetForm({
           <input
             inputMode="decimal"
             value={amount}
-            onChange={(e) => {
-              setAmount(e.currentTarget.value);
-              setAmountTouched(true);
-            }}
+            onChange={(e) => setAmountInput(e.currentTarget.value)}
             placeholder={t('entry.amountPlaceholder')}
             required
             data-autofocus="true"

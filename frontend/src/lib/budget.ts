@@ -1,6 +1,14 @@
 /** Pure helpers over a budget's month-keyed amount history. */
 
-import type { BudgetSegment, CategoryId, Money, Month, RecurringRule } from '../api/types';
+import type {
+  AccountId,
+  Budget,
+  BudgetSegment,
+  CategoryId,
+  Money,
+  Month,
+  RecurringRule,
+} from '../api/types';
 import { isoMonthOf } from './date';
 import { nextMonth } from './month';
 
@@ -119,13 +127,33 @@ export interface BudgetSpan {
 }
 
 /**
- * A recurring **expense** rule that books `categoryId` during `span`.
+ * Whether a cadence lands in *every* month.
  *
- * Such a rule charges its full amount every month it runs, so it would consume
- * the budget on day one while still double-counting against `available` — the
- * form offers to retire it and the screen flags it. The date check matters
- * because that offer is destructive: a rule that already ended (or hasn't begun)
- * shares the category but never overlaps, so deleting it would be pure loss.
+ * A yearly or every-N-months rule leaves months untouched, so it doesn't consume
+ * a monthly budget the way the clash warning describes, and offering to delete
+ * it would be wrong. Weekly cadences up to four weeks always land at least once
+ * a month; beyond that they can skip one.
+ */
+function booksEveryMonth(frequency: RecurringRule['frequency']): boolean {
+  switch (frequency.unit) {
+    case 'monthly':
+      return frequency.interval === 1;
+    case 'weekly':
+      return frequency.interval <= 4;
+    default:
+      return false;
+  }
+}
+
+/**
+ * A recurring **expense** rule that books `categoryId` in every month of `span`.
+ *
+ * Such a rule charges its full amount every month, so it would consume the
+ * budget on day one while still double-counting against `available` — the form
+ * offers to retire it and the screen flags it. The cadence and date checks
+ * matter because that offer is destructive: a rule that already ended, hasn't
+ * begun, or only fires once a year shares the category but doesn't cause the
+ * problem, so deleting it would be pure loss.
  */
 export function clashingExpenseRule(
   rules: readonly RecurringRule[],
@@ -134,6 +162,9 @@ export function clashingExpenseRule(
 ): RecurringRule | undefined {
   return rules.find((rule) => {
     if (rule.kind !== 'expense' || rule.category_id !== categoryId) {
+      return false;
+    }
+    if (!booksEveryMonth(rule.frequency)) {
       return false;
     }
     const ruleStart = isoMonthOf(rule.start_date);
@@ -146,4 +177,28 @@ export function clashingExpenseRule(
     }
     return true;
   });
+}
+
+/** Key identifying "this account's budget for this category". */
+export function budgetKey(accountId: AccountId, categoryId: CategoryId): string {
+  return `${accountId}:${categoryId}`;
+}
+
+/**
+ * The [`budgetKey`]s of the budgets running in `month`, for marking the entries
+ * that count against one.
+ *
+ * Keyed by account as well as category because a summary account's list is its
+ * members' concatenated, and each member budgets its own categories.
+ */
+export function budgetedIn(budgets: readonly Budget[], month: Month): Set<string> {
+  const keys = new Set<string>();
+  for (const budget of budgets) {
+    const started = !isBeforeMonth(month, budget.start);
+    const running = !budget.end || !isBeforeMonth(budget.end, month);
+    if (started && running) {
+      keys.add(budgetKey(budget.account_id, budget.category_id));
+    }
+  }
+  return keys;
 }

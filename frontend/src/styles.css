@@ -944,7 +944,8 @@ button {
   color: var(--muted);
 }
 
-.recurring-badge {
+.recurring-badge,
+.budget-badge {
   margin-left: 0.35rem;
   font-size: 0.85em;
 }

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { BudgetSegment } from '../../api/types';
 import {
   amountInMonth,
+  budgetedIn,
+  budgetKey,
   clashingExpenseRule,
   isBeforeMonth,
   isSameMonth,
@@ -146,6 +148,10 @@ describe('clashingExpenseRule', () => {
     end: { kind: 'never' } | { kind: 'until'; date: string },
     kind: 'expense' | 'income' = 'expense',
     category_id: number | null = 1,
+    frequency: { unit: 'weekly' | 'monthly' | 'yearly'; interval: number } = {
+      unit: 'monthly',
+      interval: 1,
+    },
   ) =>
     ({
       id,
@@ -155,7 +161,7 @@ describe('clashingExpenseRule', () => {
       category_id,
       start_date,
       end,
-      frequency: { unit: 'monthly' as const, interval: 1 },
+      frequency,
     }) as never;
 
   const span = { start: m(2026, 8), end: null };
@@ -184,6 +190,24 @@ describe('clashingExpenseRule', () => {
   it('ignores a rule starting after the budget ends', () => {
     const rules = [rule(1, '2027-01-01', { kind: 'never' })];
     expect(clashingExpenseRule(rules, 1, { start: m(2026, 8), end: m(2026, 12) })).toBeUndefined();
+  });
+
+  it('ignores a cadence that skips months', () => {
+    // A yearly (or every-N-months) rule does not consume a monthly budget the
+    // way the warning claims, and the offer to delete it is destructive.
+    const yearly = [
+      rule(1, '2026-01-01', { kind: 'never' }, 'expense', 1, { unit: 'yearly', interval: 1 }),
+    ];
+    expect(clashingExpenseRule(yearly, 1, span)).toBeUndefined();
+    const everyOtherMonth = [
+      rule(1, '2026-01-01', { kind: 'never' }, 'expense', 1, { unit: 'monthly', interval: 2 }),
+    ];
+    expect(clashingExpenseRule(everyOtherMonth, 1, span)).toBeUndefined();
+    // A weekly cadence lands in every month, so it does clash.
+    const fortnightly = [
+      rule(1, '2026-01-01', { kind: 'never' }, 'expense', 1, { unit: 'weekly', interval: 2 }),
+    ];
+    expect(clashingExpenseRule(fortnightly, 1, span)?.id).toBe(1);
   });
 
   it('counts a rule whose last month is the budget’s first', () => {
@@ -233,5 +257,41 @@ describe('withAmountForMonth', () => {
       seg(2026, 12, '90.00'),
       seg(2027, 1, '100.00'),
     ]);
+  });
+});
+
+describe('budgetedIn', () => {
+  const budget = (id: number, account_id: number, category_id: number, start: ReturnType<typeof m>, end?: ReturnType<typeof m>) =>
+    ({
+      id,
+      account_id,
+      category_id,
+      amounts: [{ effective_from: start, amount: '100.00' }],
+      start,
+      end: end ?? null,
+    }) as never;
+
+  it('includes a budget running in the month', () => {
+    const keys = budgetedIn([budget(1, 7, 3, m(2026, 8))], m(2026, 9));
+    expect(keys.has(budgetKey(7, 3))).toBe(true);
+  });
+
+  it('excludes a budget that has not started', () => {
+    expect(budgetedIn([budget(1, 7, 3, m(2026, 8))], m(2026, 7)).size).toBe(0);
+  });
+
+  it('excludes a budget that has ended, inclusive of its last month', () => {
+    const b = [budget(1, 7, 3, m(2026, 8), m(2026, 9))];
+    expect(budgetedIn(b, m(2026, 9)).has(budgetKey(7, 3))).toBe(true);
+    expect(budgetedIn(b, m(2026, 10)).size).toBe(0);
+  });
+
+  it('keys by account as well as category', () => {
+    // A summary account's list is its members' concatenated, so the same
+    // category on two accounts must not be conflated.
+    const keys = budgetedIn([budget(1, 7, 3, m(2026, 8)), budget(2, 9, 3, m(2026, 8))], m(2026, 8));
+    expect(keys.has(budgetKey(7, 3))).toBe(true);
+    expect(keys.has(budgetKey(9, 3))).toBe(true);
+    expect(keys.has(budgetKey(8, 3))).toBe(false);
   });
 });

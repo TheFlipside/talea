@@ -266,6 +266,7 @@
       "from": "{{month}} ve sonraki aylar, bir sonraki planlanan değişikliğe kadar değişir.",
       "all": "Tüm aylar değişir ve planlanan değişiklikler silinir."
     },
-    "beforeAccountStart": "Bu hesabın ilk ayından ({{month}}) önce"
+    "beforeAccountStart": "Bu hesabın ilk ayından ({{month}}) önce",
+    "countsToward": "Bu kategorinin bütçesine sayılır"
   }
 }

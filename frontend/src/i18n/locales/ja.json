@@ -266,6 +266,7 @@
       "from": "{{month}}と以降の月が、次の予定変更まで変わります。",
       "all": "すべての月が変わり、予定していた変更は削除されます。"
     },
-    "beforeAccountStart": "この口座の開始月（{{month}}）より前"
+    "beforeAccountStart": "この口座の開始月（{{month}}）より前",
+    "countsToward": "このカテゴリーの予算に計上されます"
   }
 }
