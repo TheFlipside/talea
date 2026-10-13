@@ -173,6 +173,9 @@ plugin (Android/iOS), with the device PIN/passcode allowed as a fallback.
   to authenticate, and desktop is a development target.
 - **Toggle timing:** enabling/disabling the lock takes effect on the **next
   launch**, so flipping it on can't strand the user behind a prompt they cancel.
+  Since the launch gate reads it from storage, the switch only moves once
+  storage has accepted that write: shown as on but never stored, it would
+  promise a lock the next launch doesn't keep.
 - **Lock-on-resume:** the lock re-engages when the app returns from the
   background, not only at cold start (`LockGate` listens for
   `visibilitychange`). A guard ignores the background/resume the native prompt

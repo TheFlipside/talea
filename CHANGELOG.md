@@ -60,6 +60,12 @@ All notable changes to this project are documented in this file.
   over to a different server, and the password no longer lingers in the app's
   query cache after a save.
 
+- **The app-lock switch can no longer show a lock that isn't stored.** The
+  lock is read from storage at launch, but a failed write to that storage went
+  unnoticed, so the switch could show the lock as on while the next launch
+  opened unlocked. The switch now moves only once storage has accepted the
+  setting; if it doesn't, the switch stays where it was.
+
 ## 1.5.0 - 2026-08-08
 
 ### Added
