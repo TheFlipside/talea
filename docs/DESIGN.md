@@ -306,8 +306,12 @@ Those remain future work if concurrent multi-device editing is ever needed.
   is never returned to the frontend and never logged. At rest it is plaintext
   protected by the same OS file-encryption baseline as the rest of the app's data
   (§9). Use a Nextcloud **app password** (app-scoped, revocable), not the login
-  password. OS-keychain storage is a tracked follow-up (the `keyring` crate
-  doesn't cover Android, so it isn't a clean cross-platform win today).
+  password. Saving with the password left blank keeps the stored one only
+  while the address and username are unchanged, and drops it otherwise
+  (clearing both fields disconnects): kept across a change, it would follow
+  the address to whatever server answers there. OS-keychain storage is
+  a tracked follow-up (the `keyring` crate doesn't cover Android, so it isn't a
+  clean cross-platform win today).
 - **HTTPS only.** The WebDAV client (`src-tauri/src/webdav.rs`) rejects non-
   `https://` addresses and authenticates with HTTP Basic. TLS is `reqwest` +
   **rustls with the `ring` provider** (not the default `aws-lc-rs`), chosen so the

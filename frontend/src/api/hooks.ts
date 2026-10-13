@@ -315,6 +315,11 @@ export function useNextcloudSetConfig() {
   return useMutation<void, CommandError, { baseUrl: string; username: string; password: string }>({
     mutationFn: ({ baseUrl, username, password }) =>
       api.nextcloudSetConfig(baseUrl, username, password),
+    // The app password rides in this mutation's variables: once the caller
+    // resets it, drop it from the cache at once, not after the default 5 min.
+    // (Pass no per-call options to `mutate`: the observer keeps those past a
+    // reset, along with anything their callbacks close over.)
+    gcTime: 0,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
     },

@@ -1788,3 +1788,152 @@ fn new_account_payload_caps_the_opening_balance() {
         ));
     }
 }
+
+/// A fresh app-data dir holding saved Nextcloud credentials and a past backup.
+fn nextcloud_dir() -> TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    crate::backup::set_credentials(dir.path(), "https://cloud.example.com", "max", "s3cret")
+        .unwrap();
+    crate::backup::mark_backed_up(dir.path()).unwrap();
+    dir
+}
+
+#[test]
+fn a_blank_password_keeps_the_stored_one_for_the_same_server_and_user() {
+    let dir = nextcloud_dir();
+    // Whitespace around the address is trimmed, as on every save.
+    crate::backup::set_credentials(dir.path(), " https://cloud.example.com ", "max", "").unwrap();
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.base_url, "https://cloud.example.com");
+    assert_eq!(config.password, "s3cret");
+    // Same server, so the backup it holds is still the last one.
+    assert!(config.last_backup.is_some());
+}
+
+#[test]
+fn a_blank_password_is_dropped_once_the_server_or_user_changes() {
+    for (base_url, username) in [
+        ("https://attacker.example", "max"),
+        ("https://cloud.example.com", "someone-else"),
+        // Written differently counts as different: re-entering is the cheap side.
+        ("https://cloud.example.com/", "max"),
+        ("https://Cloud.example.com", "max"),
+        ("https://cloud.example.co", "max"),
+    ] {
+        let dir = nextcloud_dir();
+        crate::backup::set_credentials(dir.path(), base_url, username, "").unwrap();
+        // The new address is saved, but the old server's password didn't follow
+        // it there, so nothing can be sent until the new one is entered.
+        let config = crate::backup::load_config(dir.path());
+        assert_eq!(config.base_url, base_url, "{base_url} / {username}");
+        assert_eq!(config.username, username);
+        assert_eq!(config.password, "");
+        assert!(!config.is_configured());
+        // The last backup lives on the old server, not this one.
+        assert_eq!(config.last_backup, None);
+    }
+}
+
+#[test]
+fn clearing_the_address_and_user_disconnects() {
+    let dir = nextcloud_dir();
+    crate::backup::set_credentials(dir.path(), "", "", "").unwrap();
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.password, "");
+    assert_eq!(config.last_backup, None);
+    assert!(!config.is_configured());
+}
+
+#[test]
+fn a_password_typed_while_disconnecting_is_not_kept() {
+    // With no address there is no one to give it to.
+    let dir = tempfile::tempdir().unwrap();
+    crate::backup::set_credentials(dir.path(), "", "", "s3cret").unwrap();
+    assert_eq!(crate::backup::load_config(dir.path()).password, "");
+}
+
+#[test]
+fn a_legacy_password_beside_no_address_follows_nowhere() {
+    // The old rule let clearing both fields keep the password, leaving configs
+    // like this behind. Nothing can produce one now, so it is written directly.
+    let legacy = || {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("nextcloud.json"),
+            r#"{"baseUrl":"","username":"","password":"s3cret"}"#,
+        )
+        .unwrap();
+        dir
+    };
+    // Neither the next address typed in...
+    let dir = legacy();
+    crate::backup::set_credentials(dir.path(), "https://attacker.example", "max", "").unwrap();
+    assert_eq!(crate::backup::load_config(dir.path()).password, "");
+    // ...nor "the same" empty pair saved again may keep it.
+    let dir = legacy();
+    crate::backup::set_credentials(dir.path(), "", "", "").unwrap();
+    assert_eq!(crate::backup::load_config(dir.path()).password, "");
+}
+
+#[test]
+fn the_password_never_shows_in_debug_output() {
+    let config = crate::backup::load_config(nextcloud_dir().path());
+    let printed = format!("{config:?}");
+    assert!(!printed.contains("s3cret"), "{printed}");
+    assert!(printed.contains("[redacted]"));
+}
+
+#[test]
+fn a_new_password_moves_the_credentials_to_a_new_server() {
+    let dir = nextcloud_dir();
+    crate::backup::set_credentials(dir.path(), "https://new.example.com", "max", "fresh").unwrap();
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.base_url, "https://new.example.com");
+    assert_eq!(config.password, "fresh");
+}
+
+#[test]
+fn a_first_save_without_a_password_is_allowed() {
+    // Nothing stored yet, so nothing can follow the address anywhere.
+    let dir = tempfile::tempdir().unwrap();
+    crate::backup::set_credentials(dir.path(), "https://cloud.example.com", "max", "").unwrap();
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.base_url, "https://cloud.example.com");
+    assert_eq!(config.username, "max");
+    assert!(!config.is_configured());
+}
+
+#[test]
+fn a_password_stored_beside_an_empty_field_still_stays_put() {
+    // A blank field is no "first save" once a password is stored next to it:
+    // before this rule, clearing just the address kept the password, so such
+    // configs exist, and the password must not follow whatever is typed next.
+    for (first, second) in [
+        (("", "max"), ("https://attacker.example", "max")),
+        (
+            ("https://cloud.example.com", ""),
+            ("https://cloud.example.com", "someone-else"),
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        crate::backup::set_credentials(dir.path(), first.0, first.1, "s3cret").unwrap();
+        crate::backup::set_credentials(dir.path(), second.0, second.1, "").unwrap();
+        assert_eq!(
+            crate::backup::load_config(dir.path()).password,
+            "",
+            "{first:?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn the_credentials_file_is_readable_by_its_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = nextcloud_dir();
+    let mode = std::fs::metadata(dir.path().join("nextcloud.json"))
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o600);
+}

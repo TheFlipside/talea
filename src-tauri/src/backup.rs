@@ -7,6 +7,7 @@
 //! in the live database in one transaction (no pool swap), guarded so a backup
 //! from a different schema version is refused rather than risking a mismatch.
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -40,7 +41,7 @@ const TABLES: &[&str] = &[
 
 /// Stored Nextcloud connection. In app-data, never in the DB (so the password
 /// is never uploaded inside a backup).
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextcloudConfig {
     #[serde(default)]
@@ -52,6 +53,24 @@ pub struct NextcloudConfig {
     /// RFC-3339 timestamp of the last successful backup, if any.
     #[serde(default)]
     pub last_backup: Option<String>,
+}
+
+/// Hand-written rather than derived, so the app password can never reach a log
+/// or an error message through `{:?}`.
+impl fmt::Debug for NextcloudConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let password = if self.password.is_empty() {
+            ""
+        } else {
+            "[redacted]"
+        };
+        f.debug_struct("NextcloudConfig")
+            .field("base_url", &self.base_url)
+            .field("username", &self.username)
+            .field("password", &password)
+            .field("last_backup", &self.last_backup)
+            .finish()
+    }
 }
 
 impl NextcloudConfig {
@@ -134,8 +153,23 @@ fn save_config(app_data_dir: &Path, config: &NextcloudConfig) -> Result<(), Comm
     })
 }
 
-/// Updates the stored credentials. An empty `password` keeps the existing one
-/// (so the frontend never needs to echo it back).
+/// Updates the stored credentials. An empty `password` keeps the existing one,
+/// so the frontend never needs to echo it back — but only for the same server
+/// and user. The app password belongs to them: kept for a changed address, it
+/// would be sent to whatever host answers there now, so a crafted call could
+/// point the address at its own server and collect the password by testing
+/// the connection. So for any other address or user, an empty password drops
+/// the stored one instead, leaving the backup unconfigured until the new
+/// server's password is entered. Clearing both fields disconnects, password and
+/// all, and the last-backup time goes with any change of server: that backup
+/// lives on the previous one.
+///
+/// The comparison is deliberately exact (after trimming): the same server
+/// written differently only costs re-entering the password, whereas a lenient
+/// match that went wrong would hand it to another host.
+///
+/// # Errors
+/// [`CommandError::Backup`] if the settings can't be saved.
 pub fn set_credentials(
     app_data_dir: &Path,
     base_url: &str,
@@ -143,11 +177,21 @@ pub fn set_credentials(
     password: &str,
 ) -> Result<(), CommandError> {
     let mut config = load_config(app_data_dir);
-    base_url.trim().clone_into(&mut config.base_url);
-    username.trim().clone_into(&mut config.username);
-    if !password.is_empty() {
-        password.clone_into(&mut config.password);
+    let (base_url, username) = (base_url.trim(), username.trim());
+    let disconnect = base_url.is_empty() && username.is_empty();
+    let same_account = !disconnect && base_url == config.base_url && username == config.username;
+    if !same_account {
+        config.last_backup = None;
     }
+    if disconnect {
+        config.password.clear();
+    } else if !password.is_empty() {
+        password.clone_into(&mut config.password);
+    } else if !same_account {
+        config.password.clear();
+    }
+    base_url.clone_into(&mut config.base_url);
+    username.clone_into(&mut config.username);
     save_config(app_data_dir, &config)
 }
 

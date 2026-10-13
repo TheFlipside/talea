@@ -1008,7 +1008,9 @@ pub fn nextcloud_get_config(app: AppHandle) -> Result<NextcloudConfigView, Comma
 }
 
 /// Saves the Nextcloud address/username, and the app password when a non-empty
-/// one is given (an empty password keeps the stored one).
+/// one is given. An empty password keeps the stored one for the same address
+/// and username only; for any other it drops it, so a stored password never
+/// follows a changed address (see [`backup::set_credentials`]).
 ///
 /// # Errors
 /// [`CommandError::Backup`] if the settings can't be written.

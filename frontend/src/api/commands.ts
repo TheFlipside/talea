@@ -141,7 +141,9 @@ export const nextcloudGetConfig = (): Promise<NextcloudConfigView> =>
   call('nextcloud_get_config');
 
 /** Saves the address/username and, when `password` is non-empty, the app
- *  password (an empty string keeps the stored one). */
+ *  password. An empty string keeps the stored one only for the same address
+ *  and username, compared exactly after trimming; for any other address or
+ *  username, the stored password is dropped. */
 export const nextcloudSetConfig = (
   baseUrl: string,
   username: string,

@@ -50,6 +50,16 @@ All notable changes to this project are documented in this file.
   Vite dev server, sources and HMR socket included, to every network interface
   instead of loopback, as an unset variable does. Development builds only.
 
+- **The stored Nextcloud app password stays with its own server.** Saving the
+  backup settings with the password left blank kept the stored app password
+  even when the address or username had changed, so it went to whichever server
+  answered at the new address, where a crafted call could collect it. A blank
+  password now keeps the stored one only for the same server and user; for any
+  other it is dropped, so a new server needs its own password, and clearing
+  both fields disconnects completely. The last-backup time no longer carries
+  over to a different server, and the password no longer lingers in the app's
+  query cache after a save.
+
 ## 1.5.0 - 2026-08-08
 
 ### Added

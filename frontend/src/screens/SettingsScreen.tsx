@@ -144,6 +144,12 @@ function BackupSection() {
   }
 
   const configured = config.data?.configured ?? false;
+  // "Leave blank to keep" only holds for the same server and user: the
+  // backend won't carry the stored app password to a new address.
+  const keepsPassword =
+    configured &&
+    baseUrl.trim() === config.data?.baseUrl &&
+    username.trim() === config.data?.username;
   const busy =
     saveConfig.isPending || test.isPending || backup.isPending || restore.isPending;
 
@@ -198,7 +204,7 @@ function BackupSection() {
           autoComplete="off"
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
-          placeholder={configured ? t('settings.nextcloudPasswordKeep') : undefined}
+          placeholder={keepsPassword ? t('settings.nextcloudPasswordKeep') : undefined}
         />
       </label>
 
@@ -209,7 +215,12 @@ function BackupSection() {
           disabled={busy}
           onClick={() =>
             run(async () => {
-              await saveConfig.mutateAsync({ baseUrl, username, password });
+              try {
+                await saveConfig.mutateAsync({ baseUrl, username, password });
+              } finally {
+                // Saved or not, the password in the mutation's state goes.
+                saveConfig.reset();
+              }
               setPassword('');
             }, t('settings.backupSaved'))
           }
