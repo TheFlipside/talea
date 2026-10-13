@@ -31,6 +31,13 @@ All notable changes to this project are documented in this file.
   account's members left its merged entry list, statistics and budgets stale
   the same way. An account edit now refreshes all of them at once.
 
+- **Summary accounts refresh when a member changes.** Recording, editing or
+  deleting an entry, recurring rule or single occurrence on an account left
+  any summary account containing it showing the old figures, merged list and
+  statistics for up to 30 seconds, and the home-screen widget's ring for that
+  summary could stay behind for the rest of the session. Such a change now
+  refreshes every summary containing the account as well.
+
 ## 1.5.0 - 2026-08-08
 
 ### Added

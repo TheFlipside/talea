@@ -21,8 +21,9 @@ export const queryKeys = {
   balanceAsOf: (accountId: AccountId, date: IsoDate) => ['balanceAsOf', accountId, date] as const,
   /** Prefix matching every cached day balance for an account. */
   balanceAsOfByAccount: (accountId: AccountId) => ['balanceAsOf', accountId] as const,
-  /** Prefix matching every account's day balances (e.g. after deleting an
-   *  account, whose share a summary account's total also loses). */
+  /** Prefix matching every account's day balances, for the sweeps over every
+   *  account: after an account is deleted, and whenever the account list can't
+   *  say which summaries an account belongs to. */
   balanceAsOfAll: ['balanceAsOf'] as const,
   /** Per-month category expense breakdown (stats screen). */
   expensesByCategory: (accountId: AccountId, month: Month) =>

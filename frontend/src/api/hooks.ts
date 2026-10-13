@@ -1,13 +1,16 @@
 /** TanStack Query hooks over the typed commands. */
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import * as api from './commands';
+import {
+  invalidateBudgetData,
+  invalidateDeletedAccount,
+  invalidateDetachData,
+  invalidateEntryData,
+  invalidateOccurrenceData,
+  invalidateRuleData,
+} from './invalidation';
 import { queryKeys } from './queryKeys';
 import type {
   Account,
@@ -35,54 +38,6 @@ import type {
   RecurringRule,
   RecurringRuleId,
 } from './types';
-
-/**
- * Refresh everything that an entry change can affect. Carry-over couples every
- * later month, so we invalidate the account's entries AND *all* of its cached
- * month summaries and day balances (prefix match), not just the edited month.
- *
- * Budget progress is in there too: spending in a budgeted category consumes its
- * reservation, which moves `reserved`/`free` on the month summary.
- */
-function invalidateAccountData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.entries(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.balanceAsOfByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-}
-
-/**
- * Refresh everything a recurring-rule change can affect: the rule list, the
- * month's occurrences, and (since rules feed the ledger) all month summaries,
- * day balances, category breakdowns, and budget progress for the account — a
- * rule's expansion counts toward a budget's actual just as an ad-hoc entry does.
- */
-function invalidateRuleData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.rules(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.balanceAsOfByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-}
-
-/**
- * Refresh what a budget change affects: the budget list, the month's progress,
- * and the month summaries carrying `reserved`/`free` (and so the ring).
- *
- * Everything is invalidated for **every** account, not just this one: a summary
- * account aggregates its members' budgets *and* their `reserved`, so scoping to
- * the mutated account would leave the summary's list and its "Free to spend"
- * figure stale — the latter visible on the home-screen widget. Budget edits are
- * rare (unlike entries, whose helpers stay account-scoped), so the wider sweep
- * costs nothing in practice.
- */
-function invalidateBudgetData(client: QueryClient): void {
-  void client.invalidateQueries({ queryKey: queryKeys.budgetsAll });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsAll });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryAll });
-}
 
 export function useAccounts() {
   return useQuery<Account[], CommandError>({
@@ -149,15 +104,7 @@ export function useDeleteAccount() {
   const client = useQueryClient();
   return useMutation<void, CommandError, AccountId>({
     mutationFn: api.deleteAccount,
-    onSuccess: (_data, accountId) => {
-      void client.invalidateQueries({ queryKey: queryKeys.accounts });
-      invalidateAccountData(client, accountId);
-      // The account's budgets cascade away with it, and a summary that contained
-      // it would otherwise keep listing them — hence the account-wide sweep.
-      invalidateBudgetData(client);
-      // That summary's day balance loses this member's share, too.
-      void client.invalidateQueries({ queryKey: queryKeys.balanceAsOfAll });
-    },
+    onSuccess: (_data, accountId) => invalidateDeletedAccount(client, accountId),
   });
 }
 
@@ -216,7 +163,7 @@ export function useCreateEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<Entry, CommandError, NewEntry>({
     mutationFn: api.createEntry,
-    onSuccess: () => invalidateAccountData(client, accountId),
+    onSuccess: () => invalidateEntryData(client, [accountId]),
   });
 }
 
@@ -226,9 +173,9 @@ export function useCreateTransfer(accountId: AccountId) {
     {
       mutationFn: ({ entry, counterAccountId }) => api.createTransfer(entry, counterAccountId),
       onSuccess: (_data, { counterAccountId }) => {
-        // A transfer writes an entry on each account; refresh both.
-        invalidateAccountData(client, accountId);
-        invalidateAccountData(client, counterAccountId);
+        // A transfer writes an entry on each account. Refresh both in one call,
+        // so a summary containing both is refreshed once, not twice.
+        invalidateEntryData(client, [accountId, counterAccountId]);
       },
     },
   );
@@ -238,7 +185,7 @@ export function useUpdateEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<Entry, CommandError, Entry>({
     mutationFn: api.updateEntry,
-    onSuccess: () => invalidateAccountData(client, accountId),
+    onSuccess: () => invalidateEntryData(client, [accountId]),
   });
 }
 
@@ -246,7 +193,7 @@ export function useDeleteEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<void, CommandError, EntryId>({
     mutationFn: api.deleteEntry,
-    onSuccess: () => invalidateAccountData(client, accountId),
+    onSuccess: () => invalidateEntryData(client, [accountId]),
   });
 }
 
@@ -288,17 +235,6 @@ export function useDeleteRule(accountId: AccountId) {
   });
 }
 
-/** Removing/editing a single occurrence changes the month's occurrences and the
- *  ledger-derived figures (summary, day balance, stats), but not the rule list
- *  itself. */
-function invalidateOccurrenceData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.balanceAsOfByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-}
-
 export function useSkipOccurrence(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<void, CommandError, { ruleId: RecurringRuleId; date: IsoDate }>({
@@ -317,8 +253,7 @@ export function useDetachOccurrence(accountId: AccountId) {
     mutationFn: ({ ruleId, date, entry }) => api.detachOccurrence(accountId, ruleId, date, entry),
     onSuccess: () => {
       // A detach removes an occurrence AND adds a standalone entry.
-      invalidateAccountData(client, accountId);
-      void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
+      invalidateDetachData(client, accountId);
     },
   });
 }
