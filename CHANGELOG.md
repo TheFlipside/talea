@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Balance today** — the month bar now leads with what the account should hold
+  *right now*: the opening balance plus every entry and recurring occurrence
+  dated up to and including today. Compare it with your bank: if the two
+  disagree, a transaction is missing or extra, and the size of the gap tells you
+  what to look for. Unlike *Available to end of month*, it leaves out anything
+  dated later this month (a pre-recorded bill, an upcoming recurring
+  occurrence). Shown only while viewing the current month; a summary account
+  shows its members' total. Display only — nothing is stored, and the
+  home-screen widget is unchanged. Translated in all 12 locales.
+
+### Fixed
+
+- **An out-of-range opening balance can no longer crash the app.** Unlike
+  amounts, opening balances had no upper bound, so an absurd one — typed in, or
+  restored from a tampered backup — overflowed the ledger's arithmetic, and
+  release builds abort on that. Opening balances are now capped at the same one
+  quadrillion as amounts (overdrawn or not), and a stored value beyond it is
+  reported as corrupt data instead of crashing the app.
+
+- **Editing an account refreshes everything derived from it, immediately.**
+  Changing an account's opening balance or anchor month could leave the month
+  bar showing the previous figures for a while, and changing a summary
+  account's members left its merged entry list, statistics and budgets stale
+  the same way. An account edit now refreshes all of them at once.
+
 ## 1.5.0 - 2026-08-08
 
 ### Added

@@ -261,6 +261,12 @@ button {
   margin: 0;
 }
 
+/* "Balance today" is a point in time, set apart from the month's flow figures. */
+.summary__balance {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--accent-track);
+}
+
 .amount {
   font-variant-numeric: tabular-nums;
   font-weight: 600;

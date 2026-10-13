@@ -24,7 +24,8 @@
     "ringSpent": "{{percent}}% der Mittel dieses Monats gebunden",
     "ringRemaining": "{{percent}}% der Mittel dieses Monats frei verfügbar",
     "combinedHint": "Zusammengefasste, schreibgeschützte Ansicht der enthaltenen Konten.",
-    "free": "Frei verfügbar"
+    "free": "Frei verfügbar",
+    "balanceToday": "Saldo heute"
   },
   "month": {
     "navigation": "Monatsnavigation",

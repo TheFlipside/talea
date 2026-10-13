@@ -20,6 +20,7 @@ import type {
   Entry,
   EntryId,
   IsoDate,
+  Money,
   Month,
   MonthSummary,
   NewAccount,
@@ -65,6 +66,10 @@ export const deleteEntry = (id: EntryId): Promise<void> =>
 
 export const monthSummary = (accountId: AccountId, month: Month): Promise<MonthSummary> =>
   call('month_summary', { accountId, month });
+
+/** The account's running balance at the end of `date` (in practice, today). */
+export const balanceAsOf = (accountId: AccountId, date: IsoDate): Promise<Money> =>
+  call('balance_as_of', { accountId, date });
 
 export const expensesByCategory = (
   accountId: AccountId,

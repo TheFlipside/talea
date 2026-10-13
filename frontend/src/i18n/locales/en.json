@@ -24,7 +24,8 @@
     "ringSpent": "{{percent}}% of this month's funds committed",
     "ringRemaining": "{{percent}}% of this month's funds free to spend",
     "combinedHint": "Combined, read-only view of this summary's member accounts.",
-    "free": "Free to spend"
+    "free": "Free to spend",
+    "balanceToday": "Balance today"
   },
   "month": {
     "navigation": "Month navigation",

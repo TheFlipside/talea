@@ -5,7 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::domain::error::{DomainError, MAX_LABEL_LEN, MAX_SUMMARY_MEMBERS};
+use crate::domain::error::{
+    validate_opening_balance, DomainError, MAX_LABEL_LEN, MAX_SUMMARY_MEMBERS,
+};
 use crate::domain::ids::AccountId;
 use crate::domain::month::Month;
 use crate::money::Money;
@@ -133,6 +135,8 @@ impl Account {
     /// - [`DomainError::EmptyLabel`] if `name` or `icon` is empty.
     /// - [`DomainError::LabelTooLong`] if `name` or `icon` exceeds
     ///   [`MAX_LABEL_LEN`] characters.
+    /// - [`DomainError::OpeningBalanceTooLarge`] if `opening_balance` exceeds
+    ///   one quadrillion in magnitude, the ceiling amounts share.
     pub fn new(
         id: AccountId,
         name: String,
@@ -220,6 +224,7 @@ impl Account {
                 if !members.is_empty() {
                     return Err(DomainError::NormalAccountHasMembers);
                 }
+                validate_opening_balance(opening_balance)?;
             }
             AccountKind::Summary => {
                 if opening_balance != Money::zero() {
@@ -448,6 +453,43 @@ mod tests {
             "opening_balance":"0","anchor":{"year":2026,"month":5},
             "kind":"normal","members":[2]}"#;
         assert!(serde_json::from_str::<Account>(json).is_err());
+    }
+
+    #[test]
+    fn caps_the_opening_balance_in_either_direction() {
+        let opening = |minor: i64| {
+            Account::new(
+                AccountId::new(1),
+                "Checking".to_owned(),
+                "🏦".to_owned(),
+                Currency::new("USD").unwrap(),
+                Money::from_minor_units(minor, 2),
+                anchor(),
+            )
+        };
+        // One quadrillion is the ceiling, overdrawn or not.
+        let cap = 100_000_000_000_000_000; // 1e15 at two decimal places
+        assert!(opening(cap).is_ok());
+        assert!(opening(-cap).is_ok());
+        for beyond in [cap + 1, -cap - 1] {
+            assert!(matches!(
+                opening(beyond),
+                Err(DomainError::OpeningBalanceTooLarge(_))
+            ));
+        }
+        // Deserialization — the IPC and database-load path — enforces it too,
+        // at both of `Decimal`'s extremes.
+        for extreme in [
+            "79228162514264337593543950335",
+            "-79228162514264337593543950335",
+        ] {
+            let json = format!(
+                r#"{{"id":1,"name":"Checking","icon":"🏦","currency":"USD",
+                "opening_balance":"{extreme}","anchor":{{"year":2026,"month":5}},
+                "kind":"normal","members":[]}}"#
+            );
+            assert!(serde_json::from_str::<Account>(&json).is_err());
+        }
     }
 
     #[test]

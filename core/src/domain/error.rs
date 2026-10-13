@@ -22,13 +22,21 @@ pub const MAX_AMOUNT_SEGMENTS: usize = 100;
 /// per-member ledger scans on every read.
 pub const MAX_SUMMARY_MEMBERS: usize = 50;
 
-/// Largest single amount accepted (one quadrillion). Far below
-/// `Decimal::MAX` (~7.9e28), so even pathological prefix-sums over the bounded
-/// month range cannot overflow the ledger's arithmetic.
-const MAX_AMOUNT_MINOR: i64 = 1_000_000_000_000_000;
+/// Largest magnitude of any money term the ledger sums — a single entry, rule
+/// or budget amount, or an account's opening balance: one quadrillion, in whole
+/// currency units. With every term capped, overflowing `Decimal::MAX` (~7.9e28)
+/// would take some 8e13 maximal terms, far beyond any real ledger. That bound,
+/// not a proof, is what keeps the ledger's panic-on-overflow arithmetic safe.
+const MAX_AMOUNT_UNITS: i64 = 1_000_000_000_000_000;
+
+/// [`MAX_AMOUNT_UNITS`] as money (whole units, scale 0), shared by both
+/// validators so the two bounds can't drift apart.
+fn amount_ceiling() -> Money {
+    Money::from_minor_units(MAX_AMOUNT_UNITS, 0)
+}
 
 /// Validates an entry/rule amount: a positive magnitude within
-/// [`MAX_AMOUNT_MINOR`].
+/// [`MAX_AMOUNT_UNITS`].
 ///
 /// # Errors
 ///
@@ -38,8 +46,24 @@ pub(crate) fn validate_amount(amount: Money) -> Result<(), DomainError> {
     if !amount.is_positive() {
         return Err(DomainError::NonPositiveAmount(amount));
     }
-    if amount.amount() > Money::from_minor_units(MAX_AMOUNT_MINOR, 0).amount() {
+    if amount.amount() > amount_ceiling().amount() {
         return Err(DomainError::AmountTooLarge(amount));
+    }
+    Ok(())
+}
+
+/// Validates an account's opening balance: either sign (an account may open
+/// overdrawn), but no larger in magnitude than [`MAX_AMOUNT_UNITS`]. It seeds
+/// every running balance, so it needs the same bound as the amounts summed onto
+/// it — without one, the ledger's panic-on-overflow arithmetic was reachable,
+/// and release builds abort on panic.
+///
+/// # Errors
+///
+/// [`DomainError::OpeningBalanceTooLarge`] if its magnitude exceeds the ceiling.
+pub(crate) fn validate_opening_balance(balance: Money) -> Result<(), DomainError> {
+    if balance.amount().abs() > amount_ceiling().amount() {
+        return Err(DomainError::OpeningBalanceTooLarge(balance));
     }
     Ok(())
 }
@@ -69,6 +93,10 @@ pub enum DomainError {
     /// An entry amount exceeded the accepted ceiling.
     #[error("entry amount {0} exceeds the maximum accepted value")]
     AmountTooLarge(Money),
+
+    /// An account's opening balance exceeded the accepted ceiling in magnitude.
+    #[error("opening balance {0} exceeds the maximum accepted value")]
+    OpeningBalanceTooLarge(Money),
 
     /// A note exceeded [`MAX_NOTE_LEN`].
     #[error("note exceeds {max} characters (was {len})")]

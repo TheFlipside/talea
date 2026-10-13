@@ -118,6 +118,7 @@ pub fn run() {
             commands::delete_budget,
             commands::month_budgets,
             commands::month_summary,
+            commands::balance_as_of,
             commands::summaries_for_range,
             commands::expenses_by_category,
             commands::month_occurrences,

@@ -13,7 +13,7 @@ use talea_core::{
 };
 
 use crate::db;
-use crate::dto::{NewBudget, NewEntry, OccurrenceRef};
+use crate::dto::{IsoDate, NewBudget, NewEntry, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
@@ -1602,4 +1602,185 @@ async fn deleting_a_budget_cascades_its_amount_history() {
         .await
         .unwrap();
     assert_eq!(left, 0);
+}
+
+/// Inserts a `minor` entry of `kind` dated `on`.
+async fn seed_entry_on(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    minor: i64,
+    kind: EntryKind,
+    on: Date,
+) {
+    let draft = NewEntry {
+        date: on,
+        ..new_entry(account_id, minor, kind)
+    }
+    .build()
+    .unwrap();
+    repo::entry::insert(pool, &draft).await.unwrap();
+}
+
+#[tokio::test]
+async fn balance_as_of_counts_entries_up_to_the_date() {
+    let (_dir, pool) = fixture().await;
+    let id = seed_account(&pool).await.id();
+    let march = |d| date(2026, TMonth::March, d);
+    seed_entry_on(&pool, id, 100_000, EntryKind::Income, march(1)).await; // +1000
+    seed_entry_on(&pool, id, 20_000, EntryKind::Expense, march(15)).await; // -200
+    seed_entry_on(&pool, id, 30_000, EntryKind::Expense, march(25)).await; // -300
+
+    let as_of = |d| crate::commands::balance_as_of_inner(&pool, id, march(d));
+    assert_eq!(
+        as_of(14).await.unwrap(),
+        Money::from_minor_units(100_000, 2)
+    );
+    // The date itself counts; the 25th's expense is still ahead.
+    assert_eq!(as_of(15).await.unwrap(), Money::from_minor_units(80_000, 2));
+    // On the month's last day it is exactly that month's `available`.
+    let summary = crate::commands::month_summary_inner(&pool, id, Month::new(2026, 3).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(as_of(31).await.unwrap(), summary.available);
+}
+
+#[tokio::test]
+async fn summary_account_balance_as_of_sums_its_members() {
+    let (_dir, pool) = fixture().await;
+    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+        .await
+        .unwrap();
+    let march = |d| date(2026, TMonth::March, d);
+    seed_entry_on(&pool, a.id(), 50_000, EntryKind::Income, march(1)).await; // +500 on A
+    seed_entry_on(&pool, b.id(), 10_000, EntryKind::Expense, march(2)).await; // -100 on B
+
+    // After the cut-off, so neither member counts it yet.
+    seed_entry_on(&pool, b.id(), 99_900, EntryKind::Expense, march(20)).await;
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+        .await
+        .unwrap();
+
+    let as_of = |id| crate::commands::balance_as_of_inner(&pool, id, march(10));
+    let total = as_of(summary.id()).await.unwrap();
+    assert_eq!(total, Money::from_minor_units(40_000, 2)); // 500 - 100
+    assert_eq!(
+        total,
+        as_of(a.id()).await.unwrap() + as_of(b.id()).await.unwrap()
+    );
+}
+
+#[tokio::test]
+async fn balance_as_of_a_missing_account_is_not_found() {
+    let (_dir, pool) = fixture().await;
+    let result = crate::commands::balance_as_of_inner(
+        &pool,
+        AccountId::new(999),
+        date(2026, TMonth::March, 10),
+    )
+    .await;
+    assert!(matches!(result, Err(CommandError::NotFound)));
+}
+
+#[test]
+fn iso_date_argument_is_a_bare_iso_string() {
+    // Exactly what the frontend sends for `balance_as_of`'s `date` argument.
+    let parsed: IsoDate = serde_json::from_str(r#""2026-03-15""#).expect("ISO date parses");
+    assert_eq!(parsed.get(), date(2026, TMonth::March, 15));
+    // Tauri hands each command argument over as a `serde_json::Value`.
+    let from_value: IsoDate = serde_json::from_value(serde_json::json!("2026-03-15")).unwrap();
+    assert_eq!(from_value.get(), parsed.get());
+    // The domain's year range is the boundary's too: `time` alone admits ±9999.
+    for edge in [r#""0001-01-01""#, r#""9999-12-31""#] {
+        assert!(
+            serde_json::from_str::<IsoDate>(edge).is_ok(),
+            "{edge} is in range"
+        );
+    }
+    for bad in [
+        r#""2026/03/15""#,
+        r#""2026-02-30""#,
+        "20260315",
+        r#""0000-12-31""#,
+        r#""-0001-06-15""#,
+    ] {
+        assert!(
+            serde_json::from_str::<IsoDate>(bad).is_err(),
+            "{bad} must be rejected"
+        );
+    }
+}
+
+#[tokio::test]
+async fn an_out_of_range_opening_balance_reads_as_corrupt_not_an_abort() {
+    let (_dir, pool) = fixture().await;
+    let account = seed_account(&pool).await;
+    seed_entry(&pool, account.id(), 100, EntryKind::Income).await;
+    // What a tampered backup could hold: restore copies rows verbatim, past every
+    // constructor. Summed with that entry, `Decimal::MAX` overflows the ledger's
+    // panic-on-overflow arithmetic, and release builds abort on panic.
+    sqlx::query("UPDATE account SET opening_balance = ? WHERE id = ?")
+        .bind("79228162514264337593543950335")
+        .bind(i64::try_from(account.id().get()).unwrap())
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let today = date(2026, TMonth::March, 10);
+    let balance = crate::commands::balance_as_of_inner(&pool, account.id(), today).await;
+    assert!(matches!(balance, Err(CommandError::Corrupt)));
+    let march = Month::new(2026, 3).unwrap();
+    let summary = crate::commands::month_summary_inner(&pool, account.id(), march).await;
+    assert!(matches!(summary, Err(CommandError::Corrupt)));
+}
+
+#[tokio::test]
+async fn a_full_summary_at_the_opening_balance_cap_sums_without_overflow() {
+    let (_dir, pool) = fixture().await;
+    let cap = Money::from_minor_units(1_000_000_000_000_000, 0);
+    let mut members = Vec::new();
+    for n in 0..talea_core::domain::error::MAX_SUMMARY_MEMBERS {
+        let account = Account::new(
+            AccountId::new(0),
+            format!("Member {n}"),
+            "💰".to_owned(),
+            Currency::new("USD").unwrap(),
+            cap,
+            Month::new(2026, 1).unwrap(),
+        )
+        .unwrap();
+        members.push(repo::account::insert(&pool, &account).await.unwrap().id());
+    }
+    let count = i64::try_from(members.len()).unwrap();
+    let summary = repo::account::insert(&pool, &summary_over("USD", "All", members))
+        .await
+        .unwrap();
+
+    let total =
+        crate::commands::balance_as_of_inner(&pool, summary.id(), date(2026, TMonth::March, 10))
+            .await
+            .unwrap();
+    assert_eq!(
+        total,
+        Money::from_minor_units(1_000_000_000_000_000 * count, 0)
+    );
+}
+
+#[test]
+fn new_account_payload_caps_the_opening_balance() {
+    // `NewAccount::build` inherits the cap from `Account::build`; pin it at the
+    // boundary the frontend actually calls, in both directions.
+    for opening in ["1000000000000000.01", "-1000000000000000.01"] {
+        let json = format!(
+            r#"{{"name":"Personal","icon":"💰","currency":"USD",
+            "opening_balance":"{opening}","anchor":{{"year":2026,"month":5}}}}"#
+        );
+        let draft = serde_json::from_str::<crate::dto::NewAccount>(&json).expect("parses");
+        assert!(matches!(
+            draft.build(),
+            Err(talea_core::DomainError::OpeningBalanceTooLarge(_))
+        ));
+    }
 }

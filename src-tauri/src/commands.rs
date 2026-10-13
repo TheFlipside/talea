@@ -9,15 +9,15 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
 use talea_core::{
-    budget_status as core_budget_status, combine_summaries as core_combine_summaries,
-    expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
-    summaries_for_range as core_summaries_for_range, Account, AccountId, AccountKind, Budget,
-    BudgetId, BudgetStatus, Category, CategoryExpense, CategoryId, Entry, EntryId, Month,
-    MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
+    balance_as_of as core_balance_as_of, budget_status as core_budget_status,
+    combine_summaries as core_combine_summaries, expenses_by_category as core_expenses_by_category,
+    month_summary as core_month_summary, summaries_for_range as core_summaries_for_range, Account,
+    AccountId, AccountKind, Budget, BudgetId, BudgetStatus, Category, CategoryExpense, CategoryId,
+    Entry, EntryId, Money, Month, MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
 use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
-use crate::dto::{NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
+use crate::dto::{IsoDate, NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 use crate::webdav::WebDav;
@@ -711,13 +711,62 @@ pub(crate) async fn month_summary_inner(
         let data = load_account_data(pool, account_id).await?;
         Ok(core_month_summary(
             month,
-            account.opening_balance(),
-            account.anchor(),
+            data.account.opening_balance(),
+            data.account.anchor(),
             &data.entries,
             &data.rules,
             &data.budgets,
         ))
     }
+}
+
+/// Computes an account's running balance at the end of `date`. For today, that
+/// is what the real account should show if every transaction was recorded
+/// (`docs/DESIGN.md` §13).
+///
+/// The frontend supplies the date from the device's local clock: `core` has no
+/// clock by design, and `time`'s local-offset lookup is unreliable once the
+/// process is multithreaded.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist;
+/// [`CommandError::Database`] / [`CommandError::Corrupt`] on a database error.
+#[tauri::command]
+pub async fn balance_as_of(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    date: IsoDate,
+) -> Result<Money, CommandError> {
+    balance_as_of_inner(state.inner(), account_id, date.get()).await
+}
+
+/// `balance_as_of` against a pool (summary-aware), separated so it's testable.
+pub(crate) async fn balance_as_of_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    as_of: time::Date,
+) -> Result<Money, CommandError> {
+    // A summary account keeps no ledger of its own: its balance is its members'
+    // total (they share the currency), each against its own opening balance and
+    // anchor — the per-member sum `combine_summaries` applies to month figures.
+    let mut total = Money::zero();
+    for id in ledger_source_accounts(pool, account_id).await? {
+        // Each ledger's opening balance and anchor come from the same snapshot
+        // as its entries, so no one ledger's figure mixes two reads.
+        let data = load_account_data(pool, id).await?;
+        let balance = core_balance_as_of(
+            as_of,
+            data.account.opening_balance(),
+            data.account.anchor(),
+            &data.entries,
+            &data.rules,
+        );
+        // With every input capped this can't overflow (DESIGN.md §9), but it is a
+        // new sum across ledgers, so check it rather than risk an abort. Only
+        // out-of-range data could trip it, which is what `Corrupt` reports.
+        total = total.checked_add(balance).ok_or(CommandError::Corrupt)?;
+    }
+    Ok(total)
 }
 
 /// Computes contiguous budget summaries for `from..=to` of an account.
@@ -780,8 +829,8 @@ pub async fn summaries_for_range(
         Ok(core_summaries_for_range(
             from,
             to,
-            account.opening_balance(),
-            account.anchor(),
+            data.account.opening_balance(),
+            data.account.anchor(),
             &data.entries,
             &data.rules,
             &data.budgets,

@@ -24,7 +24,8 @@
     "ringSpent": "{{percent}}% dei fondi di questo mese impegnati",
     "ringRemaining": "{{percent}}% dei fondi di questo mese liberi",
     "combinedHint": "Vista combinata e di sola lettura dei conti inclusi.",
-    "free": "Libero da spendere"
+    "free": "Libero da spendere",
+    "balanceToday": "Saldo oggi"
   },
   "month": {
     "navigation": "Navigazione tra i mesi",

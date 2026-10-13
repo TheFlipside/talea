@@ -24,7 +24,8 @@
     "ringSpent": "Bu ayki kaynakların %{{percent}} kadarı bağlandı",
     "ringRemaining": "Bu ayki kaynakların %{{percent}} kadarı serbest",
     "combinedHint": "Dahil edilen hesapların birleşik, salt okunur görünümü.",
-    "free": "Serbest harcanabilir"
+    "free": "Serbest harcanabilir",
+    "balanceToday": "Bugünkü bakiye"
   },
   "month": {
     "navigation": "Ay gezinmesi",

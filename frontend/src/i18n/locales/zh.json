@@ -24,7 +24,8 @@
     "ringSpent": "本月资金已使用或预留 {{percent}}%",
     "ringRemaining": "本月资金可自由支配 {{percent}}%",
     "combinedHint": "所含账户的合并只读视图。",
-    "free": "可自由支配"
+    "free": "可自由支配",
+    "balanceToday": "今日余额"
   },
   "month": {
     "navigation": "月份导航",

@@ -16,7 +16,9 @@ day-to-day development.
 
 - **Monthly cashflow ledger with carry-over** — for the selected month: income,
   expenses, and *available to end of month*; a surplus or overspend carries into
-  the next month, per account. Swipe between months.
+  the next month, per account. Swipe between months. In the current month,
+  **balance today** shows what your bank should say right now, so a forgotten
+  entry stands out.
 - **Accounts** with a fixed currency and opening balance — plus **summary
   accounts**, a read-only type that combines several same-currency accounts into
   one overview (combined budget, merged entry list and stats, widget target).

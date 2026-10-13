@@ -24,7 +24,8 @@ Talea is a **month-focused cashflow ledger**, not envelope budgeting.
 - The unit of attention is **the current month and upcoming months**. The main
   screen shows, for the selected month, a top bar with **income, expenses, and
   the resulting available budget to end of month**, followed by the list of
-  recorded entries. Swiping moves between months.
+  recorded entries. Swiping moves between months. In the current month the bar
+  also leads with the **balance today** (§13).
 - **Available to end of month** = `carry-in + Σ income(month) − Σ expenses(month)`,
   where entries include both ad-hoc recordings **and** the expansion of recurring
   rules that apply to that month.
@@ -220,12 +221,20 @@ Accepted as known debt for the scaffold; revisit before a release:
   crash. Mitigated by bounding IPC inputs and preferring `Money::checked_*`; keep
   that discipline as commands are added.
 - **Ledger arithmetic uses `Money`'s `+`/`-`** (panic-on-overflow, by design,
-  consistent with `money.rs`). Overflow is made unreachable in practice by two
-  caps: `Month` years are bounded to `1..=9999` (so the carry-over walk length
-  is bounded and date math can't panic), and entry/rule amounts are capped at one
-  quadrillion — far below `Decimal::MAX`. If a stricter guarantee is ever wanted,
-  convert the ledger functions to return `Result` with checked arithmetic. Note
-  the ledger is O(history); the persistence layer may cache per-month aggregates.
+  consistent with `money.rs`). Overflow is made unreachable in practice by
+  capping every term: `Month` years are bounded to `1..=9999` (so the carry-over
+  walk length is bounded and date math can't panic; dates arriving over IPC are
+  held to the same range), entry/rule amounts are capped at one quadrillion —
+  far below `Decimal::MAX` — and so is the magnitude of an account's opening
+  balance, which seeds every running balance. That last cap was missing until
+  the §13 security audit: an absurd opening balance, typed in or restored from a
+  tampered backup (restore copies rows past the constructors), overflowed and,
+  with `panic = "abort"`, crashed the app. A stored value beyond the cap now
+  reads as a corrupt row instead. A sum across ledgers in the command layer
+  (`balance_as_of`'s summary total) uses `checked_add` on top. If a stricter
+  guarantee is ever wanted, convert the ledger functions to return `Result` with
+  checked arithmetic. Note the ledger is O(history); the persistence layer may
+  cache per-month aggregates.
 - **The biometric app lock (§7) is a UI gate, not encryption.** The lock
   preference lives in `localStorage` and the lock deters casual access on a
   running device; it does not protect data against someone with filesystem
@@ -466,3 +475,48 @@ free     = available − reserved
   state declaratively: it needs a table rebuild plus a command-layer overlap
   check. Also deferred: envelope rollover, budgets spanning several categories,
   non-monthly periods.
+
+---
+
+## 13. Balance today — 🟢 DONE (implemented)
+
+Everyday use exposed drift: forget to record one purchase and the ledger quietly
+parts ways with the real account, with nothing to compare it against — every
+figure in the month bar is a month-end projection. **Balance today** is that
+comparison point: what the account should hold *right now* if every transaction
+was recorded. When it disagrees with the bank, something is missing (or extra),
+and the size of the gap says what to look for.
+
+```
+balance_as_of(date) = opening_balance + Σ entries and occurrences dated ≤ date
+```
+
+- **The §1 prefix sum at day granularity.** `core::balance_as_of` is
+  `balance_at_end_of` for the previous month plus the current month's activity up
+  to and **including** `date`; on a month's last day the two agree exactly
+  (unit-tested). An entry dated today counts; one pre-recorded for later this
+  month doesn't yet — which is exactly how today's figure can differ from
+  `available`. A recurring occurrence counts from its scheduled day, a skipped
+  one never. A date before the anchor month yields the opening balance, as in §1.
+  Budgets play no part: like `available`, it is the real balance, never `free`.
+- **Current month only.** The bar shows it above Income only while viewing the
+  month that contains today; a point-in-time figure beside another month's
+  totals would read as belonging to that month.
+- **Its own row, its own state.** The figure has its own query, and while it
+  loads or if it fails only its row says so (`…` / `—`): the month's figures
+  never wait for it or vanish with it. Unlike `free`, nothing else in the bar is
+  derived from it, so a split state can't leave two figures contradicting.
+- **"Today" comes from the device clock, via the frontend.** `core` has no clock
+  by design, and the shell can't reliably read the local offset (`time`'s
+  `now_local` refuses once the process is multithreaded), so the frontend passes
+  its local date to the `balance_as_of` command. `useToday` re-reads it at local
+  midnight and whenever the app returns to the foreground (a backgrounded
+  webview suspends its timers); the date is part of the query key, so a new day
+  fetches afresh, and once the month turns the row leaves the old month's bar.
+- **Summary accounts** sum their members' balances, each against its own opening
+  balance and anchor — the same per-member rule as §11.
+- **Display only.** Nothing is stored and no money moves. It stays in-app: the
+  widget boundary (§6) is unchanged, so no absolute figure reaches the OS.
+- **Deferred.** A *reconcile* action — enter the bank's figure, book the
+  difference as a correction entry dated today — would close the loop on fixing
+  drift; for now that entry is added by hand.

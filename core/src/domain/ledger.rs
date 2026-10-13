@@ -12,6 +12,11 @@
 //! They are O(history): the persistence layer may cache per-month aggregates
 //! later, but `core` stays simple and correct.
 //!
+//! [`balance_as_of`] is the same prefix sum at **day** granularity: it stops at
+//! a date instead of a month's end. Evaluated for today, it is what the real
+//! account (a bank statement) should show if every transaction was recorded —
+//! a reconciliation aid. See `docs/DESIGN.md` §13.
+//!
 //! [`Budget`]s ride **on top of** that chain without disturbing it. They add two
 //! derived figures — `reserved` (what this month's category budgets still hold
 //! back) and `free` (`available − reserved`) — but never touch `available`, so
@@ -19,6 +24,7 @@
 //! construction. See `docs/DESIGN.md` §12.
 
 use serde::Serialize;
+use time::Date;
 
 use crate::domain::budget::{reserved_in, Budget};
 use crate::domain::entry::{Entry, EntryKind};
@@ -63,6 +69,18 @@ pub struct MonthSummary {
 /// Income and expense totals (both positive) recorded in `month`, including ad
 /// hoc entries and the expansion of recurring rules.
 fn totals_in_month(month: Month, entries: &[Entry], rules: &[RecurringRule]) -> (Money, Money) {
+    totals_in_month_through(month, month.last_day(), entries, rules)
+}
+
+/// Like [`totals_in_month`], but only counting what is dated **on or before**
+/// `through` — the partial month that [`balance_as_of`] needs. With `through`
+/// at the month's last day, this is the whole month.
+fn totals_in_month_through(
+    month: Month,
+    through: Date,
+    entries: &[Entry],
+    rules: &[RecurringRule],
+) -> (Money, Money) {
     let mut income = Money::zero();
     let mut expenses = Money::zero();
 
@@ -72,13 +90,15 @@ fn totals_in_month(month: Month, entries: &[Entry], rules: &[RecurringRule]) -> 
     };
 
     for entry in entries {
-        if month.contains(entry.date()) {
+        if month.contains(entry.date()) && entry.date() <= through {
             add(entry.kind(), entry.amount());
         }
     }
     for rule in rules {
         for occurrence in rule.expand_in(month) {
-            add(occurrence.kind(), occurrence.amount());
+            if occurrence.date() <= through {
+                add(occurrence.kind(), occurrence.amount());
+            }
         }
     }
     (income, expenses)
@@ -111,6 +131,39 @@ pub fn balance_at_end_of(
         current = current.succ();
     }
     balance
+}
+
+/// The running balance at the end of `date`: the opening balance plus every
+/// entry and recurring occurrence dated on or before it.
+///
+/// The day-granular counterpart of [`balance_at_end_of`] (on a month's last day
+/// the two agree). Evaluated for today, it is the figure the real account should
+/// show if every transaction was recorded: anything dated later in the month —
+/// a pre-recorded bill, an upcoming recurring occurrence — is not counted yet,
+/// and a skipped occurrence is never counted. Like `available`, it is
+/// budget-independent.
+///
+/// Returns `opening_balance` for any date before `anchor`'s month, for the same
+/// reason [`balance_at_end_of`] does: the opening balance is authoritative as of
+/// the anchor, and nothing before it is counted.
+#[must_use]
+pub fn balance_as_of(
+    date: Date,
+    opening_balance: Money,
+    anchor: Month,
+    entries: &[Entry],
+    rules: &[RecurringRule],
+) -> Money {
+    let month = Month::containing(date);
+    // `Month::containing` skips `Month::new`'s `1..=9999` year check, but a date
+    // before year 1 never gets past here: every anchor is a validated month, so
+    // such a date is always before it.
+    if month < anchor {
+        return opening_balance;
+    }
+    let carry_in = balance_at_end_of(month.pred(), opening_balance, anchor, entries, rules);
+    let (income, expenses) = totals_in_month_through(month, date, entries, rules);
+    carry_in + income - expenses
 }
 
 /// A month at or before `anchor` with no in-range activity: the opening balance
@@ -247,7 +300,9 @@ pub fn combine_summaries(month: Month, parts: &[MonthSummary]) -> MonthSummary {
 
 #[cfg(test)]
 mod tests {
-    use super::{balance_at_end_of, combine_summaries, month_summary, summaries_for_range};
+    use super::{
+        balance_as_of, balance_at_end_of, combine_summaries, month_summary, summaries_for_range,
+    };
     use crate::domain::budget::Budget;
     use crate::domain::entry::{Entry, EntryKind};
     use crate::domain::ids::{AccountId, BudgetId, CategoryId, EntryId, RecurringRuleId};
@@ -612,5 +667,166 @@ mod tests {
         let jan = month_summary(m(2027, 1), Money::zero(), anchor, &entries, &[], &[]);
         assert_eq!(dec.available, Money::from_minor_units(40_000, 2));
         assert_eq!(jan.carry_in, dec.available);
+    }
+
+    /// A day in 2026, for `balance_as_of` cut-offs.
+    fn day(mo: TMonth, d: u8) -> Date {
+        Date::from_calendar_date(2026, mo, d).unwrap()
+    }
+
+    /// A never-ending rule of `minor`, from `start`, every `interval` `unit`s.
+    fn rule(
+        minor: i64,
+        kind: EntryKind,
+        start: Date,
+        unit: FreqUnit,
+        interval: u32,
+    ) -> RecurringRule {
+        RecurringRule::new(
+            RecurringRuleId::new(1),
+            AccountId::new(1),
+            Money::from_minor_units(minor, 2),
+            kind,
+            None,
+            None,
+            start,
+            RuleEnd::Never,
+            Frequency::new(unit, interval).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn balance_as_of_counts_only_activity_up_to_the_date() {
+        let anchor = m(2026, 1);
+        let entries = [
+            entry(1, 100_000, EntryKind::Income, 2026, TMonth::January, 5), // +1000
+            entry(2, 20_000, EntryKind::Expense, 2026, TMonth::January, 10), // -200
+            entry(3, 30_000, EntryKind::Expense, 2026, TMonth::January, 20), // -300
+        ];
+        let as_of = |d| {
+            balance_as_of(
+                day(TMonth::January, d),
+                Money::zero(),
+                anchor,
+                &entries,
+                &[],
+            )
+        };
+
+        assert_eq!(as_of(4), Money::zero());
+        assert_eq!(as_of(9), Money::from_minor_units(100_000, 2));
+        // The date itself counts: an expense recorded today is already spent.
+        assert_eq!(as_of(10), Money::from_minor_units(80_000, 2));
+        // The 20th's expense is still ahead: today's balance sits above what the
+        // month will end on, which is exactly the gap a bank statement shows.
+        assert_eq!(as_of(19), Money::from_minor_units(80_000, 2));
+        assert_eq!(as_of(31), Money::from_minor_units(50_000, 2));
+    }
+
+    #[test]
+    fn balance_as_of_counts_a_recurring_occurrence_from_its_day() {
+        let anchor = m(2026, 1);
+        let opening = Money::from_minor_units(200_000, 2); // 2000
+        let rent = rule(
+            70_000,
+            EntryKind::Expense,
+            day(TMonth::January, 15),
+            FreqUnit::Monthly,
+            1,
+        );
+        let as_of = |mo, d| {
+            balance_as_of(
+                day(mo, d),
+                opening,
+                anchor,
+                &[],
+                std::slice::from_ref(&rent),
+            )
+        };
+
+        assert_eq!(as_of(TMonth::January, 14), opening);
+        assert_eq!(
+            as_of(TMonth::January, 15),
+            Money::from_minor_units(130_000, 2)
+        );
+        // February carries January's rent in, then books its own on the 15th.
+        assert_eq!(
+            as_of(TMonth::February, 14),
+            Money::from_minor_units(130_000, 2)
+        );
+        assert_eq!(
+            as_of(TMonth::February, 15),
+            Money::from_minor_units(60_000, 2)
+        );
+    }
+
+    #[test]
+    fn balance_as_of_a_month_end_equals_balance_at_end_of() {
+        let anchor = m(2026, 1);
+        let opening = Money::from_minor_units(10_000, 2);
+        // Activity on the very first and last days, to pin both month edges.
+        let entries = [
+            entry(1, 50_000, EntryKind::Income, 2026, TMonth::January, 31),
+            entry(2, 20_000, EntryKind::Expense, 2026, TMonth::February, 28),
+            entry(3, 10_000, EntryKind::Income, 2026, TMonth::March, 1),
+        ];
+        // Fortnightly, so occurrences land on a different day every month.
+        let rules = [rule(
+            2_500,
+            EntryKind::Expense,
+            day(TMonth::January, 3),
+            FreqUnit::Weekly,
+            2,
+        )];
+        for month in [m(2026, 1), m(2026, 2), m(2026, 3), m(2026, 4)] {
+            assert_eq!(
+                balance_as_of(month.last_day(), opening, anchor, &entries, &rules),
+                balance_at_end_of(month, opening, anchor, &entries, &rules),
+                "day-granular balance must agree with the month chain at {month:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn balance_as_of_before_the_anchor_is_the_opening_balance() {
+        let anchor = m(2026, 3);
+        let opening = Money::from_minor_units(10_000, 2);
+        // Dated before the anchor, so the opening balance already accounts for it.
+        let entries = [entry(
+            1,
+            99_999,
+            EntryKind::Income,
+            2026,
+            TMonth::January,
+            15,
+        )];
+        let as_of = |mo, d| balance_as_of(day(mo, d), opening, anchor, &entries, &[]);
+
+        assert_eq!(as_of(TMonth::February, 20), opening);
+        assert_eq!(as_of(TMonth::March, 1), opening);
+    }
+
+    #[test]
+    fn balance_as_of_survives_the_most_extreme_dates() {
+        // Without `time`'s `large-dates` feature, years stop at ±9999, which is
+        // what bounds the walk below. Enabling it anywhere in the build must
+        // fail here rather than silently lift that bound.
+        assert_eq!(Date::MAX.year(), 9999);
+
+        let anchor = m(2026, 1);
+        let opening = Money::from_minor_units(10_000, 2);
+        let entries = [entry(1, 5_000, EntryKind::Income, 2026, TMonth::March, 1)];
+        // Year 0 and below: before any anchor, so the opening balance comes back
+        // without any month arithmetic on a year `Month::new` would reject.
+        let year_zero = Date::from_calendar_date(0, TMonth::December, 31).unwrap();
+        for date in [Date::MIN, year_zero] {
+            assert_eq!(balance_as_of(date, opening, anchor, &entries, &[]), opening);
+        }
+        // The far end walks the whole chain without panicking.
+        assert_eq!(
+            balance_as_of(Date::MAX, opening, anchor, &entries, &[]),
+            Money::from_minor_units(15_000, 2)
+        );
     }
 }
