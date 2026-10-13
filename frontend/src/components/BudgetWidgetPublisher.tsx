@@ -7,34 +7,27 @@
  */
 
 import { useQueries } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import * as api from '../api/commands';
 import { useAccounts } from '../api/hooks';
 import { queryKeys } from '../api/queryKeys';
 import type { MonthSummary } from '../api/types';
 import { publishBudgetHealth, type AccountHealth } from '../lib/budgetWidget';
-import { currentMonth } from '../lib/month';
+import { isoMonthOf } from '../lib/date';
 import { ringView } from '../lib/ring';
-import { useSettings } from '../state/contexts';
+import { useSettings, useToday } from '../state/contexts';
 
 export function BudgetWidgetPublisher() {
   const { ringMode } = useSettings();
   const { data: accounts } = useAccounts();
 
-  // The widget always reflects the wall-clock current month. Re-align when the
-  // app returns to the foreground so a session left open past a month boundary
-  // doesn't keep publishing the previous month.
-  const [month, setMonth] = useState(currentMonth);
-  useEffect(() => {
-    const realign = () =>
-      setMonth((prev) => {
-        const now = currentMonth();
-        return prev.year === now.year && prev.month === now.month ? prev : now;
-      });
-    document.addEventListener('visibilitychange', realign);
-    return () => document.removeEventListener('visibilitychange', realign);
-  }, []);
+  // The widget always reflects the wall-clock current month, read from the
+  // app's one clock (`TodayProvider`) that the month bar's "Balance today"
+  // follows too: it moves on at local midnight and on resume, so a session
+  // left open past a month boundary neither keeps publishing the previous
+  // month nor disagrees with the bar about which month it is.
+  const month = isoMonthOf(useToday());
 
   const summaries = useQueries({
     queries: (accounts ?? []).map((account) => ({

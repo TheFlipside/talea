@@ -8,11 +8,13 @@ import { currentMonth, nextMonth, prevMonth } from '../lib/month';
 import type { RingMode } from '../lib/ring';
 import { setStatusBarDark } from '../lib/statusbar';
 import { resolveTheme, systemPrefersLight, type ThemePref } from '../lib/theme';
+import { useTodayClock } from '../lib/today';
 import {
   ActiveAccountContext,
   NavigationContext,
   SelectedMonthContext,
   SettingsContext,
+  TodayContext,
   type ActiveAccountValue,
   type NavigationValue,
   type Screen,
@@ -172,17 +174,26 @@ function NavigationProvider({ children }: { children: ReactNode }) {
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 }
 
+/** Owns the app's shared "today" clock: one timer and one listener, read by the
+ *  month bar's balance, month navigation and the home-screen widget. */
+function TodayProvider({ children }: { children: ReactNode }) {
+  const today = useTodayClock();
+  return <TodayContext.Provider value={today}>{children}</TodayContext.Provider>;
+}
+
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <SettingsProvider>
-      <NavigationProvider>
-        <ActiveAccountProvider>
-          <SelectedMonthProvider>
-            <BudgetWidgetPublisher />
-            {children}
-          </SelectedMonthProvider>
-        </ActiveAccountProvider>
-      </NavigationProvider>
+      <TodayProvider>
+        <NavigationProvider>
+          <ActiveAccountProvider>
+            <SelectedMonthProvider>
+              <BudgetWidgetPublisher />
+              {children}
+            </SelectedMonthProvider>
+          </ActiveAccountProvider>
+        </NavigationProvider>
+      </TodayProvider>
     </SettingsProvider>
   );
 }

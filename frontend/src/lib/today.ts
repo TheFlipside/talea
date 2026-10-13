@@ -1,49 +1,88 @@
-/** Today's local date as React state, kept current across midnight and resume. */
+/** Today's local date, kept current across midnight and app resume. */
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import type { IsoDate } from '../api/types';
 import { todayISO } from './date';
 
+/** The shortest delay the midnight timer is armed with, so it never fires back
+ *  to back. */
+const MIN_TIMER_MS = 1000;
+
 /**
- * Milliseconds from `now` until the next local midnight. Built from local
- * calendar parts rather than by adding 24 hours, so a DST change can't shift it.
+ * Milliseconds from `now` until the next local midnight. A copy of `now` is
+ * moved to the start of its next local day rather than 24 hours on, so an
+ * ordinary DST change can't shift it — and the setter, unlike the `Date`
+ * constructor, leaves years 0-99 alone instead of reading them as 19xx.
  */
 export function msUntilNextLocalMidnight(now: Date): number {
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const midnight = new Date(now.getTime());
+  midnight.setHours(24, 0, 0, 0);
   return midnight.getTime() - now.getTime();
 }
 
 /**
- * Today's local date (`YYYY-MM-DD`), re-read at local midnight and whenever the
- * app returns to the foreground. The resume check matters on mobile: a
- * backgrounded webview suspends its timers, so the midnight timer alone would
- * miss a day that passed while the app was away.
- *
- * Re-reading costs no extra renders: React skips an update to an identical
- * string, so state only changes when the day actually does. A timer that fires
- * a moment early just finds the same day and re-arms for the remainder.
+ * The delay to arm the midnight timer with: {@link msUntilNextLocalMidnight},
+ * at least a second. A DST fall-back that crosses midnight replays the hour
+ * before it, and during the replay "the next 00:00" resolves to the instant
+ * already past: a negative delay, which would fire the timer at once, again
+ * and again. Floored, it re-checks once a second until the real midnight —
+ * a case only historical rules produce (none in force since 2010). An invalid
+ * date gets the floor too, rather than NaN.
  */
-export function useToday(): IsoDate {
-  const [today, setToday] = useState(todayISO);
+export function midnightTimerDelay(now: Date): number {
+  const delay = msUntilNextLocalMidnight(now);
+  return Number.isFinite(delay) ? Math.max(delay, MIN_TIMER_MS) : MIN_TIMER_MS;
+}
 
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const refresh = () => setToday(todayISO());
-    const armMidnight = () => {
-      timer = setTimeout(() => {
-        refresh();
-        armMidnight();
-      }, msUntilNextLocalMidnight(new Date()));
-    };
+/**
+ * Calls `onChange` with today's local date whenever it may have changed: at
+ * local midnight, and each time the app becomes visible again. Returns the
+ * cleanup. React-free, so its timing can be tested with fake timers.
+ *
+ * The resume path matters on mobile, where a backgrounded webview freezes its
+ * timers: a day may have passed while the app was away, and the pending
+ * midnight timer, armed before suspension, would now fire hours late. So
+ * becoming visible both re-reads the date and re-arms the timer from now.
+ * Hiding does neither: the suspension that follows would only freeze it again.
+ */
+export function watchToday(onChange: (today: IsoDate) => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  function arm(): void {
+    clearTimeout(timer);
+    timer = setTimeout(sync, midnightTimerDelay(new Date()));
+  }
+  // Re-arm before reporting, so the timer stands even if `onChange` throws.
+  function sync(): void {
+    arm();
+    onChange(todayISO());
+  }
+  function onVisibilityChange(): void {
+    if (document.visibilityState === 'visible') {
+      sync();
+    }
+  }
 
-    armMidnight();
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, []);
+  arm();
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  return () => {
+    clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  };
+}
 
-  return today;
+/**
+ * The app's shared clock for "today": owned by `TodayProvider` and read
+ * through `useToday` (`state/contexts.ts`) by every view that must follow the
+ * day as it turns — the month bar, month navigation and the widget — so they
+ * agree on it. (A one-off read at the moment of an action, like a form's
+ * default date, can take the wall clock directly.)
+ *
+ * An external store, read as one: React re-reads the snapshot right after
+ * subscribing, so a launch whose first render lands just before midnight and
+ * whose subscription lands just after still picks up the new day. The
+ * snapshot is a string, so an unchanged day re-renders nothing.
+ */
+export function useTodayClock(): IsoDate {
+  return useSyncExternalStore(watchToday, todayISO);
 }

@@ -18,13 +18,6 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
-- **An out-of-range opening balance can no longer crash the app.** Unlike
-  amounts, opening balances had no upper bound, so an absurd one — typed in, or
-  restored from a tampered backup — overflowed the ledger's arithmetic, and
-  release builds abort on that. Opening balances are now capped at the same one
-  quadrillion as amounts (overdrawn or not), and a stored value beyond it is
-  reported as corrupt data instead of crashing the app.
-
 - **Editing an account refreshes everything derived from it, immediately.**
   Changing an account's opening balance or anchor month could leave the month
   bar showing the previous figures for a while, and changing a summary
@@ -37,6 +30,25 @@ All notable changes to this project are documented in this file.
   statistics for up to 30 seconds, and the home-screen widget's ring for that
   summary could stay behind for the rest of the session. Such a change now
   refreshes every summary containing the account as well.
+
+- **The home-screen widget moves on to a new month at midnight.** Left open
+  across a month boundary, the app kept publishing the previous month's ring
+  until it was next brought back to the foreground. The widget now follows
+  the same clock as the month bar's balance today.
+
+### Security
+
+- **An out-of-range opening balance can no longer crash the app.** Unlike
+  amounts, opening balances had no upper bound, so an absurd one — typed in, or
+  restored from a tampered backup — overflowed the ledger's arithmetic, and
+  release builds abort on that. Opening balances are now capped at the same one
+  quadrillion as amounts (overdrawn or not), and a stored value beyond it is
+  reported as corrupt data instead of crashing the app.
+
+- **The dev server stays on loopback when `TAURI_DEV_HOST` is empty.** Setting
+  it to an empty string — say, `export TAURI_DEV_HOST=` to unset it — bound the
+  Vite dev server, sources and HMR socket included, to every network interface
+  instead of loopback, as an unset variable does. Development builds only.
 
 ## 1.5.0 - 2026-08-08
 
