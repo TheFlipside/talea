@@ -217,7 +217,7 @@ async fn skip_and_detach_occurrence() {
         .unwrap()
         .rules;
     assert_eq!(rules[0].skips(), &[date(2026, TMonth::February, 5)]);
-    assert!(rules[0].expand_in(Month::new(2026, 2).unwrap()).is_empty());
+    assert_eq!(rules[0].expand_in(Month::new(2026, 2).unwrap()), []);
     assert_eq!(rules[0].expand_in(Month::new(2026, 1).unwrap()).len(), 1);
 
     // Detaching the March occurrence inserts a standalone entry and a skip.
@@ -344,14 +344,14 @@ async fn delete_account_cascades_entries_and_rules() {
 
     assert!(repo::account::delete(&pool, account.id()).await.unwrap());
     // CASCADE only fires with foreign_keys=ON, so this also proves the pragma.
-    assert!(repo::entry::for_account(&pool, account.id())
-        .await
-        .unwrap()
-        .is_empty());
-    assert!(repo::rule::for_account(&pool, account.id())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        repo::entry::for_account(&pool, account.id()).await.unwrap(),
+        []
+    );
+    assert_eq!(
+        repo::rule::for_account(&pool, account.id()).await.unwrap(),
+        []
+    );
 }
 
 #[tokio::test]
@@ -848,10 +848,10 @@ async fn occurrence_commands_enforce_ownership_and_apply() {
         crate::commands::skip_occurrence_inner(&pool, other.id(), feb()).await,
         Err(CommandError::NotFound)
     ));
-    assert!(repo::skip::for_account(&pool, account.id())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        repo::skip::for_account(&pool, account.id()).await.unwrap(),
+        []
+    );
 
     // The owning account can skip the occurrence.
     crate::commands::skip_occurrence_inner(&pool, account.id(), feb())
@@ -1214,10 +1214,12 @@ async fn delete_category_cascades_its_budgets() {
 
     // Unlike entries (SET NULL), a budget cannot outlive its category.
     assert!(repo::category::delete(&pool, groceries.id()).await.unwrap());
-    assert!(repo::budget::for_account(&pool, account.id())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        repo::budget::for_account(&pool, account.id())
+            .await
+            .unwrap(),
+        []
+    );
 }
 
 #[tokio::test]
@@ -1230,10 +1232,12 @@ async fn delete_account_cascades_its_budgets() {
         .unwrap();
 
     assert!(repo::account::delete(&pool, account.id()).await.unwrap());
-    assert!(repo::budget::for_account(&pool, account.id())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        repo::budget::for_account(&pool, account.id())
+            .await
+            .unwrap(),
+        []
+    );
 }
 
 #[tokio::test]
@@ -1449,7 +1453,7 @@ async fn budget_before_the_account_anchor_is_inert() {
     // The rows and the headline must agree: a pre-anchor month reserves nothing.
     assert_eq!(summary.reserved, Money::zero());
     assert_eq!(summary.free, summary.available);
-    assert!(statuses.is_empty());
+    assert_eq!(statuses, []);
 
     // From the anchor on, the same budget does apply.
     let anchored =

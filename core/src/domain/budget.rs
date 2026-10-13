@@ -493,7 +493,7 @@ mod tests {
     #[test]
     fn applies_only_from_its_start_month() {
         let budgets = [budget(40_000, None)];
-        assert!(budget_status(m(2025, 12), &budgets, &[], &[]).is_empty());
+        assert_eq!(budget_status(m(2025, 12), &budgets, &[], &[]), []);
         assert_eq!(budget_status(m(2026, 1), &budgets, &[], &[]).len(), 1);
     }
 
@@ -501,7 +501,7 @@ mod tests {
     fn applies_up_to_and_including_its_end_month() {
         let budgets = [budget(40_000, Some(m(2026, 3)))];
         assert_eq!(budget_status(m(2026, 3), &budgets, &[], &[]).len(), 1);
-        assert!(budget_status(m(2026, 4), &budgets, &[], &[]).is_empty());
+        assert_eq!(budget_status(m(2026, 4), &budgets, &[], &[]), []);
     }
 
     #[test]

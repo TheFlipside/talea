@@ -704,7 +704,7 @@ mod tests {
             RuleEnd::Never,
             Frequency::new(FreqUnit::Weekly, 1).unwrap(),
         );
-        assert!(r.occurrences_in(month(2026, 1)).is_empty());
+        assert_eq!(r.occurrences_in(month(2026, 1)), []);
     }
 
     #[test]
@@ -758,7 +758,7 @@ mod tests {
             r.occurrences_in(month(2026, 1)),
             vec![date(2026, TMonth::January, 15)]
         );
-        assert!(r.occurrences_in(month(2026, 2)).is_empty());
+        assert_eq!(r.occurrences_in(month(2026, 2)), []);
         assert_eq!(
             r.occurrences_in(month(2026, 3)),
             vec![date(2026, TMonth::March, 15)]
@@ -780,7 +780,7 @@ mod tests {
             r.occurrences_in(month(2025, 2)),
             vec![date(2025, TMonth::February, 28)]
         );
-        assert!(r.occurrences_in(month(2025, 3)).is_empty());
+        assert_eq!(r.occurrences_in(month(2025, 3)), []);
     }
 
     #[test]
@@ -798,7 +798,7 @@ mod tests {
                 date(2026, TMonth::January, 21),
             ]
         );
-        assert!(r.occurrences_in(month(2026, 2)).is_empty());
+        assert_eq!(r.occurrences_in(month(2026, 2)), []);
     }
 
     #[test]

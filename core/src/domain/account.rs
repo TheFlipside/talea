@@ -443,7 +443,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(normal.kind(), AccountKind::Normal);
-        assert!(normal.members().is_empty());
+        assert_eq!(normal.members(), []);
     }
 
     #[test]
