@@ -44,7 +44,7 @@ include!(concat!(env!("OUT_DIR"), "/dialog_wordings.rs"));
 /// How long the user has to answer. A dialog the OS took away without an
 /// answer would otherwise keep the save waiting, and the backup buttons
 /// disabled, for good. Past it the answer is no, though the dialog stays up.
-const ANSWER_TIME: Duration = Duration::from_secs(120);
+const ANSWER_TIME: Duration = Duration::from_mins(2);
 
 /// How soon after the dialog is shown a yes counts. A script can't press the
 /// button, but it can open the dialog just as the user taps where the button
@@ -58,7 +58,7 @@ const MIN_READ_TIME: Duration = Duration::from_millis(1_500);
 /// presentation that failed); until then, its hold on the screen keeps any
 /// other from opening over it. By the wall clock, as the pauses are: a phone's
 /// monotonic clock stops while it sleeps.
-const PRESUMED_GONE: Duration = Duration::from_secs(10 * 60);
+const PRESUMED_GONE: Duration = Duration::from_mins(10);
 
 /// How many new servers may be turned down in a row before the questions
 /// pause. A script that asks again whenever it is turned down, hoping for a
@@ -69,10 +69,10 @@ const MAX_DECLINES: u32 = 3;
 /// [`LONGEST_PAUSE`], until a server is confirmed: a script that keeps asking
 /// gets a handful of dialogs a day, while a user who mistyped a few times
 /// waits minutes.
-const FIRST_PAUSE: Duration = Duration::from_secs(10 * 60);
+const FIRST_PAUSE: Duration = Duration::from_mins(10);
 
 /// The longest pause.
-const LONGEST_PAUSE: Duration = Duration::from_secs(24 * 60 * 60);
+const LONGEST_PAUSE: Duration = Duration::from_hours(24);
 
 /// The servers turned down since the last confirmed one.
 #[derive(Debug, Default)]
@@ -707,10 +707,7 @@ mod tests {
         ));
         // The clock goes back further than the pause is long, by an hour or
         // by days: more pause left than it was imposed for, so it's over.
-        for back in [
-            Duration::from_secs(60 * 60),
-            Duration::from_secs(2 * 24 * 60 * 60),
-        ] {
+        for back in [Duration::from_hours(1), Duration::from_hours(2 * 24)] {
             let set_back = now.checked_sub(back).unwrap();
             assert!(!paused(&declines, set_back), "{back:?}");
         }

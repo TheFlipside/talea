@@ -5,7 +5,9 @@ resolver = "2"
 [workspace.package]
 version = "1.5.0"
 edition = "2021"
-rust-version = "1.80"
+# Deliberately the stable release the project is built and linted with, not
+# the lowest that would compile: raise it along with the toolchain.
+rust-version = "1.99"
 license = "MIT"
 authors = ["Max Fiedler <max.fiedler1988@pm.me>"]
 repository = "https://github.com/maxfiedler/talea"

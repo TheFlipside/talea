@@ -24,6 +24,10 @@ All notable changes to this project are documented in this file.
   the app stopped waiting, or answers twice (as Android's error path can), no
   longer brings the app down.
 
+- **Building Talea needs Rust 1.99.** The workspace declared Rust 1.80, which
+  its dependencies had long outgrown (sqlx 0.9 alone needs 1.94). It now
+  declares the current stable release, and the code uses what that allows.
+
 ### Fixed
 
 - **Changes made at once can no longer break a summary account or a transfer.**

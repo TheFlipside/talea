@@ -265,9 +265,7 @@ impl Budget {
     /// Whether this budget reserves anything in `month`.
     #[must_use]
     pub fn applies_in(&self, month: Month) -> bool {
-        // `map_or(true, ..)` rather than `is_none_or`, which post-dates the
-        // crate's MSRV (1.80).
-        month >= self.start && self.end.map_or(true, |end| month <= end)
+        month >= self.start && self.end.is_none_or(|end| month <= end)
     }
 }
 

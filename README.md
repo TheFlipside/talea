@@ -76,7 +76,7 @@ changes. The full rationale, the budgeting model, and the schema live in
 
 ## Prerequisites
 
-- Rust (stable, ≥ 1.80) with `cargo`.
+- Rust (stable, ≥ 1.99) with `cargo`.
 - Node.js 20.19+ or 22.12+ (what Vite 8 needs) and npm.
 - Tauri 2 system dependencies for your platform — see the
   [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
