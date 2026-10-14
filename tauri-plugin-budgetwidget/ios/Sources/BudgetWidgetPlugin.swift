@@ -42,7 +42,9 @@ class BudgetWidgetPlugin: Plugin {
   }
 }
 
+// `public` keeps the symbol global in release builds made with Xcode 27, which
+// otherwise hides it and the app fails to link: Tauri calls it by name.
 @_cdecl("init_plugin_budgetwidget")
-func initPlugin() -> Plugin {
+public func initPlugin() -> Plugin {
   return BudgetWidgetPlugin()
 }

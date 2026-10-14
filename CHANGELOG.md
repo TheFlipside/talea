@@ -30,6 +30,11 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **iOS release builds link with Xcode 27.** Xcode 27 hides a native plugin's
+  entry point in a release build unless it is public, so the app couldn't link
+  against its status-bar and widget plugins. Both entry points are now public,
+  as Tauri's own plugins made theirs in this release.
+
 - **Changes made at once can no longer break a summary account or a transfer.**
   Each account change checked what it depended on (a summary's members, whether
   an account belonged to one) before it began writing, and so did a transfer
