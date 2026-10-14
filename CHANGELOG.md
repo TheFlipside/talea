@@ -28,6 +28,14 @@ All notable changes to this project are documented in this file.
   its dependencies had long outgrown (sqlx 0.9 alone needs 1.94). It now
   declares the current stable release, and the code uses what that allows.
 
+- **`just android-dev` installs a release build instead of running a dev
+  server.** It builds an APK for the connected phone, signs it with the debug
+  key, installs it in place (the app keeps its data) and launches it, so the
+  phone shows what testers get. A dev-server build only looked broken there: a
+  white screen for seconds at every start, and a reload back to the start
+  screen whenever its connection dropped. `android-dev-host` is gone;
+  `cargo tauri android dev` still gives live reload when wanted.
+
 ### Fixed
 
 - **iOS release builds link with Xcode 27.** Xcode 27 hides a native plugin's
