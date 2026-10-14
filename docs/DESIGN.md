@@ -224,6 +224,35 @@ Accepted as known debt for the scaffold; revisit before a release:
   inline styles; `script-src` is already `'self'` (the XSS-critical one). Tighten
   to `'self'` via hashes/nonces once the production asset pipeline is settled and
   runtime-verified.
+- **The webview stays on the app's own pages.** The CSP governs what a page
+  loads and connects to, not where it goes, so a script that read the ledger
+  could have carried it off by navigating to a server of its own, the data in
+  the URL, or to a scheme another app handles (`mailto:`, `intent:`). An in-tree
+  plugin (`navigation.rs`) now cancels every top-level navigation off the app's
+  origin: on each platform the one Tauri serves it from (`tauri://localhost`, or
+  `http(s)://tauri.localhost` on Android and Windows, mirrored from Tauri's own
+  choice, so a Tauri upgrade must re-check them), and in a dev build the dev
+  server. Frames are held by the CSP (`default-src 'self'`), which matters on
+  Windows, where WebView2 doesn't report a frame's navigation to the guard. The
+  CSP also adds `form-action 'none'` and `base-uri 'none'`; `img-src` no longer
+  names the asset protocol, which nothing uses; and `connect-src` names
+  `http://ipc.localhost` only on Windows, whose IPC runs over it, and Android,
+  which fetches channel data there (`tauri.windows.conf.json`,
+  `tauri.android.conf.json`, overriding just that directive; a test holds them
+  to it). Elsewhere that host, like the other platforms' app origin, is an
+  ordinary name a resolver might send anywhere. `window.open` opens no window on
+  any platform (no handler is set, and each engine's default declines) and stays
+  in the same, guarded view on Android. Left open, with no switch Tauri or the
+  CSP offers: a script can still carry data out in DNS lookups (`<link
+  rel="dns-prefetch">`, `preconnect`) and, where the engine ships WebRTC
+  (Android, iOS, Windows), in the credentials of a TURN server it asks for. The
+  defence there is keeping untrusted script out of the bundle. Also known: a URL
+  the runtime can't parse is let through rather than checked (an upstream choice
+  in `tauri-runtime-wry`; the engines parse URLs the same way, so none is known
+  to slip by); a dev build serves the frontend from the dev server, without the
+  CSP; and on Android the guard rests on WebView's `shouldOverrideUrlLoading`,
+  to be checked on a device for `location` changes, a meta refresh,
+  `window.open`, and `mailto:` or `intent:` links clicked from script.
 - **`core:event` emit scope.** `core:default` grants `allow-emit`/`allow-emit-to`.
   Harmless for one window; narrow to listen-only if a second webview is added.
 - **`panic = "abort"`** (release profile) turns any handler panic into a hard

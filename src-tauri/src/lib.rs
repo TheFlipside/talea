@@ -17,6 +17,7 @@ mod db;
 mod dto;
 mod error;
 mod lock;
+mod navigation;
 mod repo;
 mod webdav;
 
@@ -84,7 +85,9 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_statusbar::init())
         .plugin(tauri_plugin_budgetwidget::init())
-        .plugin(tauri_plugin_dialog::init());
+        .plugin(tauri_plugin_dialog::init())
+        // Keeps the webview on the app's own pages (see `navigation.rs`).
+        .plugin(navigation::init());
     // The biometric app lock is mobile-only; the plugin isn't built into the
     // desktop binary (see Cargo.toml), so the frontend just sees it unavailable.
     #[cfg(mobile)]

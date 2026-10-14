@@ -97,6 +97,12 @@ All notable changes to this project are documented in this file.
   ledger kept by hand, so none is made that restore would refuse. A backup whose schema version wasn't a number also
   made Restore crash the app; it is now refused as not a Talea backup.
 
+- **The app's web view can no longer leave the app.** A script running there
+  that shouldn't, such as a compromised dependency, could read your data and
+  carry it off by navigating the page to a server of its own, or to a link
+  another app opens (mail, messages), the data in the address. Navigation is
+  now held to the app's own pages, and forms can't be sent anywhere.
+
 - **A new backup server must be confirmed outside the app's web view.** Whatever
   saves the backup settings decides where your whole database is uploaded to,
   and the app's web view could save them, so any script running there that

@@ -698,9 +698,10 @@ This almost always means the device's WebView can't reach the Vite dev server.
    show `VITE ready` and a local URL.
 6. **Still stuck?** Build a standalone APK (see "Run it (standalone APK)") — it
    bundles the frontend and needs no dev server, isolating networking issues.
-7. **HMR over LAN.** The dev CSP is `connect-src 'self'`; the HMR socket on a
-   separate port may be blocked, which breaks live-reload but not the initial
-   render. A full re-run picks up changes if HMR is quiet.
+7. **HMR over LAN.** On mobile, `tauri dev` serves the frontend through its
+   dev proxy without the app's CSP, so the CSP isn't what stops an HMR socket;
+   look at the network path (the reverse tunnel, the LAN address) instead. A
+   full re-run picks up changes if HMR is quiet.
 
 ### Watching logs
 
