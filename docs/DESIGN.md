@@ -207,6 +207,12 @@ Implemented with the §2 types:
   ISO code.
 - **Amount sign discipline.** `Entry`/`RecurringRule` amounts are positive
   magnitudes; the sign is derived from `EntryKind`. Zero/negative is rejected.
+- **Anchor floor.** An account's anchor month can't precede 1969
+  (`MIN_ANCHOR_YEAR`). Every month view walks each month from the anchor over
+  all of the account's rows, so an anchor centuries back would make every view
+  crawl. The app only ever anchors an account at the month it is created, by
+  the device clock, so only a crafted account starts earlier (1969, not 1970:
+  a clock reset to the Unix epoch reads December 1969 west of Greenwich).
 
 ---
 
@@ -231,9 +237,13 @@ Accepted as known debt for the scaffold; revisit before a release:
   far below `Decimal::MAX` — and so is the magnitude of an account's opening
   balance, which seeds every running balance. That last cap was missing until
   the §13 security audit: an absurd opening balance, typed in or restored from a
-  tampered backup (restore copies rows past the constructors), overflowed and,
-  with `panic = "abort"`, crashed the app. A stored value beyond the cap now
-  reads as a corrupt row instead. A sum across ledgers in the command layer
+  tampered backup, overflowed and, with `panic = "abort"`, crashed the app. A
+  stored value beyond the cap now reads as a corrupt row, and restore refuses a
+  backup holding one (§10). With every term capped, an overflow takes some 8e13
+  maximal terms, and rows can't supply that many: a recurring rule expands to
+  at most about 520,000 (weekly, across all 9,999 years), so it would take over
+  10^8 rules. Restore, the only bulk writer, holds a backup to 1,000 rules and
+  250,000 entries (§10), some 10^5 times short of that. A sum across ledgers in the command layer
   (`balance_as_of`'s summary total) uses `checked_add` on top. If a stricter
   guarantee is ever wanted, convert the ledger functions to return `Result` with
   checked arithmetic. Note the ledger is O(history); the persistence layer may
@@ -274,6 +284,41 @@ Accepted as known debt for the scaffold; revisit before a release:
   boundary), but if a wider IPC/sync surface is ever added, scope the `WHERE` to
   the owning account and stop writing `account_id` on update. Rule amount history
   is already bounded (`MAX_AMOUNT_SEGMENTS`) alongside the note/amount caps.
+- **Account membership is checked outside the write.** `create_account`,
+  `update_account` and `delete_account` read what they validate (a summary's
+  members, whether an account belongs to one) before opening the transaction
+  that writes. Two account commands interleaved by crafted IPC could therefore
+  commit a mixed-currency or memberless summary, which the app still loads but
+  restore (§10) refuses, so every backup of that database would be refused
+  too. The shipped UI never issues two account writes at once. Fix: run each
+  command's checks and write in one `BEGIN IMMEDIATE` transaction.
+- **No log backend is installed.** Every `log::warn!`/`log::error!`, the
+  restore refusal diagnostics included, is a no-op: nothing initialises a
+  logger. Adding one (e.g. `tauri-plugin-log`) needs a redaction policy first,
+  since some messages quote stored values (each bounded to 64 characters).
+- **Restore holds the write lock while it validates.** The read-back (§10) runs
+  inside the restore's transaction, so a write issued meanwhile waits on the
+  5 s busy timeout: past about a million entries, that can fail. Accepted:
+  validating what is about to be committed is the point, and validating the
+  file beforehand would read through its indexes, which nothing verifies.
+- **The SQLite heap cap narrows an out-of-memory failure, not removes it.** A
+  crafted backup whose statistics nearly fill the cap while it is attached can
+  make another connection's query fail to copy a row, and sqlx `expect`s that
+  copy, so the app aborts. A single oversized request fails without taking any
+  memory, so this needs a file sized to fill the cap without overrunning it,
+  and a query landing in that moment. Closing it needs sqlx to report that
+  failure rather than panic.
+- **An unreadable account row blanks the app.** Accounts load as one list, so
+  a single row the loaders refuse (only a tampered database, or one restored
+  by an older build from a tampered backup, holds one) fails the whole list,
+  and the app shows only an error, leaving Settings and Restore out of reach.
+  Fix: let Settings open without the account list, so a good backup can be
+  restored.
+- **Restore keeps the whole download in memory until it finishes**, and writes
+  the scratch copy on an async worker; `nextcloud.json` is rewritten in place,
+  so a crash mid-write can lose the stored credentials. Fix: take the buffer
+  by value and drop it once written, write through `spawn_blocking`, and save
+  the config via a temporary file and rename.
 
 ---
 
@@ -290,15 +335,72 @@ Those remain future work if concurrent multi-device editing is ever needed.
 - **Single-writer, latest-snapshot model.** One fixed remote file,
   `Talea/talea-backup.sqlite3` under the user's files root. *Back up* overwrites
   it; *Restore* downloads it. No versioned history in v1 (a noted follow-up).
+  A backup is held to 64 MiB both ways (`MAX_BACKUP_BYTES`): no larger download
+  is read, so a hostile server can't exhaust memory, and no larger snapshot is
+  uploaded, so no backup is made that restore would refuse. A ledger kept by
+  hand stays far below it (250,000 entries with short notes come to about
+  35 MB), and since a restored ledger is read whole for every month view, the
+  cap also bounds the memory one can take.
 - **Backup** is a `VACUUM INTO` snapshot — a clean single file with no
   `-wal`/`-shm` sidecars — read into memory and `PUT`. **Restore** must **not**
   swap the live `sqlx` pool (every command holds `State<SqlitePool>`; swapping
   would mean refactoring them all). Instead it replaces table contents **in
   place, in one transaction** with `PRAGMA defer_foreign_keys = ON`: `ATTACH` the
-  downloaded file, `DELETE` then `INSERT … SELECT *` across
-  `account, category, entry, recurring_rule, rule_amount, rule_skip` (plus
-  `sqlite_sequence`, so AUTOINCREMENT counters don't collide), `COMMIT`/`DETACH`.
-  Any failure rolls back and leaves local data intact.
+  downloaded file, then `DELETE` and `INSERT … SELECT` each data table in
+  `TABLES` (plus `sqlite_sequence`, so AUTOINCREMENT counters don't collide),
+  then `COMMIT`. Any failure rolls back and leaves local data intact; the
+  connection that held the attachment is closed rather than returned to the
+  pool.
+- **A backup is validated before it replaces anything.** The downloaded file
+  is untrusted. Attaching it is the one step that reads it unchecked: SQLite
+  loads a file's statistics tables (`sqlite_stat1`/`sqlite_stat4`) as it
+  attaches it, with no switch to skip that. So until the file is known to be
+  ours it gets 60 s (`PRE_CHECK_BUDGET`, kept by a progress handler, which runs
+  between SQLite's steps, so one long step can overrun it), and SQLite as a
+  whole has a 256 MiB heap cap (`hard_heap_limit`, set at pool init): a file
+  sized to stall restore or exhaust memory is refused instead of freezing it or
+  getting the app killed. Restore then compares schema versions, first,
+  so an older backup reads as another version's rather than a stranger's file;
+  it reads the version only once `_sqlx_migrations` is a plain table with a
+  stored `version` column. Every table it reads, `sqlite_sequence` included,
+  must then have exactly this app's `CREATE` statement. Comparing the stored
+  text evaluates nothing, whereas reading a view, a virtual table or a
+  generated column runs SQL the file supplies. SQLite's `quick_check` must
+  pass on each of those tables, scoped to them, since over the whole file it
+  would evaluate the `CHECK` constraints of whatever else the file holds;
+  nothing else in it is read. No table may hold more rows than restore allows
+  (`TABLES`: 200 accounts, 500 categories, 1,000 rules, 2,000 budgets, 250,000
+  entries, and their dependents to match), no rule or budget more amount
+  breakpoints than its history may hold (99, the base amount aside), no text
+  cell longer than the domain lets that column be (notes 1,000 characters;
+  labels, names and icons 200; money, dates and codes 16; at four bytes a
+  character), and `sqlite_sequence` no more than one in-range counter per
+  table. No ledger kept by hand comes near those,
+  while past them a crafted backup could exhaust memory as it is read back, or
+  make every month view crawl, since the ledger walks each month from an
+  account's anchor (§8) over all of its rows; a cell padded past any the app
+  writes would even pass validation where the domain trims it. Every read of
+  the file's tables skips its indexes (`NOT INDEXED`), since nothing checks
+  them against their tables. The copy names each table's columns rather than
+  selecting `*`: given `*`, SQLite copies the rows of a table without foreign
+  keys as raw records, fields tacked on past the declared columns included.
+  Rules and budgets are read one row each, their amount histories aggregated
+  in the same statement, so a breakpoint never repeats its rule's note. After copying, still inside the transaction,
+  restore reads everything back through the validating constructors, which
+  also refuse membership rows under a normal account and an opening balance on
+  a summary, and refuses ids above 2^52 or AUTOINCREMENT counters outside
+  `0..=2^52` (ids cross to the frontend as JSON numbers, and one at `i64::MAX`
+  would make every later insert fail; the loaders refuse a stored id that isn't
+  positive, rather than alias it). It re-checks every summary account against
+  the membership rules (§11) and that it owns no records, then checks foreign
+  keys. Only then does it commit, so a refused backup leaves local data
+  untouched. A failure is put down to the file only when it is the file's
+  doing (damaged, not a database, a value that won't decode, a row the schema
+  refuses, or out of time); anything else (a full disk, an I/O error) keeps its
+  own error. Columns are read with `try_get`, never `get`, whose panic on an
+  undecodable value would abort the app. The commands run backups and restores
+  one at a time, each from end to end, network included, and their scratch
+  copies are readable by the app's user alone.
 - **Same-version restore only.** Restore compares `MAX(version)` in each side's
   `_sqlx_migrations` and **refuses** a backup from a different schema version
   with a clear message, rather than risk a column mismatch. Cross-version restore
@@ -340,9 +442,13 @@ deliberate, narrow amendment to the "no cross-account aggregation" stance of §2
   rules, and `core` fixes its opening balance to zero. Membership is a
   many-to-many relation (`account_member`), edited **on the summary account**.
 - **Same-currency only.** A summary has a fixed currency; every member must match
-  it (validated in the command layer, which `core` can't do — `core` only checks
-  structural rules: a normal account has no members, a summary has a zero balance
-  and distinct members). No nesting: members must be normal accounts.
+  it. No nesting: members must be normal accounts. These cross-account rules
+  (plus: at least one member, each existing, none the summary itself) live in
+  `core` as `Account::check_members`, which takes a way to look the members up;
+  the constructors can't see other accounts, so they check only structural
+  rules: a normal account has no members, a summary has a zero balance and
+  distinct members. The command layer applies it whenever a summary is saved,
+  and restore to every summary in a backup (§10).
 - **Derived figures.** The summary's `MonthSummary` is the field-wise sum of its
   members' summaries (`core::combine_summaries`); its entry list, occurrences, and
   category stats are the members' rows concatenated and run through the existing

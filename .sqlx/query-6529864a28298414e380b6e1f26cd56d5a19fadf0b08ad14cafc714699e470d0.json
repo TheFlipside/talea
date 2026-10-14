@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT b.id AS \"id!\", b.account_id AS \"account_id!\", b.category_id AS \"category_id!\",\n                  b.amount AS \"amount!\", b.start_year AS \"start_year!\",\n                  b.start_month AS \"start_month!\", b.end_year, b.end_month,\n                  ba.effective_year AS \"seg_year?\", ba.effective_month AS \"seg_month?\",\n                  ba.amount AS \"seg_amount?\"\n           FROM budget b\n           LEFT JOIN budget_amount ba ON ba.budget_id = b.id\n           WHERE b.account_id = ?\n           ORDER BY b.id, ba.effective_year, ba.effective_month",
+  "query": "SELECT b.id AS \"id!\", b.account_id AS \"account_id!\", b.category_id AS \"category_id!\",\n                  b.amount AS \"amount!\", b.start_year AS \"start_year!\",\n                  b.start_month AS \"start_month!\", b.end_year, b.end_month,\n                  (SELECT json_group_array(\n                              json_array(ba.effective_year, ba.effective_month, ba.amount)\n                              ORDER BY ba.effective_year, ba.effective_month)\n                   FROM budget_amount ba WHERE ba.budget_id = b.id) AS \"segments!: String\"\n           FROM budget b\n           WHERE b.account_id = ?\n           ORDER BY b.id",
   "describe": {
     "columns": [
       {
@@ -92,37 +92,10 @@
         }
       },
       {
-        "name": "seg_year?",
+        "name": "segments!: String",
         "ordinal": 8,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "budget_amount",
-            "name": "effective_year"
-          }
-        }
-      },
-      {
-        "name": "seg_month?",
-        "ordinal": 9,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "budget_amount",
-            "name": "effective_month"
-          }
-        }
-      },
-      {
-        "name": "seg_amount?",
-        "ordinal": 10,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "budget_amount",
-            "name": "amount"
-          }
-        }
+        "type_info": "Null",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -137,10 +110,8 @@
       false,
       true,
       true,
-      true,
-      true,
       true
     ]
   },
-  "hash": "0dcbabf78f765508f6dcc02ea8a27599730a2d635a2f6d0cb2edafc81bdda196"
+  "hash": "6529864a28298414e380b6e1f26cd56d5a19fadf0b08ad14cafc714699e470d0"
 }

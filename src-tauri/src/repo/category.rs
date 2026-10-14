@@ -13,7 +13,7 @@ fn row_to_category(
     icon_value: String,
 ) -> Result<Category, RepoError> {
     let icon = icon_from_columns(icon_kind, icon_value)?;
-    Category::new(CategoryId::new(id_from_rowid(id)), label, icon)
+    Category::new(CategoryId::new(id_from_rowid(id)?), label, icon)
         .map_err(|e| RepoError::corrupt(&e))
 }
 
@@ -44,17 +44,22 @@ pub async fn insert(pool: &SqlitePool, draft: &Category) -> Result<Category, Rep
     )
 }
 
-/// Lists all categories, ordered by id.
+/// Lists all categories, ordered by id. Generic over the executor (one query,
+/// so no reborrow is needed) so restore can validate a backup with it inside
+/// its transaction.
 ///
 /// # Errors
 /// [`RepoError`] on a database error or a row that fails domain validation.
-pub async fn list(pool: &SqlitePool) -> Result<Vec<Category>, RepoError> {
+pub async fn list<'e, E>(executor: E) -> Result<Vec<Category>, RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", label AS "label!", icon_kind AS "icon_kind!",
                   icon_value AS "icon_value!"
            FROM category ORDER BY id"#
     )
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await?;
 
     rows.into_iter()

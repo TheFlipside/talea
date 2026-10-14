@@ -3,10 +3,10 @@
 use std::collections::HashMap;
 
 use sqlx::SqlitePool;
-use talea_core::{Account, AccountId, AccountKind, Currency, Money, Month};
+use talea_core::{Account, AccountId, AccountKind, Currency, Month};
 
 use crate::error::RepoError;
-use crate::repo::map::{id_from_rowid, id_to_i64};
+use crate::repo::map::{id_from_rowid, id_to_i64, money_from_text};
 
 /// The DB token for an account kind (matches the `kind` CHECK and the domain's
 /// serde tokens).
@@ -17,9 +17,11 @@ fn kind_to_text(kind: AccountKind) -> &'static str {
     }
 }
 
-/// Reconstructs an [`Account`] from its row plus its already-loaded `members`
-/// (empty for a normal account). Dispatches on `kind` so a summary is built
-/// through the summary constructor (which fixes its opening balance to zero).
+/// Reconstructs an [`Account`] from its row plus the `members` loaded for it.
+/// Every column goes to the domain to validate, none is dropped as irrelevant:
+/// membership rows under a normal account, or a summary's opening balance, are
+/// refused as corrupt, where dropping them would hide them from every check
+/// while `is_member_of_any` still counted the rows.
 #[allow(clippy::too_many_arguments)] // mirrors the row columns; private helper
 fn row_to_account(
     id: i64,
@@ -33,23 +35,27 @@ fn row_to_account(
     members: Vec<AccountId>,
 ) -> Result<Account, RepoError> {
     let currency = Currency::new(currency).map_err(|e| RepoError::corrupt(&e))?;
-    let opening = Money::try_from_str(opening_balance)
-        .map_err(|e| RepoError::Corrupt(format!("invalid money {opening_balance:?}: {e}")))?;
+    let opening = money_from_text(opening_balance)?;
     let year = i32::try_from(anchor_year)
         .map_err(|_| RepoError::Corrupt(format!("anchor_year {anchor_year} out of range")))?;
     let month = u8::try_from(anchor_month)
         .map_err(|_| RepoError::Corrupt(format!("anchor_month {anchor_month} out of range")))?;
     let anchor = Month::new(year, month).map_err(|e| RepoError::corrupt(&e))?;
-    let account_id = AccountId::new(id_from_rowid(id));
-    match kind {
-        "normal" => Account::new(account_id, name, icon, currency, opening, anchor)
-            .map_err(|e| RepoError::corrupt(&e)),
-        "summary" => Account::new_summary(account_id, name, icon, currency, anchor, members)
-            .map_err(|e| RepoError::corrupt(&e)),
-        other => Err(RepoError::Corrupt(format!(
-            "unknown account kind {other:?}"
-        ))),
-    }
+    let account_id = AccountId::new(id_from_rowid(id)?);
+    let kind = match kind {
+        "normal" => AccountKind::Normal,
+        "summary" => AccountKind::Summary,
+        // The `kind` CHECK admits nothing else, so this is never long.
+        other => {
+            return Err(RepoError::Corrupt(format!(
+                "unknown account kind {other:?}"
+            )))
+        }
+    };
+    Account::from_parts(
+        account_id, name, icon, currency, opening, anchor, kind, members,
+    )
+    .map_err(|e| RepoError::corrupt(&e))
 }
 
 /// Reads a summary account's member ids, in insertion order.
@@ -64,10 +70,9 @@ where
     )
     .fetch_all(executor)
     .await?;
-    Ok(rows
-        .into_iter()
-        .map(|r| AccountId::new(id_from_rowid(r.member_account_id)))
-        .collect())
+    rows.into_iter()
+        .map(|r| id_from_rowid(r.member_account_id).map(AccountId::new))
+        .collect()
 }
 
 /// Replaces a summary account's membership set within an existing transaction.
@@ -147,13 +152,25 @@ pub async fn insert(pool: &SqlitePool, draft: &Account) -> Result<Account, RepoE
 /// # Errors
 /// [`RepoError`] on a database error or a row that fails domain validation.
 pub async fn list(pool: &SqlitePool) -> Result<Vec<Account>, RepoError> {
+    let mut conn = pool.acquire().await?;
+    list_on(&mut conn).await
+}
+
+/// [`list`] on a given connection, so restore can validate a backup with it
+/// inside its transaction. A concrete connection rather than a generic
+/// `Acquire`: its two queries need a reborrow, and the generic form defeats the
+/// `Send` inference the async commands depend on.
+///
+/// # Errors
+/// [`RepoError`] on a database error or a row that fails domain validation.
+pub async fn list_on(conn: &mut sqlx::SqliteConnection) -> Result<Vec<Account>, RepoError> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", name AS "name!", icon AS "icon!", currency AS "currency!",
                   opening_balance AS "opening_balance!", anchor_year AS "anchor_year!",
                   anchor_month AS "anchor_month!", kind AS "kind!"
            FROM account ORDER BY id"#
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     // Load all memberships in one pass and group by summary, avoiding N+1.
@@ -162,14 +179,14 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<Account>, RepoError> {
                   member_account_id AS "member_account_id!"
            FROM account_member ORDER BY rowid"#
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
     let mut members_by_summary: HashMap<i64, Vec<AccountId>> = HashMap::new();
     for link in links {
         members_by_summary
             .entry(link.summary_account_id)
             .or_default()
-            .push(AccountId::new(id_from_rowid(link.member_account_id)));
+            .push(AccountId::new(id_from_rowid(link.member_account_id)?));
     }
 
     rows.into_iter()
@@ -191,9 +208,8 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<Account>, RepoError> {
 }
 
 /// Fetches one account by id, **without** populating a summary's members (so it
-/// stays generic over the executor and usable inside a transaction). Callers
-/// inside the per-account snapshot only ever load normal accounts; use
-/// [`get_full`] when a summary's members are needed.
+/// stays generic over the executor and usable inside a transaction): a summary
+/// comes back with none. Use [`get_full`] when a summary's members are needed.
 ///
 /// # Errors
 /// [`RepoError`] on a database error or a row that fails domain validation.

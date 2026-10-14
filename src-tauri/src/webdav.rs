@@ -13,9 +13,18 @@ use reqwest::{Client, Method, StatusCode, Url};
 const BACKUP_DIR: &str = "Talea";
 const BACKUP_FILE: &str = "talea-backup.sqlite3";
 
-/// Hard ceiling on a downloaded backup, so a wrong/hostile server can't OOM the
-/// device. A real Talea database is far smaller; 256 MiB is generous headroom.
-const MAX_BACKUP_BYTES: u64 = 256 * 1024 * 1024;
+/// Hard ceiling on a backup, both ways. A download may be no bigger, so a
+/// wrong or hostile server can't exhaust memory, and nor may an upload, so no
+/// backup is made that restore would then refuse. A real Talea database is far
+/// smaller (250,000 entries with short notes come to about 35 MB), and since a
+/// restored ledger is read whole for every month view, this also bounds the
+/// memory one can take.
+const MAX_BACKUP_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Whether a backup of `len` bytes is past [`MAX_BACKUP_BYTES`].
+fn too_large(len: u64) -> bool {
+    len > MAX_BACKUP_BYTES
+}
 
 /// A `WebDAV` failure. Every message is safe to show the user and never contains
 /// the password.
@@ -36,6 +45,9 @@ pub enum WebDavError {
     /// The backup on the server exceeds the size we're willing to download.
     #[error("The backup on Nextcloud is too large to download.")]
     TooLarge,
+    /// This device's data is past the size a backup may be.
+    #[error("Your data is over {max} MiB, too large to back up.", max = MAX_BACKUP_BYTES / 1024 / 1024)]
+    TooLargeToUpload,
     /// Any other non-success HTTP status.
     #[error("Nextcloud returned an unexpected error ({0}).")]
     Server(u16),
@@ -161,8 +173,12 @@ impl WebDav {
         check_status(status)
     }
 
-    /// Uploads the backup snapshot, creating the directory if needed.
+    /// Uploads the backup snapshot, creating the directory if needed, unless it
+    /// is past [`MAX_BACKUP_BYTES`].
     pub async fn put_backup(&self, bytes: Vec<u8>) -> Result<(), WebDavError> {
+        if too_large(bytes.len() as u64) {
+            return Err(WebDavError::TooLargeToUpload);
+        }
         self.ensure_dir().await?;
         let url = dav_url(&self.base, &self.user, &[BACKUP_DIR, BACKUP_FILE])?;
         let req = self.request(Method::PUT, url).body(bytes);
@@ -177,15 +193,12 @@ impl WebDav {
         let url = dav_url(&self.base, &self.user, &[BACKUP_DIR, BACKUP_FILE])?;
         let mut resp = self.send(self.request(Method::GET, url)).await?;
         check_status(resp.status())?;
-        if resp
-            .content_length()
-            .is_some_and(|len| len > MAX_BACKUP_BYTES)
-        {
+        if resp.content_length().is_some_and(too_large) {
             return Err(WebDavError::TooLarge);
         }
         let mut body = Vec::new();
         while let Some(chunk) = resp.chunk().await.map_err(|_| WebDavError::Network)? {
-            if body.len() as u64 + chunk.len() as u64 > MAX_BACKUP_BYTES {
+            if too_large(body.len() as u64 + chunk.len() as u64) {
                 return Err(WebDavError::TooLarge);
             }
             body.extend_from_slice(&chunk);
@@ -238,5 +251,15 @@ mod tests {
             WebDav::new("http://cloud.example.com", "u", "p"),
             Err(WebDavError::InvalidUrl)
         ));
+    }
+
+    #[test]
+    fn a_backup_may_be_64_mib_and_no_more() {
+        assert!(!too_large(64 * 1024 * 1024));
+        assert!(too_large(64 * 1024 * 1024 + 1));
+        assert_eq!(
+            WebDavError::TooLargeToUpload.to_string(),
+            "Your data is over 64 MiB, too large to back up."
+        );
     }
 }

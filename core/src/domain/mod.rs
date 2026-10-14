@@ -38,7 +38,7 @@ pub use account::{Account, AccountKind, Currency};
 pub use budget::{budget_status, reserved_in, Budget, BudgetSegment, BudgetStatus};
 pub use category::{Category, CategoryIcon};
 pub use entry::{Entry, EntryKind};
-pub use error::{DomainError, MAX_LABEL_LEN, MAX_NOTE_LEN};
+pub use error::{DomainError, MAX_AMOUNT_SEGMENTS, MAX_LABEL_LEN, MAX_NOTE_LEN};
 pub use ids::{AccountId, BudgetId, CategoryId, EntryId, RecurringRuleId};
 pub use ledger::{
     balance_as_of, balance_at_end_of, combine_summaries, month_summary, summaries_for_range,

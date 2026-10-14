@@ -4,7 +4,7 @@
 //! types. The token strings here MUST match the `CHECK` constraints in the
 //! migration and the domain's serde `rename_all = "snake_case"` output.
 
-use talea_core::{CategoryIcon, EntryKind, FreqUnit, Month, RuleEnd};
+use talea_core::{CategoryIcon, EntryKind, FreqUnit, Money, Month, RuleEnd};
 use time::Date;
 
 use crate::error::RepoError;
@@ -16,10 +16,31 @@ pub(crate) fn date_to_text(date: Date) -> String {
         .expect("formatting a valid date as ISO cannot fail")
 }
 
-/// Parses an ISO `YYYY-MM-DD` date from storage.
+/// At most the first 64 characters of `text`, to quote in an error. A stored
+/// value can be arbitrarily long, and quoting one whole would copy all of it
+/// (the convention `Money` and `Currency` keep for their own errors).
+fn snippet(text: &str) -> String {
+    text.chars().take(64).collect()
+}
+
+/// Parses an ISO `YYYY-MM-DD` date from storage, accepting only the exact text
+/// [`date_to_text`] writes: `time` also reads other spellings, such as
+/// `+2026-03-01`, which would let one date sit in a key under two.
 pub(crate) fn date_from_text(text: &str) -> Result<Date, RepoError> {
     let fmt = time::macros::format_description!("[year]-[month]-[day]");
-    Date::parse(text, fmt).map_err(|e| RepoError::Corrupt(format!("invalid date {text:?}: {e}")))
+    Date::parse(text, fmt)
+        .ok()
+        .filter(|&date| date_to_text(date) == text)
+        .ok_or_else(|| RepoError::Corrupt(format!("invalid date {:?}", snippet(text))))
+}
+
+/// Parses a stored money amount.
+///
+/// # Errors
+/// [`RepoError::Corrupt`] if the text isn't a decimal amount.
+pub(crate) fn money_from_text(text: &str) -> Result<Money, RepoError> {
+    Money::try_from_str(text)
+        .map_err(|_| RepoError::Corrupt(format!("invalid money {:?}", snippet(text))))
 }
 
 /// Splits a [`Month`] into its `(year, month)` `INTEGER` columns.
@@ -68,8 +89,17 @@ pub(crate) fn id_to_i64(raw: u64) -> Result<i64, RepoError> {
 }
 
 /// Maps a `SQLite` rowid back to a typed id's raw value.
-pub(crate) fn id_from_rowid(rowid: i64) -> u64 {
-    u64::try_from(rowid).unwrap_or(0)
+///
+/// # Errors
+/// [`RepoError::Corrupt`] if `rowid` isn't positive. AUTOINCREMENT hands out
+/// ids from 1, so anything else was written from outside the app (a crafted
+/// backup, say), and mapping it to a stand-in would alias distinct rows to one
+/// id.
+pub(crate) fn id_from_rowid(rowid: i64) -> Result<u64, RepoError> {
+    u64::try_from(rowid)
+        .ok()
+        .filter(|&id| id > 0)
+        .ok_or_else(|| RepoError::Corrupt(format!("invalid id {rowid}")))
 }
 
 pub(crate) fn kind_to_text(kind: EntryKind) -> &'static str {
@@ -83,7 +113,10 @@ pub(crate) fn kind_from_text(text: &str) -> Result<EntryKind, RepoError> {
     match text {
         "income" => Ok(EntryKind::Income),
         "expense" => Ok(EntryKind::Expense),
-        other => Err(RepoError::Corrupt(format!("invalid entry kind {other:?}"))),
+        other => Err(RepoError::Corrupt(format!(
+            "invalid entry kind {:?}",
+            snippet(other)
+        ))),
     }
 }
 
@@ -101,7 +134,8 @@ pub(crate) fn freq_unit_from_text(text: &str) -> Result<FreqUnit, RepoError> {
         "monthly" => Ok(FreqUnit::Monthly),
         "yearly" => Ok(FreqUnit::Yearly),
         other => Err(RepoError::Corrupt(format!(
-            "invalid frequency unit {other:?}"
+            "invalid frequency unit {:?}",
+            snippet(other)
         ))),
     }
 }
@@ -119,7 +153,10 @@ pub(crate) fn icon_from_columns(kind: &str, value: String) -> Result<CategoryIco
     match kind {
         "preset" => Ok(CategoryIcon::Preset(value)),
         "emoji" => Ok(CategoryIcon::Emoji(value)),
-        other => Err(RepoError::Corrupt(format!("invalid icon kind {other:?}"))),
+        other => Err(RepoError::Corrupt(format!(
+            "invalid icon kind {:?}",
+            snippet(other)
+        ))),
     }
 }
 
@@ -146,7 +183,56 @@ pub(crate) fn rule_end_from_columns(
             "recurring rule end_kind='until' with no end_date".to_owned(),
         )),
         (other, _) => Err(RepoError::Corrupt(format!(
-            "invalid rule end kind {other:?}"
+            "invalid rule end kind {:?}",
+            snippet(other)
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{date_from_text, date_to_text, money_from_text};
+    use crate::error::RepoError;
+
+    #[test]
+    fn a_stored_date_reads_only_in_the_spelling_the_app_writes() {
+        for text in [
+            "0001-01-01",
+            "2026-03-01",
+            "9999-12-31",
+            "0000-06-15",
+            "-0001-01-01",
+        ] {
+            let date = date_from_text(text).unwrap();
+            assert_eq!(date_to_text(date), text);
+        }
+        for text in [
+            "+2026-03-01",
+            "-0000-01-01",
+            "2026-3-1",
+            " 2026-03-01",
+            "2026-03-01x",
+        ] {
+            assert!(date_from_text(text).is_err(), "{text:?}");
+        }
+    }
+
+    /// The message of a corrupt-row error, or a panic if `err` is anything else.
+    fn corrupt_message(err: Option<RepoError>) -> String {
+        match err {
+            Some(RepoError::Corrupt(message)) => message,
+            other => panic!("expected a corrupt row, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_bad_stored_value_is_quoted_only_in_part() {
+        let long = "x".repeat(10_000);
+        for message in [
+            corrupt_message(money_from_text(&long).err()),
+            corrupt_message(date_from_text(&long).err()),
+        ] {
+            assert!(message.len() < 100, "{}", message.len());
+        }
     }
 }

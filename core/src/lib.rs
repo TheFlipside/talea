@@ -19,6 +19,7 @@ pub use domain::{
     AmountSegment, Budget, BudgetId, BudgetSegment, BudgetStatus, Category, CategoryExpense,
     CategoryIcon, CategoryId, Currency, DomainError, Entry, EntryId, EntryKind, FreqUnit,
     Frequency, Month, MonthSummary, RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
+    MAX_AMOUNT_SEGMENTS, MAX_LABEL_LEN, MAX_NOTE_LEN,
 };
 pub use money::{Money, MoneyError};
 

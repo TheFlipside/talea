@@ -1,12 +1,13 @@
 //! Accounts and their currency.
 //!
 //! Each account tracks income and expenses in a single fixed currency. There is
-//! no cross-account conversion or aggregation (see `docs/DESIGN.md` §5).
+//! no cross-account conversion, and the only aggregation is a summary account's,
+//! over members that share its currency (see `docs/DESIGN.md` §5 and §11).
 
 use serde::{Deserialize, Serialize};
 
 use crate::domain::error::{
-    validate_opening_balance, DomainError, MAX_LABEL_LEN, MAX_SUMMARY_MEMBERS,
+    validate_opening_balance, DomainError, MAX_LABEL_LEN, MAX_SUMMARY_MEMBERS, MIN_ANCHOR_YEAR,
 };
 use crate::domain::ids::AccountId;
 use crate::domain::month::Month;
@@ -111,7 +112,7 @@ impl TryFrom<AccountRepr> for Account {
     type Error = DomainError;
 
     fn try_from(repr: AccountRepr) -> Result<Self, Self::Error> {
-        Self::build(
+        Self::from_parts(
             repr.id,
             repr.name,
             repr.icon,
@@ -137,6 +138,8 @@ impl Account {
     ///   [`MAX_LABEL_LEN`] characters.
     /// - [`DomainError::OpeningBalanceTooLarge`] if `opening_balance` exceeds
     ///   one quadrillion in magnitude, the ceiling amounts share.
+    /// - [`DomainError::AnchorTooEarly`] if `anchor` is before
+    ///   [`MIN_ANCHOR_YEAR`].
     pub fn new(
         id: AccountId,
         name: String,
@@ -145,7 +148,7 @@ impl Account {
         opening_balance: Money,
         anchor: Month,
     ) -> Result<Self, DomainError> {
-        Self::build(
+        Self::from_parts(
             id,
             name,
             icon,
@@ -157,16 +160,19 @@ impl Account {
         )
     }
 
-    /// Creates a summary account aggregating `members` (which must all share
-    /// `currency` — enforced by the caller, since `core` can't see other
-    /// accounts). A summary holds no balance of its own, so its opening balance
-    /// is fixed to zero; its figures are derived from its members.
+    /// Creates a summary account aggregating `members`. A summary holds no
+    /// balance of its own, so its opening balance is fixed to zero; its figures
+    /// are derived from its members. The rules about the members themselves
+    /// (that there is one, and each exists, is normal and shares `currency`)
+    /// need the other accounts, so they are [`Account::check_members`]'s.
     ///
     /// # Errors
     ///
-    /// - [`DomainError::EmptyLabel`] / [`DomainError::LabelTooLong`] as for
-    ///   [`Account::new`].
+    /// - [`DomainError::EmptyLabel`] / [`DomainError::LabelTooLong`] /
+    ///   [`DomainError::AnchorTooEarly`] as for [`Account::new`].
     /// - [`DomainError::DuplicateMembers`] if `members` repeats an id.
+    /// - [`DomainError::TooManyMembers`] if there are more than
+    ///   [`MAX_SUMMARY_MEMBERS`].
     pub fn new_summary(
         id: AccountId,
         name: String,
@@ -175,7 +181,7 @@ impl Account {
         anchor: Month,
         members: Vec<AccountId>,
     ) -> Result<Self, DomainError> {
-        Self::build(
+        Self::from_parts(
             id,
             name,
             icon,
@@ -187,9 +193,20 @@ impl Account {
         )
     }
 
-    /// Shared constructor/validator for both account kinds.
+    /// Rebuilds an account of either kind from every one of its parts, checking
+    /// all that [`Account::new`] and [`Account::new_summary`] check plus the two
+    /// rules neither can be handed a way to break: a normal account has no
+    /// members, and a summary no opening balance. For loading stored rows, which
+    /// must be validated rather than repaired.
+    ///
+    /// # Errors
+    ///
+    /// Any error of [`Account::new`] or [`Account::new_summary`], or
+    /// [`DomainError::NormalAccountHasMembers`] /
+    /// [`DomainError::SummaryHasOpeningBalance`].
+    // One argument per stored column: bundling them would only move the list.
     #[allow(clippy::too_many_arguments)]
-    fn build(
+    pub fn from_parts(
         id: AccountId,
         name: String,
         icon: String,
@@ -219,6 +236,9 @@ impl Account {
                 max: MAX_LABEL_LEN,
             });
         }
+        if anchor.year() < MIN_ANCHOR_YEAR {
+            return Err(DomainError::AnchorTooEarly);
+        }
         match kind {
             AccountKind::Normal => {
                 if !members.is_empty() {
@@ -237,7 +257,8 @@ impl Account {
                     });
                 }
                 // Reject duplicate members (cross-account checks — existence,
-                // same currency, no nesting — live in the command layer).
+                // same currency, no nesting — need the other accounts, so they
+                // live in `check_members`).
                 let mut seen = members.clone();
                 seen.sort_unstable();
                 seen.dedup();
@@ -304,6 +325,58 @@ impl Account {
     #[must_use]
     pub fn members(&self) -> &[AccountId] {
         &self.members
+    }
+
+    /// Checks a summary account's members against the accounts they name: the
+    /// cross-account rules the constructors can't see, since each member is a
+    /// separate account. `lookup` resolves a member id to its account, or to
+    /// `None` if there is none. A summary needs at least one member, and each
+    /// must exist, be a normal account (no nesting), share this account's
+    /// currency, and not be this account. A normal account has no members, so
+    /// it always passes.
+    ///
+    /// # Errors
+    /// - [`DomainError::SummaryWithoutMembers`] if a summary has no members.
+    /// - [`DomainError::SummaryIncludesItself`] if a member is this account.
+    /// - [`DomainError::MissingMember`] if `lookup` finds no account for a member.
+    /// - [`DomainError::NestedSummary`] if a member is itself a summary.
+    /// - [`DomainError::MemberCurrencyMismatch`] if a member's currency differs.
+    pub fn check_members<'a>(
+        &self,
+        lookup: impl Fn(AccountId) -> Option<&'a Self>,
+    ) -> Result<(), DomainError> {
+        // Exhaustive, so a new kind of account has to decide its own rules
+        // rather than pass by default.
+        match self.kind {
+            AccountKind::Normal => Ok(()),
+            AccountKind::Summary => self.check_summary_members(lookup),
+        }
+    }
+
+    /// [`Account::check_members`] for a summary account.
+    fn check_summary_members<'a>(
+        &self,
+        lookup: impl Fn(AccountId) -> Option<&'a Self>,
+    ) -> Result<(), DomainError> {
+        if self.members.is_empty() {
+            return Err(DomainError::SummaryWithoutMembers);
+        }
+        for &member_id in &self.members {
+            if member_id == self.id {
+                return Err(DomainError::SummaryIncludesItself);
+            }
+            // An account found under another id is as good as missing.
+            let member = lookup(member_id)
+                .filter(|member| member.id == member_id)
+                .ok_or(DomainError::MissingMember)?;
+            if member.kind != AccountKind::Normal {
+                return Err(DomainError::NestedSummary);
+            }
+            if member.currency != self.currency {
+                return Err(DomainError::MemberCurrencyMismatch);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -513,5 +586,185 @@ mod tests {
             summary(many),
             Err(DomainError::TooManyMembers { .. })
         ));
+    }
+
+    fn normal(id: u64, currency: &str) -> Account {
+        Account::new(
+            AccountId::new(id),
+            "Checking".to_owned(),
+            "🏦".to_owned(),
+            Currency::new(currency).unwrap(),
+            Money::zero(),
+            anchor(),
+        )
+        .unwrap()
+    }
+
+    /// Checks `account`'s members against `accounts`, as a caller would after
+    /// loading them.
+    fn check(account: &Account, accounts: &[Account]) -> Result<(), DomainError> {
+        account.check_members(|id| accounts.iter().find(|other| other.id() == id))
+    }
+
+    #[test]
+    fn accepts_a_summary_over_same_currency_normal_accounts() {
+        let all = summary(vec![AccountId::new(2), AccountId::new(3)]).unwrap();
+        assert_eq!(check(&all, &[normal(2, "USD"), normal(3, "USD")]), Ok(()));
+        // A normal account has no members to check, whatever else exists.
+        assert_eq!(check(&normal(2, "USD"), &[]), Ok(()));
+    }
+
+    #[test]
+    fn rejects_each_broken_membership_rule() {
+        // Each case breaks exactly one rule, and the member at fault comes
+        // second, so a check that only looked at the first member would pass.
+        let cases = [
+            (vec![], vec![], DomainError::SummaryWithoutMembers),
+            (
+                vec![2, 1],
+                vec![normal(2, "USD")],
+                DomainError::SummaryIncludesItself,
+            ),
+            (
+                vec![2, 3],
+                vec![normal(2, "USD")],
+                DomainError::MissingMember,
+            ),
+            (
+                vec![2, 3],
+                vec![
+                    normal(2, "USD"),
+                    Account::new_summary(
+                        AccountId::new(3),
+                        "Nested".to_owned(),
+                        "📊".to_owned(),
+                        Currency::new("USD").unwrap(),
+                        anchor(),
+                        vec![AccountId::new(2)],
+                    )
+                    .unwrap(),
+                ],
+                DomainError::NestedSummary,
+            ),
+            (
+                vec![2, 3],
+                vec![normal(2, "USD"), normal(3, "EUR")],
+                DomainError::MemberCurrencyMismatch,
+            ),
+        ];
+        for (members, accounts, expected) in cases {
+            let all = summary(members.into_iter().map(AccountId::new).collect()).unwrap();
+            assert_eq!(check(&all, &accounts), Err(expected));
+        }
+    }
+
+    #[test]
+    fn a_lookup_that_answers_with_another_account_counts_as_missing() {
+        let all = summary(vec![AccountId::new(2)]).unwrap();
+        let other = normal(3, "USD");
+        assert_eq!(
+            all.check_members(|_| Some(&other)),
+            Err(DomainError::MissingMember)
+        );
+    }
+
+    #[test]
+    fn account_errors_keep_their_wording() {
+        // The command layer shows these to the user as they are.
+        for (error, text) in [
+            (
+                DomainError::AnchorTooEarly,
+                "an account cannot start before 1969",
+            ),
+            (
+                DomainError::SummaryWithoutMembers,
+                "a summary account needs at least one member account",
+            ),
+            (
+                DomainError::SummaryIncludesItself,
+                "a summary account cannot include itself",
+            ),
+            (
+                DomainError::MissingMember,
+                "a member account no longer exists",
+            ),
+            (
+                DomainError::NestedSummary,
+                "a summary account's members must be normal accounts",
+            ),
+            (
+                DomainError::MemberCurrencyMismatch,
+                "all member accounts must share the summary account's currency",
+            ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    /// Builds an account through `from_parts` with otherwise valid parts.
+    fn from_parts(
+        kind: AccountKind,
+        opening: Money,
+        members: Vec<AccountId>,
+    ) -> Result<Account, DomainError> {
+        Account::from_parts(
+            AccountId::new(1),
+            "Checking".to_owned(),
+            "🏦".to_owned(),
+            Currency::new("USD").unwrap(),
+            opening,
+            anchor(),
+            kind,
+            members,
+        )
+    }
+
+    #[test]
+    fn from_parts_refuses_what_the_typed_constructors_cannot_be_handed() {
+        let some = Money::from_minor_units(12_345, 2);
+        assert!(from_parts(AccountKind::Normal, some, vec![]).is_ok());
+        assert!(from_parts(AccountKind::Summary, Money::zero(), vec![AccountId::new(2)]).is_ok());
+        assert_eq!(
+            from_parts(AccountKind::Normal, some, vec![AccountId::new(2)]),
+            Err(DomainError::NormalAccountHasMembers)
+        );
+        assert_eq!(
+            from_parts(AccountKind::Summary, some, vec![AccountId::new(2)]),
+            Err(DomainError::SummaryHasOpeningBalance)
+        );
+    }
+
+    #[test]
+    fn refuses_an_anchor_before_1969() {
+        let starting = |year: i32, month: u8| {
+            Account::new(
+                AccountId::new(1),
+                "Checking".to_owned(),
+                "🏦".to_owned(),
+                Currency::new("USD").unwrap(),
+                Money::zero(),
+                Month::new(year, month).unwrap(),
+            )
+        };
+        // A device clock at the Unix epoch, west of Greenwich.
+        assert!(starting(1969, 12).is_ok());
+        assert_eq!(starting(1968, 12), Err(DomainError::AnchorTooEarly));
+        assert_eq!(starting(1, 1), Err(DomainError::AnchorTooEarly));
+        // Summaries, and the IPC path, keep to it too.
+        assert_eq!(
+            Account::new_summary(
+                AccountId::new(1),
+                "All".to_owned(),
+                "📊".to_owned(),
+                Currency::new("USD").unwrap(),
+                Month::new(1968, 12).unwrap(),
+                vec![AccountId::new(2)],
+            ),
+            Err(DomainError::AnchorTooEarly)
+        );
+        let json = r#"{"id":1,"name":"Checking","icon":"🏦","currency":"USD",
+            "opening_balance":"0","anchor":{"year":1968,"month":12},
+            "kind":"normal","members":[]}"#;
+        assert!(serde_json::from_str::<Account>(json).is_err());
     }
 }

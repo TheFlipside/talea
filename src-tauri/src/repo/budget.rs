@@ -1,14 +1,15 @@
 //! Category-budget persistence (see `DESIGN.md` §12).
 
 use sqlx::SqlitePool;
-use talea_core::{AccountId, Budget, BudgetId, BudgetSegment, CategoryId, Money};
+use talea_core::{AccountId, Budget, BudgetId, BudgetSegment, CategoryId};
 
 use crate::error::RepoError;
 use crate::repo::map::{
-    id_from_rowid, id_to_i64, month_from_columns, month_to_columns, opt_month_from_columns,
+    id_from_rowid, id_to_i64, money_from_text, month_from_columns, month_to_columns,
+    opt_month_from_columns,
 };
 
-/// The `budget` columns, so the assembly below can group a joined result set.
+/// The `budget` columns, as read for [`assemble_budget`].
 struct BudgetRow {
     id: i64,
     account_id: i64,
@@ -22,11 +23,6 @@ struct BudgetRow {
 
 /// One `budget_amount` breakpoint as raw columns.
 type SegmentRow = (i64, i64, String);
-
-fn money_from_text(text: &str) -> Result<Money, RepoError> {
-    Money::try_from_str(text)
-        .map_err(|e| RepoError::Corrupt(format!("invalid money {text:?}: {e}")))
-}
 
 fn assemble_budget(row: BudgetRow, extra: Vec<SegmentRow>) -> Result<Budget, RepoError> {
     let BudgetRow {
@@ -52,9 +48,9 @@ fn assemble_budget(row: BudgetRow, extra: Vec<SegmentRow>) -> Result<Budget, Rep
     }
 
     Budget::new_with_amounts(
-        BudgetId::new(id_from_rowid(id)),
-        AccountId::new(id_from_rowid(account_id)),
-        CategoryId::new(id_from_rowid(category_id)),
+        BudgetId::new(id_from_rowid(id)?),
+        AccountId::new(id_from_rowid(account_id)?),
+        CategoryId::new(id_from_rowid(category_id)?),
         amounts,
         start,
         end,
@@ -166,33 +162,30 @@ where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
     let key = id_to_i64(account_id.get())?;
-    // One LEFT JOIN so each budget arrives with its breakpoints from a single
-    // consistent read; rows are ordered (budget id, then breakpoint month) so the
-    // grouping below stays a simple sequential scan.
+    // One statement, so each budget arrives with its breakpoints from a single
+    // consistent read, one row per budget, its breakpoints as one JSON array in
+    // month order. A join would repeat the budget's columns on every breakpoint.
     let rows = sqlx::query!(
         r#"SELECT b.id AS "id!", b.account_id AS "account_id!", b.category_id AS "category_id!",
                   b.amount AS "amount!", b.start_year AS "start_year!",
                   b.start_month AS "start_month!", b.end_year, b.end_month,
-                  ba.effective_year AS "seg_year?", ba.effective_month AS "seg_month?",
-                  ba.amount AS "seg_amount?"
+                  (SELECT json_group_array(
+                              json_array(ba.effective_year, ba.effective_month, ba.amount)
+                              ORDER BY ba.effective_year, ba.effective_month)
+                   FROM budget_amount ba WHERE ba.budget_id = b.id) AS "segments!: String"
            FROM budget b
-           LEFT JOIN budget_amount ba ON ba.budget_id = b.id
            WHERE b.account_id = ?
-           ORDER BY b.id, ba.effective_year, ba.effective_month"#,
+           ORDER BY b.id"#,
         key
     )
     .fetch_all(executor)
     .await?;
 
-    let mut budgets = Vec::new();
-    let mut current: Option<(BudgetRow, Vec<SegmentRow>)> = None;
-    for r in rows {
-        // New budget id → finish the previous group.
-        if current.as_ref().map_or(true, |(row, _)| row.id != r.id) {
-            if let Some((row, segments)) = current.take() {
-                budgets.push(assemble_budget(row, segments)?);
-            }
-            current = Some((
+    rows.into_iter()
+        .map(|r| {
+            let segments: Vec<SegmentRow> = serde_json::from_str(&r.segments)
+                .map_err(|_| RepoError::Corrupt("invalid amount history".to_owned()))?;
+            assemble_budget(
                 BudgetRow {
                     id: r.id,
                     account_id: r.account_id,
@@ -203,19 +196,10 @@ where
                     end_year: r.end_year,
                     end_month: r.end_month,
                 },
-                Vec::new(),
-            ));
-        }
-        if let (Some(year), Some(month), Some(amount)) = (r.seg_year, r.seg_month, r.seg_amount) {
-            if let Some((_, segments)) = current.as_mut() {
-                segments.push((year, month, amount));
-            }
-        }
-    }
-    if let Some((row, segments)) = current.take() {
-        budgets.push(assemble_budget(row, segments)?);
-    }
-    Ok(budgets)
+                segments,
+            )
+        })
+        .collect()
 }
 
 /// Whether `account_id` already budgets `category_id`.

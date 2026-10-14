@@ -7,14 +7,12 @@
 //! on write.
 
 use sqlx::SqlitePool;
-use talea_core::{
-    AccountId, AmountSegment, CategoryId, Frequency, Money, RecurringRule, RecurringRuleId,
-};
+use talea_core::{AccountId, AmountSegment, CategoryId, Frequency, RecurringRule, RecurringRuleId};
 
 use crate::error::RepoError;
 use crate::repo::map::{
     date_from_text, date_to_text, freq_unit_from_text, freq_unit_to_text, id_from_rowid, id_to_i64,
-    kind_from_text, kind_to_text, rule_end_from_columns, rule_end_to_columns,
+    kind_from_text, kind_to_text, money_from_text, rule_end_from_columns, rule_end_to_columns,
 };
 
 struct RuleRow {
@@ -31,11 +29,6 @@ struct RuleRow {
     freq_interval: i64,
 }
 
-fn money_from_text(text: &str) -> Result<Money, RepoError> {
-    Money::try_from_str(text)
-        .map_err(|e| RepoError::Corrupt(format!("invalid money {text:?}: {e}")))
-}
-
 /// Builds a rule from its base row plus its extra amount breakpoints (each a
 /// `(effective_from, amount)` text pair, expected sorted ascending by date).
 fn assemble_rule(
@@ -43,7 +36,10 @@ fn assemble_rule(
     extra_segments: Vec<(String, String)>,
 ) -> Result<RecurringRule, RepoError> {
     let kind = kind_from_text(&row.kind)?;
-    let category = row.category_id.map(|c| CategoryId::new(id_from_rowid(c)));
+    let category = row
+        .category_id
+        .map(|c| id_from_rowid(c).map(CategoryId::new))
+        .transpose()?;
     let start_date = date_from_text(&row.start_date)?;
     let end = rule_end_from_columns(&row.end_kind, row.end_date)?;
     let interval = u32::try_from(row.freq_interval).map_err(|_| {
@@ -65,8 +61,8 @@ fn assemble_rule(
     }
 
     RecurringRule::new_with_amounts(
-        RecurringRuleId::new(id_from_rowid(row.id)),
-        AccountId::new(id_from_rowid(row.account_id)),
+        RecurringRuleId::new(id_from_rowid(row.id)?),
+        AccountId::new(id_from_rowid(row.account_id)?),
         amounts,
         kind,
         row.note,
@@ -171,33 +167,32 @@ where
     E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
 {
     let key = id_to_i64(account_id.get())?;
-    // One LEFT JOIN so each rule arrives with its breakpoints from a single
-    // consistent read; rows are ordered (rule id, then breakpoint date) so the
-    // grouping below stays a simple sequential scan.
+    // One statement, so each rule arrives with its breakpoints from a single
+    // consistent read, one row per rule, its breakpoints as one JSON array in
+    // date order. A join would repeat the rule's columns, its note included, on
+    // every breakpoint, so a rule with many of them would cost many times its
+    // size to read.
     let rows = sqlx::query!(
         r#"SELECT r.id AS "id!", r.account_id AS "account_id!", r.amount AS "amount!",
                   r.kind AS "kind!", r.note, r.category_id, r.start_date AS "start_date!",
                   r.end_kind AS "end_kind!", r.end_date, r.freq_unit AS "freq_unit!",
                   r.freq_interval AS "freq_interval!",
-                  ra.effective_from AS "seg_from?", ra.amount AS "seg_amount?"
+                  (SELECT json_group_array(json_array(ra.effective_from, ra.amount)
+                                           ORDER BY ra.effective_from)
+                   FROM rule_amount ra WHERE ra.rule_id = r.id) AS "segments!: String"
            FROM recurring_rule r
-           LEFT JOIN rule_amount ra ON ra.rule_id = r.id
            WHERE r.account_id = ?
-           ORDER BY r.id, ra.effective_from"#,
+           ORDER BY r.id"#,
         key
     )
     .fetch_all(executor)
     .await?;
 
-    let mut rules = Vec::new();
-    let mut current: Option<(RuleRow, Vec<(String, String)>)> = None;
-    for r in rows {
-        // New rule id → finish the previous group.
-        if current.as_ref().map_or(true, |(row, _)| row.id != r.id) {
-            if let Some((row, segments)) = current.take() {
-                rules.push(assemble_rule(row, segments)?);
-            }
-            current = Some((
+    rows.into_iter()
+        .map(|r| {
+            let segments: Vec<(String, String)> = serde_json::from_str(&r.segments)
+                .map_err(|_| RepoError::Corrupt("invalid amount history".to_owned()))?;
+            assemble_rule(
                 RuleRow {
                     id: r.id,
                     account_id: r.account_id,
@@ -211,19 +206,10 @@ where
                     freq_unit: r.freq_unit,
                     freq_interval: r.freq_interval,
                 },
-                Vec::new(),
-            ));
-        }
-        if let (Some(from), Some(amount)) = (r.seg_from, r.seg_amount) {
-            if let Some((_, segments)) = current.as_mut() {
-                segments.push((from, amount));
-            }
-        }
-    }
-    if let Some((row, segments)) = current.take() {
-        rules.push(assemble_rule(row, segments)?);
-    }
-    Ok(rules)
+                segments,
+            )
+        })
+        .collect()
 }
 
 /// Updates a recurring rule (base fields and full amount history) in one

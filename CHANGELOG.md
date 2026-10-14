@@ -36,6 +36,13 @@ All notable changes to this project are documented in this file.
   until it was next brought back to the foreground. The widget now follows
   the same clock as the month bar's balance today.
 
+- **A backup and a restore can no longer overlap.** Starting a restore while a
+  backup was still uploading (by leaving Settings and coming back, which
+  enabled the button again) could leave this device with the server's old copy
+  and the server with this device's data, so the next backup overwrote the
+  only copy of it. Backups and restores now run one at a time, start to
+  finish.
+
 ### Security
 
 - **An out-of-range opening balance can no longer crash the app.** Unlike
@@ -65,6 +72,20 @@ All notable changes to this project are documented in this file.
   unnoticed, so the switch could show the lock as on while the next launch
   opened unlocked. The switch now moves only once storage has accepted the
   setting; if it doesn't, the switch stays where it was.
+
+- **Restore checks a backup before it replaces your data.** It used to copy a
+  downloaded backup in and commit before checking the app could read it, so a
+  hand-edited or tampered backup could replace your data with rows the app
+  then refused to load, leaving even the account list unreadable, with no way
+  back short of clearing the app's data. Restore now refuses a backup whose
+  tables aren't exactly Talea's or are damaged, or that holds more records than
+  Talea can handle; reads every row back through the same checks the app uses;
+  refuses ids the app can't handle and accounts that break their rules; and
+  only then commits: a refused backup leaves your data untouched. A file built
+  to stall a restore or exhaust memory is cut off instead of freezing the app
+  or getting it killed. Backups are now held to 64 MiB both ways, far past any
+  ledger kept by hand, so none is made that restore would refuse. A backup whose schema version wasn't a number also
+  made Restore crash the app; it is now refused as not a Talea backup.
 
 ## 1.5.0 - 2026-08-08
 

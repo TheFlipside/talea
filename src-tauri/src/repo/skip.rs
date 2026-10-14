@@ -54,7 +54,7 @@ where
     rows.into_iter()
         .map(|r| {
             Ok((
-                RecurringRuleId::new(id_from_rowid(r.rule_id)),
+                RecurringRuleId::new(id_from_rowid(r.rule_id)?),
                 date_from_text(&r.occurrence_date)?,
             ))
         })
