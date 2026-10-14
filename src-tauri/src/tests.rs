@@ -1754,12 +1754,51 @@ fn new_account_payload_caps_the_opening_balance() {
     }
 }
 
+/// Saves the Nextcloud settings as `save_settings` does when the user confirms
+/// any new server. It runs on a thread of its own, with its own runtime, so a
+/// test can call it from inside an async test, or from a confirmation or an
+/// upload that test injects.
+fn save(dir: &Path, base_url: &str, username: &str, password: &str) -> Result<(), CommandError> {
+    std::thread::scope(|scope| {
+        scope
+            .spawn(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(crate::backup::save_settings(
+                        dir,
+                        base_url,
+                        username,
+                        password,
+                        |_server| async { Ok(true) },
+                    ))
+            })
+            .join()
+            .unwrap()
+    })
+    .map(|saved| assert!(saved, "a confirmed save saves"))
+}
+
+/// The new server a save of `base_url` and `username` would ask the user to
+/// confirm, if any: `None` keeps the stored one, or disconnects.
+fn new_server(
+    stored: &crate::backup::Destination,
+    base_url: &str,
+    username: &str,
+) -> Result<Option<crate::backup::NewServer>, CommandError> {
+    Ok(match crate::backup::change(stored, base_url, username)? {
+        crate::backup::Change::Move(server) => Some(server),
+        crate::backup::Change::Keep | crate::backup::Change::Disconnect => None,
+    })
+}
+
 /// A fresh app-data dir holding saved Nextcloud credentials and a past backup.
 fn nextcloud_dir() -> TempDir {
     let dir = tempfile::tempdir().unwrap();
-    crate::backup::set_credentials(dir.path(), "https://cloud.example.com", "max", "s3cret")
-        .unwrap();
-    crate::backup::mark_backed_up(dir.path()).unwrap();
+    save(dir.path(), "https://cloud.example.com", "max", "s3cret").unwrap();
+    let destination = crate::backup::load_config(dir.path()).destination();
+    crate::backup::mark_backed_up(dir.path(), &destination).unwrap();
     dir
 }
 
@@ -1767,7 +1806,7 @@ fn nextcloud_dir() -> TempDir {
 fn a_blank_password_keeps_the_stored_one_for_the_same_server_and_user() {
     let dir = nextcloud_dir();
     // Whitespace around the address is trimmed, as on every save.
-    crate::backup::set_credentials(dir.path(), " https://cloud.example.com ", "max", "").unwrap();
+    save(dir.path(), " https://cloud.example.com ", "max", "").unwrap();
     let config = crate::backup::load_config(dir.path());
     assert_eq!(config.base_url, "https://cloud.example.com");
     assert_eq!(config.password, "s3cret");
@@ -1786,7 +1825,7 @@ fn a_blank_password_is_dropped_once_the_server_or_user_changes() {
         ("https://cloud.example.co", "max"),
     ] {
         let dir = nextcloud_dir();
-        crate::backup::set_credentials(dir.path(), base_url, username, "").unwrap();
+        save(dir.path(), base_url, username, "").unwrap();
         // The new address is saved, but the old server's password didn't follow
         // it there, so nothing can be sent until the new one is entered.
         let config = crate::backup::load_config(dir.path());
@@ -1802,7 +1841,7 @@ fn a_blank_password_is_dropped_once_the_server_or_user_changes() {
 #[test]
 fn clearing_the_address_and_user_disconnects() {
     let dir = nextcloud_dir();
-    crate::backup::set_credentials(dir.path(), "", "", "").unwrap();
+    save(dir.path(), "", "", "").unwrap();
     let config = crate::backup::load_config(dir.path());
     assert_eq!(config.password, "");
     assert_eq!(config.last_backup, None);
@@ -1813,7 +1852,7 @@ fn clearing_the_address_and_user_disconnects() {
 fn a_password_typed_while_disconnecting_is_not_kept() {
     // With no address there is no one to give it to.
     let dir = tempfile::tempdir().unwrap();
-    crate::backup::set_credentials(dir.path(), "", "", "s3cret").unwrap();
+    save(dir.path(), "", "", "s3cret").unwrap();
     assert_eq!(crate::backup::load_config(dir.path()).password, "");
 }
 
@@ -1828,15 +1867,16 @@ fn a_legacy_password_beside_no_address_follows_nowhere() {
             r#"{"baseUrl":"","username":"","password":"s3cret"}"#,
         )
         .unwrap();
+        assert_eq!(crate::backup::load_config(dir.path()).password, "s3cret");
         dir
     };
     // Neither the next address typed in...
     let dir = legacy();
-    crate::backup::set_credentials(dir.path(), "https://attacker.example", "max", "").unwrap();
+    save(dir.path(), "https://attacker.example", "max", "").unwrap();
     assert_eq!(crate::backup::load_config(dir.path()).password, "");
     // ...nor "the same" empty pair saved again may keep it.
     let dir = legacy();
-    crate::backup::set_credentials(dir.path(), "", "", "").unwrap();
+    save(dir.path(), "", "", "").unwrap();
     assert_eq!(crate::backup::load_config(dir.path()).password, "");
 }
 
@@ -1851,7 +1891,7 @@ fn the_password_never_shows_in_debug_output() {
 #[test]
 fn a_new_password_moves_the_credentials_to_a_new_server() {
     let dir = nextcloud_dir();
-    crate::backup::set_credentials(dir.path(), "https://new.example.com", "max", "fresh").unwrap();
+    save(dir.path(), "https://new.example.com", "max", "fresh").unwrap();
     let config = crate::backup::load_config(dir.path());
     assert_eq!(config.base_url, "https://new.example.com");
     assert_eq!(config.password, "fresh");
@@ -1861,7 +1901,7 @@ fn a_new_password_moves_the_credentials_to_a_new_server() {
 fn a_first_save_without_a_password_is_allowed() {
     // Nothing stored yet, so nothing can follow the address anywhere.
     let dir = tempfile::tempdir().unwrap();
-    crate::backup::set_credentials(dir.path(), "https://cloud.example.com", "max", "").unwrap();
+    save(dir.path(), "https://cloud.example.com", "max", "").unwrap();
     let config = crate::backup::load_config(dir.path());
     assert_eq!(config.base_url, "https://cloud.example.com");
     assert_eq!(config.username, "max");
@@ -1873,6 +1913,7 @@ fn a_password_stored_beside_an_empty_field_still_stays_put() {
     // A blank field is no "first save" once a password is stored next to it:
     // before this rule, clearing just the address kept the password, so such
     // configs exist, and the password must not follow whatever is typed next.
+    // No save can make one now, so each is written directly.
     for (first, second) in [
         (("", "max"), ("https://attacker.example", "max")),
         (
@@ -1881,14 +1922,458 @@ fn a_password_stored_beside_an_empty_field_still_stays_put() {
         ),
     ] {
         let dir = tempfile::tempdir().unwrap();
-        crate::backup::set_credentials(dir.path(), first.0, first.1, "s3cret").unwrap();
-        crate::backup::set_credentials(dir.path(), second.0, second.1, "").unwrap();
+        let legacy = serde_json::json!({
+            "baseUrl": first.0,
+            "username": first.1,
+            "password": "s3cret",
+        });
+        std::fs::write(dir.path().join("nextcloud.json"), legacy.to_string()).unwrap();
+        // The legacy config loads as written, password and all.
+        assert_eq!(crate::backup::load_config(dir.path()).password, "s3cret");
+        save(dir.path(), second.0, second.1, "").unwrap();
         assert_eq!(
             crate::backup::load_config(dir.path()).password,
             "",
             "{first:?}"
         );
     }
+}
+
+/// The stored `nextcloud.json`, byte for byte.
+fn stored_settings(dir: &Path) -> Vec<u8> {
+    std::fs::read(dir.join("nextcloud.json")).unwrap()
+}
+
+#[test]
+fn a_backup_is_recorded_only_against_the_server_it_went_to() {
+    // The settings move to another server, another user, or nowhere while
+    // the upload runs.
+    for (base_url, username) in [
+        ("https://other.example.com", "max"),
+        ("https://cloud.example.com", "someone-else"),
+        ("", ""),
+    ] {
+        let dir = nextcloud_dir();
+        let uploaded_to = crate::backup::load_config(dir.path()).destination();
+        save(dir.path(), base_url, username, "other").unwrap();
+        let before = stored_settings(dir.path());
+        let stamp = crate::backup::mark_backed_up(dir.path(), &uploaded_to).unwrap();
+        assert_eq!(stamp, None, "{base_url} / {username}");
+        // Nor does recording it bring the old server back.
+        assert_eq!(stored_settings(dir.path()), before);
+    }
+    // A new password for the same server is still the same destination.
+    let dir = nextcloud_dir();
+    let uploaded_to = crate::backup::load_config(dir.path()).destination();
+    save(dir.path(), "https://cloud.example.com", "max", "newer").unwrap();
+    let stamp = crate::backup::mark_backed_up(dir.path(), &uploaded_to).unwrap();
+    let config = crate::backup::load_config(dir.path());
+    assert!(stamp.is_some());
+    assert_eq!(config.last_backup, stamp);
+    assert_eq!(config.password, "newer");
+}
+
+#[test]
+fn only_a_new_server_needs_confirming() {
+    let stored = crate::backup::load_config(nextcloud_dir().path()).destination();
+    let new_server = |base_url: &str, username: &str| new_server(&stored, base_url, username);
+    // The stored server, however it is padded, and a disconnect send nothing
+    // anywhere new.
+    for (base_url, username) in [
+        ("https://cloud.example.com", "max"),
+        (" https://cloud.example.com ", " max "),
+        ("", ""),
+        ("  ", " "),
+    ] {
+        assert!(
+            new_server(base_url, username).unwrap().is_none(),
+            "{base_url:?} / {username:?}"
+        );
+    }
+    // Any other server or user does, written differently or not, and shown
+    // as requests would reach it.
+    for (base_url, username, address, shown_user) in [
+        (
+            "https://cloud.example.com",
+            "someone-else",
+            "https://cloud.example.com",
+            "someone-else",
+        ),
+        (
+            "https://cloud.example.com/",
+            "max",
+            "https://cloud.example.com",
+            "max",
+        ),
+        (
+            "https://Cloud.example.com",
+            "max",
+            "https://cloud.example.com",
+            "max",
+        ),
+        (
+            "https://cloud.example.com",
+            "Max",
+            "https://cloud.example.com",
+            "Max",
+        ),
+        (
+            "https://cloud.example.com/nc",
+            "max",
+            "https://cloud.example.com/nc",
+            "max",
+        ),
+        (
+            "  https://other.example.com:8443  ",
+            "  max  ",
+            "https://other.example.com:8443",
+            "max",
+        ),
+    ] {
+        let server = new_server(base_url, username).unwrap().unwrap();
+        assert_eq!(server.address(), address, "{base_url:?} / {username:?}");
+        assert_eq!(server.username(), shown_user);
+    }
+    // A server to confirm must be named outright, address and user both.
+    for (base_url, username) in [
+        ("http://cloud.example.com", "max"),
+        ("cloud.example.com", "max"),
+        ("", "max"),
+        ("https://cloud.example.com", ""),
+        ("https://new.example.com", "  "),
+        ("https://cloud.example.com@evil.example", "max"),
+    ] {
+        assert!(
+            matches!(new_server(base_url, username), Err(CommandError::Backup(_))),
+            "{base_url:?} / {username:?}"
+        );
+    }
+}
+
+#[test]
+fn a_new_username_must_be_a_nextcloud_user_id() {
+    let stored = crate::backup::Destination::default();
+    let new_server = |username: &str| new_server(&stored, "https://cloud.example.com", username);
+    let longest = "m".repeat(64);
+    for username in [
+        "max",
+        "o'brien",
+        "first.last",
+        "a-b_c",
+        "two words",
+        "max@example.com",
+        &longest,
+    ] {
+        assert!(new_server(username).unwrap().is_some(), "{username:?}");
+    }
+    for username in [
+        // A line break could fake a line of the dialog's own...
+        "max\nOnly continue",
+        "max\u{2028}x",
+        // ...a direction mark or an invisible character disguise the name...
+        "x\u{202e}moc",
+        "x\u{2066}y",
+        "x\u{200e}y",
+        "ma\u{200b}x",
+        "max\u{0}",
+        "max\u{7f}",
+        "max\u{a0}x",
+        // ...a letter from another script pass for a Latin one...
+        "m\u{430}x",
+        "Jose\u{301}",
+        "José",
+        // ...a `%` read as formatting by the Linux dialog...
+        "%s%n",
+        // ...or anything else Nextcloud doesn't put in a user id.
+        ".",
+        "..",
+        r"dom\max",
+        "\"max\"",
+        "max+nc@example.com",
+        // A long one could hide its end.
+        &format!("{longest}m"),
+    ] {
+        assert!(
+            matches!(new_server(username), Err(CommandError::Backup(_))),
+            "{username:?}"
+        );
+    }
+}
+
+#[test]
+fn the_confirmation_and_the_password_rule_agree_on_what_is_the_same_server() {
+    // A save that asks nothing must be one that keeps the stored password, and
+    // one that asks must drop it: the two rules mustn't drift apart.
+    for (base_url, username) in [
+        ("https://cloud.example.com", "max"),
+        (" https://cloud.example.com", "max "),
+        ("https://cloud.example.com/", "max"),
+        ("https://Cloud.example.com", "max"),
+        ("https://cloud.example.com", "Max"),
+        ("https://cloud.example.com", "someone-else"),
+        ("https://other.example.com", "max"),
+    ] {
+        let dir = nextcloud_dir();
+        let stored = crate::backup::load_config(dir.path()).destination();
+        let asks = new_server(&stored, base_url, username).unwrap().is_some();
+        save(dir.path(), base_url, username, "").unwrap();
+        let kept = crate::backup::load_config(dir.path()).password == "s3cret";
+        assert_ne!(asks, kept, "{base_url:?} / {username:?}");
+    }
+}
+
+#[test]
+fn a_server_that_cant_be_shown_is_never_stored() {
+    // Even confirmed: the dialog couldn't have shown it as it is.
+    let dir = nextcloud_dir();
+    let before = stored_settings(dir.path());
+    for (base_url, username) in [
+        ("https://cloud.example.com@evil.example", "max"),
+        ("https://other.example.com", "ma\nx"),
+        ("https://other.example.com", ""),
+        ("", "max"),
+    ] {
+        assert!(
+            matches!(
+                save(dir.path(), base_url, username, "x"),
+                Err(CommandError::Backup(_))
+            ),
+            "{base_url:?} / {username:?}"
+        );
+        assert_eq!(stored_settings(dir.path()), before);
+    }
+}
+
+#[test]
+fn a_first_server_needs_confirming_too() {
+    let stored = crate::backup::load_config(tempfile::tempdir().unwrap().path()).destination();
+    let server = new_server(&stored, "https://cloud.example.com", "max")
+        .unwrap()
+        .unwrap();
+    assert_eq!(server.address(), "https://cloud.example.com");
+}
+
+#[test]
+fn an_overlong_password_is_not_stored() {
+    let dir = nextcloud_dir();
+    let before = stored_settings(dir.path());
+    // The cap counts bytes, so 513 two-byte characters are already too many.
+    for password in ["p".repeat(1_025), "é".repeat(513)] {
+        let refused = save(dir.path(), "https://cloud.example.com", "max", &password);
+        assert!(matches!(refused, Err(CommandError::Backup(_))));
+        assert_eq!(stored_settings(dir.path()), before);
+    }
+    save(
+        dir.path(),
+        "https://cloud.example.com",
+        "max",
+        &"p".repeat(1_024),
+    )
+    .unwrap();
+}
+
+#[tokio::test]
+async fn an_overlong_password_is_refused_before_anything_is_asked() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut asked = false;
+    let refused = crate::backup::save_settings(
+        dir.path(),
+        "https://cloud.example.com",
+        "max",
+        &"p".repeat(1_025),
+        |_server| {
+            asked = true;
+            async { Ok(true) }
+        },
+    )
+    .await;
+    assert!(refused.is_err());
+    assert!(!asked);
+}
+
+/// Saves through `save_settings`, answering a confirmation with `answer`;
+/// returns the save's result and the servers it asked about.
+async fn save_answering(
+    dir: &Path,
+    base_url: &str,
+    username: &str,
+    answer: Result<bool, CommandError>,
+) -> (Result<bool, CommandError>, Vec<String>) {
+    let mut asked = Vec::new();
+    let saved = crate::backup::save_settings(dir, base_url, username, "fresh", |server| {
+        asked.push(format!("{} / {}", server.address(), server.username()));
+        async { answer }
+    })
+    .await;
+    (saved, asked)
+}
+
+#[tokio::test]
+async fn a_new_server_is_saved_once_confirmed() {
+    let dir = tempfile::tempdir().unwrap();
+    let (saved, asked) =
+        save_answering(dir.path(), "https://cloud.example.com", "max", Ok(true)).await;
+    assert!(saved.unwrap());
+    assert_eq!(asked, ["https://cloud.example.com / max"]);
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.base_url, "https://cloud.example.com");
+    assert_eq!(config.password, "fresh");
+}
+
+#[tokio::test]
+async fn a_declined_or_failed_confirmation_saves_nothing() {
+    for answer in [Ok(false), Err(CommandError::Backup("no dialog".into()))] {
+        let declined = matches!(answer, Ok(false));
+        let dir = nextcloud_dir();
+        let before = stored_settings(dir.path());
+        let (saved, asked) =
+            save_answering(dir.path(), "https://other.example.com", "max", answer).await;
+        // A decline is an answer, which the screen reports as not saved; a
+        // failed confirmation is an error.
+        if declined {
+            assert!(matches!(saved, Ok(false)), "{saved:?}");
+        } else {
+            assert!(matches!(saved, Err(CommandError::Backup(_))), "{saved:?}");
+        }
+        assert_eq!(asked.len(), 1);
+        assert_eq!(stored_settings(dir.path()), before);
+    }
+}
+
+#[tokio::test]
+async fn the_stored_server_saves_without_asking() {
+    // A new password for the stored server is saved...
+    let dir = nextcloud_dir();
+    let (saved, asked) =
+        save_answering(dir.path(), "https://cloud.example.com", "max", Ok(false)).await;
+    assert!(saved.unwrap());
+    assert_eq!(asked, Vec::<String>::new());
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.password, "fresh");
+    assert!(config.last_backup.is_some());
+    // ...and so is a disconnect, which drops the password with the server.
+    let dir = nextcloud_dir();
+    let (saved, asked) = save_answering(dir.path(), "", "", Ok(false)).await;
+    assert!(saved.unwrap());
+    assert_eq!(asked, Vec::<String>::new());
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.base_url, "");
+    assert_eq!(config.password, "");
+    assert_eq!(config.last_backup, None);
+}
+
+#[tokio::test]
+async fn a_server_that_cant_be_confirmed_is_not_asked_about() {
+    let dir = nextcloud_dir();
+    let before = stored_settings(dir.path());
+    let (saved, asked) = save_answering(
+        dir.path(),
+        "https://cloud.example.com@evil.example",
+        "max",
+        Ok(true),
+    )
+    .await;
+    assert!(saved.is_err());
+    assert_eq!(asked, Vec::<String>::new());
+    assert_eq!(stored_settings(dir.path()), before);
+}
+
+#[tokio::test]
+async fn a_confirmation_overtaken_by_another_save_saves_nothing() {
+    // Whether the save needed confirming was decided against the stored
+    // server; once another save has moved it, whether the address moved or
+    // only the user, that no longer holds. A first save is no exception.
+    for (start, base_url, username) in [
+        (nextcloud_dir(), "https://other.example.com", "max"),
+        (nextcloud_dir(), "https://cloud.example.com", "someone-else"),
+        (
+            tempfile::tempdir().unwrap(),
+            "https://other.example.com",
+            "max",
+        ),
+    ] {
+        let dir = start.path();
+        let mut overtaken = None;
+        let saved = crate::backup::save_settings(
+            dir,
+            "https://new.example.com",
+            "max",
+            "fresh",
+            |_server| {
+                // While the dialog is open, another save moves the settings.
+                save(dir, base_url, username, "other").unwrap();
+                overtaken = Some(stored_settings(dir));
+                async { Ok(true) }
+            },
+        )
+        .await;
+        assert!(
+            matches!(&saved, Err(CommandError::Backup(message)) if message.contains("changed meanwhile")),
+            "{saved:?}"
+        );
+        assert_eq!(
+            Some(stored_settings(dir)),
+            overtaken,
+            "{base_url} / {username}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_backup_is_credited_to_the_server_it_was_uploaded_to() {
+    let dir = nextcloud_dir();
+    let stamp = crate::backup::back_up(dir.path(), |config| {
+        assert_eq!(config.base_url, "https://cloud.example.com");
+        assert_eq!(config.username, "max");
+        assert_eq!(config.password, "s3cret");
+        async { Ok(()) }
+    })
+    .await
+    .unwrap();
+    assert!(stamp.is_some());
+    assert_eq!(crate::backup::load_config(dir.path()).last_backup, stamp);
+}
+
+#[tokio::test]
+async fn a_backup_overtaken_by_a_new_server_is_not_credited_to_it() {
+    let dir = nextcloud_dir();
+    // The settings move to another server while the upload runs.
+    let stamp = crate::backup::back_up(dir.path(), |_config| {
+        save(dir.path(), "https://other.example.com", "max", "other").unwrap();
+        async { Ok(()) }
+    })
+    .await
+    .unwrap();
+    assert_eq!(stamp, None);
+    let config = crate::backup::load_config(dir.path());
+    assert_eq!(config.base_url, "https://other.example.com");
+    assert_eq!(config.last_backup, None);
+}
+
+#[test]
+fn a_backup_whose_settings_cant_be_read_isnt_put_down_to_a_move() {
+    // Unreadable settings haven't moved to another server: recording the
+    // time failed, and the screen must say that rather than "elsewhere".
+    let dir = nextcloud_dir();
+    let uploaded_to = crate::backup::load_config(dir.path()).destination();
+    std::fs::write(dir.path().join("nextcloud.json"), b"{ not json").unwrap();
+    let recorded = crate::backup::mark_backed_up(dir.path(), &uploaded_to);
+    assert!(
+        matches!(&recorded, Err(CommandError::Backup(message)) if message.contains("couldn't record")),
+        "{recorded:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_failed_upload_is_not_recorded() {
+    let dir = tempfile::tempdir().unwrap();
+    save(dir.path(), "https://cloud.example.com", "max", "s3cret").unwrap();
+    let failed = crate::backup::back_up(dir.path(), |_config| async {
+        Err(CommandError::Backup("offline".into()))
+    })
+    .await;
+    assert!(failed.is_err());
+    assert_eq!(crate::backup::load_config(dir.path()).last_backup, None);
 }
 
 #[cfg(unix)]

@@ -1,0 +1,100 @@
+{
+  "newBackupServer": {
+    "en": {
+      "title": "Use this backup server?",
+      "lead": "Talea will upload all your data to this server, and a restore will replace it with what is stored there:",
+      "user": "User",
+      "caution": "Only continue if you entered this server yourself.",
+      "confirm": "Use this server",
+      "cancel": "Cancel"
+    },
+    "de": {
+      "title": "Diesen Backup-Server verwenden?",
+      "lead": "Talea lädt alle deine Daten auf diesen Server hoch, und eine Wiederherstellung ersetzt sie durch das, was dort gespeichert ist:",
+      "user": "Benutzer",
+      "caution": "Fahre nur fort, wenn du diesen Server selbst eingegeben hast.",
+      "confirm": "Server verwenden",
+      "cancel": "Abbrechen"
+    },
+    "es": {
+      "title": "¿Usar este servidor de copias de seguridad?",
+      "lead": "Talea subirá todos tus datos a este servidor, y una restauración los reemplazará por lo que haya guardado allí:",
+      "user": "Usuario",
+      "caution": "Continúa solo si has introducido tú mismo este servidor.",
+      "confirm": "Usar este servidor",
+      "cancel": "Cancelar"
+    },
+    "fr": {
+      "title": "Utiliser ce serveur de sauvegarde ?",
+      "lead": "Talea enverra toutes vos données sur ce serveur, et une restauration les remplacera par ce qui y est stocké :",
+      "user": "Utilisateur",
+      "caution": "Ne continuez que si vous avez saisi ce serveur vous-même.",
+      "confirm": "Utiliser ce serveur",
+      "cancel": "Annuler"
+    },
+    "it": {
+      "title": "Usare questo server di backup?",
+      "lead": "Talea caricherà tutti i tuoi dati su questo server, e un ripristino li sostituirà con ciò che vi è salvato:",
+      "user": "Utente",
+      "caution": "Continua solo se hai inserito tu questo server.",
+      "confirm": "Usa questo server",
+      "cancel": "Annulla"
+    },
+    "ja": {
+      "title": "このバックアップサーバーを使用しますか？",
+      "lead": "Talea はすべてのデータをこのサーバーにアップロードし、復元するとデータはサーバーに保存されている内容で置き換えられます：",
+      "user": "ユーザー",
+      "caution": "このサーバーを自分で入力した場合にのみ続行してください。",
+      "confirm": "このサーバーを使用",
+      "cancel": "キャンセル"
+    },
+    "nl": {
+      "title": "Deze back-upserver gebruiken?",
+      "lead": "Talea uploadt al je gegevens naar deze server, en herstellen vervangt ze door wat daar is opgeslagen:",
+      "user": "Gebruiker",
+      "caution": "Ga alleen verder als je deze server zelf hebt ingevoerd.",
+      "confirm": "Deze server gebruiken",
+      "cancel": "Annuleren"
+    },
+    "pl": {
+      "title": "Użyć tego serwera kopii zapasowych?",
+      "lead": "Talea prześle wszystkie Twoje dane na ten serwer, a przywracanie zastąpi je tym, co jest tam zapisane:",
+      "user": "Użytkownik",
+      "caution": "Kontynuuj tylko, jeśli ten serwer został wpisany przez Ciebie.",
+      "confirm": "Użyj tego serwera",
+      "cancel": "Anuluj"
+    },
+    "pt": {
+      "title": "Usar este servidor de cópias de segurança?",
+      "lead": "O Talea vai enviar todos os seus dados para este servidor, e um restauro substitui-los-á pelo que lá estiver guardado:",
+      "user": "Utilizador",
+      "caution": "Continue apenas se foi você que introduziu este servidor.",
+      "confirm": "Usar este servidor",
+      "cancel": "Cancelar"
+    },
+    "ru": {
+      "title": "Использовать этот сервер для резервных копий?",
+      "lead": "Talea загрузит все ваши данные на этот сервер, а восстановление заменит их тем, что там хранится:",
+      "user": "Пользователь",
+      "caution": "Продолжайте, только если вы сами ввели этот сервер.",
+      "confirm": "Использовать сервер",
+      "cancel": "Отмена"
+    },
+    "tr": {
+      "title": "Bu yedekleme sunucusu kullanılsın mı?",
+      "lead": "Talea tüm verilerinizi bu sunucuya yükleyecek; geri yükleme ise verilerinizi orada kayıtlı olanlarla değiştirecek:",
+      "user": "Kullanıcı",
+      "caution": "Yalnızca bu sunucuyu kendiniz girdiyseniz devam edin.",
+      "confirm": "Bu sunucuyu kullan",
+      "cancel": "İptal"
+    },
+    "zh": {
+      "title": "使用此备份服务器？",
+      "lead": "Talea 会将你的全部数据上传到此服务器，恢复时则会用其中保存的内容替换你的数据：",
+      "user": "用户",
+      "caution": "仅当此服务器是你自己输入的时才继续。",
+      "confirm": "使用此服务器",
+      "cancel": "取消"
+    }
+  }
+}

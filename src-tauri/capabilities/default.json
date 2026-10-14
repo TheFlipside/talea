@@ -1,12 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the Talea main window.",
+  "description": "Default capability for the Talea main window. The dialog plugin is for the shell alone (it confirms a new backup server where no script can answer), so its commands are denied outright: a later grant can't hand them to the webview.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:image:deny-from-path",
     "core:image:deny-from-bytes",
-    "statusbar:default"
+    "statusbar:default",
+    "dialog:deny-open",
+    "dialog:deny-save",
+    "dialog:deny-message"
   ]
 }

@@ -43,6 +43,16 @@ All notable changes to this project are documented in this file.
   only copy of it. Backups and restores now run one at a time, start to
   finish.
 
+- **The backup buttons stay disabled while an operation runs.** Leaving
+  Settings and coming back enabled Save, Test, Back up and Restore again while
+  a backup, restore or save was still running, so a second one could start
+  over it. They now stay disabled until it finishes.
+
+- **A backup counts as the last one only for the server it went to.** Changing
+  the backup server while a backup was still uploading (by leaving Settings
+  and coming back, which enabled Save again) showed that backup as the new
+  server's latest, though it is on the old one.
+
 ### Security
 
 - **An out-of-range opening balance can no longer crash the app.** Unlike
@@ -86,6 +96,21 @@ All notable changes to this project are documented in this file.
   or getting it killed. Backups are now held to 64 MiB both ways, far past any
   ledger kept by hand, so none is made that restore would refuse. A backup whose schema version wasn't a number also
   made Restore crash the app; it is now refused as not a Talea backup.
+
+- **A new backup server must be confirmed outside the app's web view.** Whatever
+  saves the backup settings decides where your whole database is uploaded to,
+  and the app's web view could save them, so any script running there that
+  shouldn't, such as a compromised dependency, could send your data to a server
+  of its own. Saving a different address or username now asks first, in a native
+  system dialog no script can click, showing the full address and the user;
+  nothing is saved unless you confirm, and a confirm that comes too soon after
+  the dialog opens doesn't count. The dialog follows your device's language, in
+  all 12 that Talea speaks. One is asked at a time, it counts as declined after
+  two minutes, and after three declines in a row Talea stops asking for ten
+  minutes, longer with each further decline. A new server needs both an address
+  and a username, each shown whole and as it is: an address with a login, query,
+  spaces or unusual characters in its path, or a username with characters no
+  Nextcloud user ID holds, is refused, with a message saying what to change.
 
 ## 1.5.0 - 2026-08-08
 

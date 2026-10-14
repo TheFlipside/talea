@@ -1,6 +1,13 @@
 /** TanStack Query hooks over the typed commands. */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type QueryClient,
+  type UseMutationOptions,
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 
 import * as api from './commands';
 import {
@@ -310,33 +317,66 @@ export function useNextcloudConfig() {
   });
 }
 
-export function useNextcloudSetConfig() {
-  const client = useQueryClient();
-  return useMutation<void, CommandError, { baseUrl: string; username: string; password: string }>({
+/** Prefix of every Nextcloud mutation's key. */
+export const nextcloudMutation = ['nextcloud'] as const;
+
+/** Whether a Nextcloud save, test, backup or restore is still running, even
+ *  one started before the screen asking last mounted: a component's own
+ *  `isPending` forgets it on remount, which let a second operation start
+ *  over a running one. */
+export function useNextcloudBusy(): boolean {
+  return useIsMutating({ mutationKey: nextcloudMutation }) > 0;
+}
+
+/** What a save of the Nextcloud settings is given. */
+export type NextcloudSettings = { baseUrl: string; username: string; password: string };
+
+/** The save's options, apart from the hook so a test can check them. */
+export function nextcloudSetConfigOptions(
+  client: QueryClient,
+): UseMutationOptions<boolean, CommandError, NextcloudSettings> {
+  return {
+    mutationKey: [...nextcloudMutation, 'save'],
     mutationFn: ({ baseUrl, username, password }) =>
       api.nextcloudSetConfig(baseUrl, username, password),
     // The app password rides in this mutation's variables: once the caller
-    // resets it, drop it from the cache at once, not after the default 5 min.
+    // resets it, drop it from the cache within a second, not after the default
+    // 5 min. (Not 0: a save left pending, waiting on the native dialog after
+    // Settings unmounts, re-arms its collection timer each time it fires.)
     // (Pass no per-call options to `mutate`: the observer keeps those past a
     // reset, along with anything their callbacks close over.)
-    gcTime: 0,
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
+    gcTime: 1_000,
+    // `false` is a declined new server, which changed nothing. An error may
+    // mean another save moved the settings meanwhile, so refetch then too.
+    onSettled: (saved) => {
+      if (saved !== false) {
+        void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
+      }
     },
-  });
+  };
+}
+
+export function useNextcloudSetConfig() {
+  return useMutation(nextcloudSetConfigOptions(useQueryClient()));
 }
 
 /** Tests the connection. No cache effect — the caller surfaces success/error. */
 export function useNextcloudTest() {
-  return useMutation<void, CommandError, void>({ mutationFn: api.nextcloudTest });
+  return useMutation<void, CommandError, void>({
+    mutationKey: [...nextcloudMutation, 'test'],
+    mutationFn: api.nextcloudTest,
+  });
 }
 
-/** Uploads a backup; resolves to its RFC-3339 timestamp and refreshes the
- *  "last backup" line via the config query. */
+/** Uploads a backup; resolves to its RFC-3339 timestamp (`null` if the
+ *  settings moved to another server meanwhile) and refreshes the "last backup"
+ *  line via the config query. */
 export function useBackupNow() {
   const client = useQueryClient();
-  return useMutation<string, CommandError, void>({
+  return useMutation<string | null, CommandError, void>({
+    mutationKey: [...nextcloudMutation, 'backup'],
     mutationFn: api.backupNow,
+    // Even on `null` (the settings moved mid-upload): they changed, so refetch.
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
     },
@@ -348,6 +388,7 @@ export function useBackupNow() {
 export function useRestoreNow() {
   const client = useQueryClient();
   return useMutation<void, CommandError, void>({
+    mutationKey: [...nextcloudMutation, 'restore'],
     mutationFn: api.restoreNow,
     onSuccess: () => {
       void client.invalidateQueries();

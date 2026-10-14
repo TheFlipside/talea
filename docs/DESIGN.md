@@ -319,6 +319,18 @@ Accepted as known debt for the scaffold; revisit before a release:
   so a crash mid-write can lose the stored credentials. Fix: take the buffer
   by value and drop it once written, write through `spawn_blocking`, and save
   the config via a temporary file and rename.
+- **Backend error messages are English only.** Every `CommandError` carries an
+  English message the frontend shows as is, the backup settings' refusals
+  included, while the rest of the UI (and the native confirmation, §10) speaks
+  12 languages. Fix: return a stable code with each error and let the frontend
+  word it.
+- **A compromised webview can still harm the data it can reach.** The native
+  confirmation (§10) keeps backups from going to another server, but the
+  webview's commands still edit and delete records, and back up and restore
+  against the confirmed server without a native prompt: a script could empty
+  the ledger and back that up over the only remote copy, which nothing
+  versions. Fix: confirm a restore natively, and keep earlier backups on the
+  server.
 
 ---
 
@@ -417,6 +429,74 @@ Those remain future work if concurrent multi-device editing is ever needed.
   the address to whatever server answers there. OS-keychain storage is
   a tracked follow-up (the `keyring` crate doesn't cover Android, so it isn't a
   clean cross-platform win today).
+- **A new server is confirmed natively.** Whatever saves the settings decides
+  where the whole database is uploaded to and restored from, and the webview
+  can save them, so a script running there that shouldn't (a compromised
+  dependency, say) could point backups at a server of its own. Saving an
+  address or username other than the stored ones, a first one included,
+  therefore asks the user first, in a dialog the OS draws outside the webview,
+  where no script can click it, reword it or cover it up (`tauri-plugin-dialog`,
+  for the shell alone: the capabilities deny the webview its commands; see
+  `confirm.rs` and `backup::save_settings`).
+  - *What it shows.* The full address in the form requests use, international
+    host names in their ASCII form so a look-alike can't pass for a familiar
+    one, and the path too, since one host can serve several Nextclouds; then
+    the username. Both must show whole and as they are, or the save is refused
+    before anything is asked: an `https://` address of at most 128 characters,
+    typed with nothing that doesn't print as itself, with no login, query or
+    fragment, a host of letters, digits, `-` and `.` (or an IPv6 literal) in
+    labels DNS can resolve, and a path of letters, digits and `-._~/` alone, so
+    an `@` or `:` can't dress the path up as a familiar host; and a username of
+    at most 64 of the characters Nextcloud allows in a user id (ASCII letters,
+    digits, spaces and `_.@-'`), so no line break, direction mark, invisible
+    character or letter from another script can disguise it. Neither can hold a
+    `%`, which the Linux dialog (`rfd`'s GTK backend) reads as a `printf`
+    format.
+  - *Its wording* is the shell's own: `src-tauri/locales/native-dialogs.json`,
+    compiled in by `build.rs`, so the webview can't change it at runtime, and
+    the OS's language, never the webview's, picks which. (On Android only the
+    first system language is known, so a user whose first language the app
+    doesn't speak sees it in English even where the app's own text is in their
+    second.) It words the consent itself, so an edit to it deserves the review
+    shell code gets; a frontend test holds its languages to the app's, and a
+    wording whose two buttons the plugin couldn't tell apart is refused rather
+    than shown.
+  - *What counts as yes.* Only the confirm button, and only a second and a half
+    or more after the dialog was asked for: a script can't press it, but it
+    could open the dialog just as the user taps where the button will appear. A
+    confirm sooner than that is refused, says why, and counts as a decline, so
+    luring taps gets no more tries than being turned down. Even then the save
+    goes through only if the stored server is still the one the question was
+    decided against, and reads and writes of `nextcloud.json` take one lock, so
+    no save slips between another's read and write. Clearing both fields
+    (disconnecting) needs no confirmation, nor does a new password for the
+    stored server: a script can still stop backups, just not redirect them.
+  - *How often it asks.* One question is asked at a time, and a dialog holds the
+    screen until it is answered: one left unanswered for two minutes counts as
+    no but keeps the screen, until it has been up for ten minutes, past which it
+    is taken to be gone (the OS can take one away without answering) and another
+    may open. After three declines in a row the app stops asking for ten
+    minutes, each further decline doubling that up to a day, until a server is
+    confirmed. Both run by the wall clock, since a phone's monotonic clock stops
+    while it sleeps, and a clock set back further than either lasts ends it
+    rather than stretching it. A dialog that couldn't be shown is an error, not
+    a decline, except on mobile, where the plugin reports one as a press of
+    Cancel.
+  - *Accepted limits.* A server saved before this check existed is kept as it
+    is, unconfirmed and unchecked, until it is changed. A dialog past its two
+    minutes stays on screen, since the plugin can't close it, but confirming it
+    saves nothing. A script that lets dialogs lapse holds off setting up a
+    server for as long as the pause lasts, or until the app restarts. The read
+    time is counted from the request to show the dialog, not from when it
+    appears, and a script can keep the main thread busy (Tauri's own sync
+    commands, the IPC requests themselves), so the dialog may appear with some
+    of it spent: a partial defence. The Settings screen's side of a declined
+    save (reporting it, keeping the typed password) has no automated test, as
+    the frontend has no DOM test harness. And the dialog guards the server, not
+    the user's reading of it: a script could swap its own server in for the one
+    the user just typed, and only the dialog's address line would tell.
+  - *The last backup* counts only for the server it was uploaded to, so moving
+    the settings mid-upload doesn't credit the new server with it.
 - **HTTPS only.** The WebDAV client (`src-tauri/src/webdav.rs`) rejects non-
   `https://` addresses and authenticates with HTTP Basic. TLS is `reqwest` +
   **rustls with the `ring` provider** (not the default `aws-lc-rs`), chosen so the

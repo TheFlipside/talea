@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -23,7 +24,9 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use crate::error::{CommandError, RepoError};
+use crate::lock::lock;
 use crate::repo;
+use crate::webdav;
 
 const CONFIG_FILE: &str = "nextcloud.json";
 /// Scratch file for the `VACUUM INTO` snapshot we upload.
@@ -31,6 +34,9 @@ const SNAPSHOT_FILE: &str = "talea-backup-snapshot.sqlite3";
 /// Scratch file for a downloaded backup we're about to restore.
 const DOWNLOAD_FILE: &str = "talea-backup-download.sqlite3";
 const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
+/// The longest app password stored. A real one is far shorter; this only
+/// bounds what a crafted save can write.
+const MAX_PASSWORD_BYTES: usize = 1_024;
 
 /// A data table restore copies, and the most rows a backup may hold in it.
 pub(crate) struct Table {
@@ -105,6 +111,157 @@ impl NextcloudConfig {
     pub fn is_configured(&self) -> bool {
         !self.base_url.is_empty() && !self.username.is_empty() && !self.password.is_empty()
     }
+
+    /// Where a backup made with these settings goes.
+    pub fn destination(&self) -> Destination {
+        Destination {
+            base_url: self.base_url.clone(),
+            username: self.username.clone(),
+        }
+    }
+}
+
+/// Where backups go: a server address and the user on it, compared exactly as
+/// stored.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Destination {
+    base_url: String,
+    username: String,
+}
+
+/// What saving the settings would do to where backups go.
+#[derive(Debug)]
+pub enum Change {
+    /// Keeps the stored server and user.
+    Keep,
+    /// Clears both, disconnecting.
+    Disconnect,
+    /// Moves to a new server, which the user must confirm first.
+    Move(NewServer),
+}
+
+/// A server that saving the settings would newly send backups to, as the user
+/// is asked to confirm it. Only [`change`] makes one, so whatever the
+/// confirmation shows has passed its checks.
+#[derive(Debug, Clone)]
+pub struct NewServer {
+    /// The address as typed, trimmed: what is stored.
+    base_url: String,
+    /// The address as requests use it, and the confirmation shows it.
+    address: String,
+    username: String,
+}
+
+impl NewServer {
+    /// The address, as [`webdav::server_address`] shows it.
+    pub fn address(&self) -> &str {
+        &self.address
+    }
+
+    pub fn username(&self) -> &str {
+        &self.username
+    }
+}
+
+/// The most characters a new username may have: Nextcloud's own limit for a
+/// user id, so the confirmation can show any username whole.
+const MAX_USERNAME_CHARS: usize = 64;
+
+/// Whether `c` may stand in a new username: Nextcloud allows a user id only
+/// ASCII letters, digits, spaces and `_.@-'`, and its `WebDAV` paths name the
+/// user by id. That leaves out everything the confirmation couldn't show as it
+/// is: a line break faking a line of the dialog's own, a direction override or
+/// an invisible character disguising the name, a letter from another script
+/// passing for a Latin one, and a `%`, which the Linux dialog reads as
+/// formatting (see [`webdav::server_address`]).
+fn in_nextcloud_user_id(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, ' ' | '_' | '.' | '@' | '-' | '\'')
+}
+
+/// What saving `base_url` and `username` would do, against the `stored`
+/// destination: keep it, if they are the stored ones; disconnect, if they are
+/// both blank; or move to a new server, which must then be named outright,
+/// address and user both, in a form the confirmation can show whole and as it
+/// is.
+///
+/// # Errors
+/// [`CommandError::Backup`] if a new server's address isn't one
+/// [`webdav::server_address`] accepts, or its username is blank, too long, or
+/// holds a character no Nextcloud user id does.
+pub fn change(
+    stored: &Destination,
+    base_url: &str,
+    username: &str,
+) -> Result<Change, CommandError> {
+    let (base_url, username) = (base_url.trim(), username.trim());
+    if base_url.is_empty() && username.is_empty() {
+        return Ok(Change::Disconnect);
+    }
+    if base_url == stored.base_url && username == stored.username {
+        return Ok(Change::Keep);
+    }
+    let address = webdav::server_address(base_url)?;
+    let valid_username = !username.is_empty()
+        && username.chars().count() <= MAX_USERNAME_CHARS
+        && username.chars().all(in_nextcloud_user_id)
+        // `.` and `..` are no user ids: the URL would drop them as segments.
+        && username.chars().any(|c| c != '.');
+    if !valid_username {
+        return Err(CommandError::Backup(
+            "Enter your Nextcloud user ID: up to 64 letters, digits, spaces and _ . @ - ' only."
+                .into(),
+        ));
+    }
+    Ok(Change::Move(NewServer {
+        base_url: base_url.to_owned(),
+        address,
+        username: username.to_owned(),
+    }))
+}
+
+/// Saves the backup settings (see [`write_settings`]), but asks `confirm`
+/// first whenever they name a new server (see [`change`]); returns whether
+/// they were saved. The question is decided against the settings stored when
+/// the save began, and the save goes through only if they are still stored
+/// once it is answered.
+///
+/// # Errors
+/// [`CommandError::Backup`] if the password is longer than any app password,
+/// a new server isn't one that can be confirmed, `confirm` fails, the settings
+/// changed while it was asked, or they can't be saved.
+pub async fn save_settings<F, Fut>(
+    app_data_dir: &Path,
+    base_url: &str,
+    username: &str,
+    password: &str,
+    confirm: F,
+) -> Result<bool, CommandError>
+where
+    F: FnOnce(NewServer) -> Fut,
+    Fut: Future<Output = Result<bool, CommandError>>,
+{
+    // Refused before the user is asked to confirm a save that would fail.
+    check_password(password)?;
+    let stored = load_config(app_data_dir).destination();
+    let change = change(&stored, base_url, username)?;
+    if let Change::Move(server) = &change {
+        if !confirm(server.clone()).await? {
+            return Ok(false);
+        }
+    }
+    write_settings(app_data_dir, &stored, &change, password)?;
+    Ok(true)
+}
+
+/// Refuses a password longer than any app password. A save for the stored
+/// server asks nothing, so this bounds what a script can write.
+fn check_password(password: &str) -> Result<(), CommandError> {
+    if password.len() > MAX_PASSWORD_BYTES {
+        return Err(CommandError::Backup(
+            "That app password is too long.".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// What the frontend may see — never the password.
@@ -168,12 +325,31 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     }
 }
 
-/// Loads the config, or a default (everything empty) if absent/unreadable.
+/// Guards `nextcloud.json`: every read and every read-modify-write holds it, so
+/// a save can't land between another's read and write and be undone, nor a
+/// read see a write half done. It guards no data of its own, so poisoning is
+/// ignored.
+static CONFIG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Loads the config, or a default (everything empty) if absent/unreadable. An
+/// unreadable file thus reads as nothing configured, and saving the settings
+/// afresh, a server confirmed like any new one, is the way back.
 pub fn load_config(app_data_dir: &Path) -> NextcloudConfig {
+    let _config = lock(&CONFIG);
+    read_config(app_data_dir)
+}
+
+/// [`load_config`], for a caller already holding [`CONFIG`].
+fn read_config(app_data_dir: &Path) -> NextcloudConfig {
+    try_read_config(app_data_dir).unwrap_or_default()
+}
+
+/// The stored config, if it can be read: none is stored, or it's unreadable,
+/// otherwise.
+fn try_read_config(app_data_dir: &Path) -> Option<NextcloudConfig> {
     std::fs::read(config_path(app_data_dir))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
 }
 
 fn save_config(app_data_dir: &Path, config: &NextcloudConfig) -> Result<(), CommandError> {
@@ -185,57 +361,107 @@ fn save_config(app_data_dir: &Path, config: &NextcloudConfig) -> Result<(), Comm
     })
 }
 
-/// Updates the stored credentials. An empty `password` keeps the existing one,
-/// so the frontend never needs to echo it back — but only for the same server
-/// and user. The app password belongs to them: kept for a changed address, it
+/// Writes the `change` [`save_settings`] has checked, and confirmed if it
+/// moves to a new server. An empty `password` keeps the existing one, so the
+/// frontend never needs to echo it back, but only for the same server and
+/// user. The app password belongs to them: kept for a changed address, it
 /// would be sent to whatever host answers there now, so a crafted call could
 /// point the address at its own server and collect the password by testing
-/// the connection. So for any other address or user, an empty password drops
-/// the stored one instead, leaving the backup unconfigured until the new
-/// server's password is entered. Clearing both fields disconnects, password and
-/// all, and the last-backup time goes with any change of server: that backup
-/// lives on the previous one.
+/// the connection. So for a new server, an empty password drops the stored one
+/// instead, leaving the backup unconfigured until the new server's password is
+/// entered. Disconnecting clears everything, password and all, and the
+/// last-backup time goes with any change of server: that backup lives on the
+/// previous one.
 ///
-/// The comparison is deliberately exact (after trimming): the same server
-/// written differently only costs re-entering the password, whereas a lenient
-/// match that went wrong would hand it to another host.
+/// The comparison behind `change` is deliberately exact (after trimming): the
+/// same server written differently only costs re-entering the password,
+/// whereas a lenient match that went wrong would hand it to another host.
+///
+/// Writes only `if_still` the stored destination: `change` was decided
+/// against it, and once the settings have moved on, that decision no longer
+/// holds. The check and the write hold [`CONFIG`] throughout, which is what
+/// keeps another save out from between them; the tests interleave saves only
+/// one after another, so they don't pin that.
 ///
 /// # Errors
-/// [`CommandError::Backup`] if the settings can't be saved.
-pub fn set_credentials(
+/// [`CommandError::Backup`] if the stored destination is no longer `if_still`,
+/// or the settings can't be saved.
+fn write_settings(
     app_data_dir: &Path,
-    base_url: &str,
-    username: &str,
+    if_still: &Destination,
+    change: &Change,
     password: &str,
 ) -> Result<(), CommandError> {
-    let mut config = load_config(app_data_dir);
-    let (base_url, username) = (base_url.trim(), username.trim());
-    let disconnect = base_url.is_empty() && username.is_empty();
-    let same_account = !disconnect && base_url == config.base_url && username == config.username;
-    if !same_account {
-        config.last_backup = None;
+    let _config = lock(&CONFIG);
+    let mut config = read_config(app_data_dir);
+    if config.destination() != *if_still {
+        return Err(CommandError::Backup(
+            "The backup settings changed meanwhile. Check them and save again.".into(),
+        ));
     }
-    if disconnect {
-        config.password.clear();
-    } else if !password.is_empty() {
-        password.clone_into(&mut config.password);
-    } else if !same_account {
-        config.password.clear();
+    match change {
+        Change::Keep => {
+            if !password.is_empty() {
+                password.clone_into(&mut config.password);
+            }
+        }
+        Change::Disconnect => config = NextcloudConfig::default(),
+        Change::Move(server) => {
+            server.base_url.clone_into(&mut config.base_url);
+            server.username.clone_into(&mut config.username);
+            // An empty one drops the stored password, as above.
+            password.clone_into(&mut config.password);
+            config.last_backup = None;
+        }
     }
-    base_url.clone_into(&mut config.base_url);
-    username.clone_into(&mut config.username);
     save_config(app_data_dir, &config)
 }
 
-/// Records the time of a successful backup.
-pub fn mark_backed_up(app_data_dir: &Path) -> Result<String, CommandError> {
+/// Backs up with `upload`, given the settings as stored now, then records the
+/// backup against the server those settings named (see [`mark_backed_up`]),
+/// whatever they name by the time it finishes. Returns the backup's time, or
+/// `None` if they moved to another server meanwhile.
+///
+/// # Errors
+/// Whatever `upload` fails with, or [`CommandError::Backup`] if the time can't
+/// be written down.
+pub async fn back_up<F, Fut>(app_data_dir: &Path, upload: F) -> Result<Option<String>, CommandError>
+where
+    F: FnOnce(NextcloudConfig) -> Fut,
+    Fut: Future<Output = Result<(), CommandError>>,
+{
+    let config = load_config(app_data_dir);
+    let uploaded_to = config.destination();
+    upload(config).await?;
+    mark_backed_up(app_data_dir, &uploaded_to)
+}
+
+/// Records the time of a backup just uploaded to `uploaded_to`, and returns
+/// it, or `None` if the settings have since moved to another server: this
+/// backup isn't on theirs, so they keep their own last one.
+///
+/// # Errors
+/// [`CommandError::Backup`] if the settings can't be read, or the time can't
+/// be written down.
+pub fn mark_backed_up(
+    app_data_dir: &Path,
+    uploaded_to: &Destination,
+) -> Result<Option<String>, CommandError> {
     let stamp = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .map_err(|_| CommandError::Backup("Couldn't record the backup time.".into()))?;
-    let mut config = load_config(app_data_dir);
+    let _config = lock(&CONFIG);
+    // Settings that can't be read haven't moved anywhere: that is a failure
+    // to record the time, not a backup made for other settings.
+    let mut config = try_read_config(app_data_dir).ok_or_else(|| {
+        CommandError::Backup("Backed up, but couldn't record the backup time.".into())
+    })?;
+    if config.destination() != *uploaded_to {
+        return Ok(None);
+    }
     config.last_backup = Some(stamp.clone());
     save_config(app_data_dir, &config)?;
-    Ok(stamp)
+    Ok(Some(stamp))
 }
 
 /// Produces a clean snapshot of the database as a byte vector (via

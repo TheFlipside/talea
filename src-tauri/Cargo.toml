@@ -19,6 +19,8 @@ pedantic = { level = "warn", priority = -1 }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# Reads the native dialogs' wording (`locales/native-dialogs.json`).
+serde_json.workspace = true
 
 [dependencies]
 talea-core = { path = "../core" }
@@ -49,6 +51,15 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 webpki-roots = "1"
+# Native dialogs, used from Rust only: a new backup server is confirmed in one
+# the webview can't click (see `confirm.rs`). The capabilities deny the webview
+# the plugin's own commands.
+tauri-plugin-dialog = "2"
+# Words that dialog in the OS's language, which no script can choose.
+sys-locale = "0.3"
+# Awaits the dialog's answer, within a time limit. Already in the tree through
+# Tauri.
+tokio = { version = "1", features = ["sync", "time"] }
 
 [dev-dependencies]
 tempfile = "3"

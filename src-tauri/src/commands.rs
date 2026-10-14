@@ -17,6 +17,7 @@ use talea_core::{
 };
 
 use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
+use crate::confirm;
 use crate::dto::{IsoDate, NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
@@ -942,35 +943,43 @@ fn client_for(config: &NextcloudConfig) -> Result<WebDav, CommandError> {
 /// Returns the stored Nextcloud settings — never the password, only whether one
 /// is set.
 ///
+/// Async, as every command here is, so it runs off the main thread, which
+/// also draws the native confirmation (see `confirm.rs`).
+///
 /// # Errors
 /// [`CommandError::Backup`] if app storage is unavailable.
-// Tauri's command macro requires `AppHandle` by value; it's an `Arc`-backed
-// handle, so passing it by value is cheap and idiomatic.
-#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
-pub fn nextcloud_get_config(app: AppHandle) -> Result<NextcloudConfigView, CommandError> {
+pub async fn nextcloud_get_config(app: AppHandle) -> Result<NextcloudConfigView, CommandError> {
     let dir = app_data_dir(&app)?;
     Ok((&backup::load_config(&dir)).into())
 }
 
 /// Saves the Nextcloud address/username, and the app password when a non-empty
-/// one is given. An empty password keeps the stored one for the same address
-/// and username only; for any other it drops it, so a stored password never
-/// follows a changed address (see [`backup::set_credentials`]).
+/// one is given; returns whether it saved them. A new server is saved only
+/// once the user confirms it in a native dialog (see [`confirm`]), so
+/// declining is an answer, not an error. An empty password keeps the stored
+/// one for the same address and username only; for any other it drops it, so a
+/// stored password never follows a changed address (see
+/// [`backup::save_settings`]).
 ///
 /// # Errors
-/// [`CommandError::Backup`] if the settings can't be written.
-// Tauri's command macro requires owned `AppHandle`/`String` arguments.
-#[allow(clippy::needless_pass_by_value)]
+/// [`CommandError::Backup`] if the password is longer than any app password,
+/// a new address or username isn't usable, the dialog can't be asked (another
+/// is open, or the questions are paused after repeated declines), its confirm
+/// was pressed too soon to have been read, the settings changed while it was
+/// open, or they can't be written.
 #[tauri::command]
-pub fn nextcloud_set_config(
+pub async fn nextcloud_set_config(
     app: AppHandle,
     base_url: String,
     username: String,
     password: String,
-) -> Result<(), CommandError> {
+) -> Result<bool, CommandError> {
     let dir = app_data_dir(&app)?;
-    backup::set_credentials(&dir, &base_url, &username, &password)
+    backup::save_settings(&dir, &base_url, &username, &password, |server| {
+        confirm::confirm_server(&app, server)
+    })
+    .await
 }
 
 /// Verifies the stored Nextcloud address and credentials.
@@ -985,7 +994,8 @@ pub async fn nextcloud_test(app: AppHandle) -> Result<(), CommandError> {
 }
 
 /// Snapshots the database and uploads it to Nextcloud; returns the RFC-3339
-/// timestamp of the backup.
+/// timestamp of the backup, or `None` if the settings moved to another server
+/// while it uploaded, since the backup isn't on that one.
 ///
 /// # Errors
 /// [`CommandError::Backup`] if not configured or the upload fails;
@@ -994,13 +1004,17 @@ pub async fn nextcloud_test(app: AppHandle) -> Result<(), CommandError> {
 pub async fn backup_now(
     app: AppHandle,
     state: State<'_, SqlitePool>,
-) -> Result<String, CommandError> {
+) -> Result<Option<String>, CommandError> {
     let _transfer = TRANSFER.lock().await;
     let dir = app_data_dir(&app)?;
-    let client = client_for(&backup::load_config(&dir))?;
-    let bytes = backup::snapshot(state.inner(), &dir).await?;
-    client.put_backup(bytes).await?;
-    backup::mark_backed_up(&dir)
+    let (pool, scratch) = (state.inner(), dir.as_path());
+    backup::back_up(&dir, |config| async move {
+        let client = client_for(&config)?;
+        let bytes = backup::snapshot(pool, scratch).await?;
+        client.put_backup(bytes).await?;
+        Ok(())
+    })
+    .await
 }
 
 /// Downloads the Nextcloud backup and replaces all local data with it.
