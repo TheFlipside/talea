@@ -20,6 +20,24 @@ use crate::dto::{IsoDate, NewBudget, NewEntry, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
+/// Inserts `draft` straight through the repository, in a transaction of its
+/// own: no membership check, so tests can set up any summary they need.
+async fn insert_account(pool: &SqlitePool, draft: &Account) -> Result<Account, RepoError> {
+    let mut tx = pool.begin().await?;
+    let account = repo::account::insert(&mut tx, draft).await?;
+    tx.commit().await?;
+    Ok(account)
+}
+
+/// Deletes account `id` straight through the repository, skipping the command's
+/// membership check; `true` if it was there.
+async fn delete_account(pool: &SqlitePool, id: AccountId) -> bool {
+    let mut tx = pool.begin().await.unwrap();
+    let deleted = repo::account::delete(&mut tx, id).await.unwrap();
+    tx.commit().await.unwrap();
+    deleted
+}
+
 /// A migrated temp-file database. The `TempDir` must be kept alive for the
 /// lifetime of the pool.
 async fn fixture() -> (TempDir, SqlitePool) {
@@ -45,7 +63,7 @@ fn usd_account() -> Account {
 }
 
 async fn seed_account(pool: &SqlitePool) -> Account {
-    repo::account::insert(pool, &usd_account()).await.unwrap()
+    insert_account(pool, &usd_account()).await.unwrap()
 }
 
 #[tokio::test]
@@ -61,7 +79,7 @@ async fn account_round_trips() {
     )
     .unwrap();
 
-    let saved = repo::account::insert(&pool, &draft).await.unwrap();
+    let saved = insert_account(&pool, &draft).await.unwrap();
     assert_eq!(saved.currency().code(), "EUR");
     assert_eq!(saved.opening_balance(), Money::from_minor_units(1234, 2));
 
@@ -345,7 +363,7 @@ async fn delete_account_cascades_entries_and_rules() {
     .await
     .unwrap();
 
-    assert!(repo::account::delete(&pool, account.id()).await.unwrap());
+    assert!(delete_account(&pool, account.id()).await);
     // CASCADE only fires with foreign_keys=ON, so this also proves the pragma.
     assert_eq!(
         repo::entry::for_account(&pool, account.id()).await.unwrap(),
@@ -498,7 +516,7 @@ async fn create_account_from_frontend_shaped_json() {
         .expect("NewAccount deserializes")
         .build()
         .expect("draft validates");
-    let saved = repo::account::insert(&pool, &draft).await.unwrap();
+    let saved = insert_account(&pool, &draft).await.unwrap();
     assert_eq!(saved.currency().code(), "USD");
     assert_eq!(saved.name(), "Personal");
 }
@@ -704,7 +722,7 @@ fn new_entry(account_id: AccountId, minor: i64, kind: EntryKind) -> NewEntry {
 async fn transfer_mirrors_entry_onto_the_other_account() {
     let (_dir, pool) = fixture().await;
     let from = seed_account(&pool).await; // USD
-    let to = repo::account::insert(&pool, &account_with("USD", "Savings"))
+    let to = insert_account(&pool, &account_with("USD", "Savings"))
         .await
         .unwrap();
 
@@ -744,7 +762,7 @@ async fn transfer_mirrors_entry_onto_the_other_account() {
 async fn transfer_rejects_bad_pairings() {
     let (_dir, pool) = fixture().await;
     let usd = seed_account(&pool).await;
-    let eur = repo::account::insert(&pool, &account_with("EUR", "Euro"))
+    let eur = insert_account(&pool, &account_with("EUR", "Euro"))
         .await
         .unwrap();
 
@@ -817,7 +835,7 @@ async fn load_account_rules_returns_rules_or_not_found() {
 async fn occurrence_commands_enforce_ownership_and_apply() {
     let (_dir, pool) = fixture().await;
     let account = seed_account(&pool).await;
-    let other = repo::account::insert(&pool, &account_with("USD", "Other"))
+    let other = insert_account(&pool, &account_with("USD", "Other"))
         .await
         .unwrap();
     let rule = repo::rule::insert(
@@ -926,7 +944,7 @@ async fn backup_snapshot_restores_over_existing_data() {
         Month::new(2026, 1).unwrap(),
     )
     .unwrap();
-    repo::account::insert(&dst, &other).await.unwrap();
+    insert_account(&dst, &other).await.unwrap();
 
     crate::backup::restore(&dst, dst_dir.path(), &bytes)
         .await
@@ -963,17 +981,17 @@ async fn seed_entry(pool: &SqlitePool, account_id: AccountId, minor: i64, kind: 
 #[tokio::test]
 async fn summary_account_combines_member_month_summaries() {
     let (_dir, pool) = fixture().await;
-    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+    let a = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
-    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+    let b = insert_account(&pool, &account_with("USD", "B"))
         .await
         .unwrap();
     seed_entry(&pool, a.id(), 50_000, EntryKind::Income).await; // +500 on A
     seed_entry(&pool, b.id(), 30_000, EntryKind::Income).await; // +300 on B
     seed_entry(&pool, b.id(), 10_000, EntryKind::Expense).await; // -100 on B
 
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+    let summary = insert_account(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
         .await
         .unwrap();
     assert_eq!(summary.kind(), AccountKind::Summary);
@@ -991,16 +1009,16 @@ async fn summary_account_combines_member_month_summaries() {
 #[tokio::test]
 async fn summary_account_merges_member_category_expenses() {
     let (_dir, pool) = fixture().await;
-    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+    let a = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
-    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+    let b = insert_account(&pool, &account_with("USD", "B"))
         .await
         .unwrap();
     seed_entry(&pool, a.id(), 10_000, EntryKind::Expense).await; // -100 (uncategorized)
     seed_entry(&pool, b.id(), 20_000, EntryKind::Expense).await; // -200 (uncategorized)
 
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+    let summary = insert_account(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
         .await
         .unwrap();
     let march = Month::new(2026, 3).unwrap();
@@ -1015,10 +1033,10 @@ async fn summary_account_merges_member_category_expenses() {
 #[tokio::test]
 async fn writes_to_a_summary_account_are_rejected() {
     let (_dir, pool) = fixture().await;
-    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+    let a = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id()]))
+    let summary = insert_account(&pool, &summary_over("USD", "All", vec![a.id()]))
         .await
         .unwrap();
     assert!(matches!(
@@ -1031,21 +1049,273 @@ async fn writes_to_a_summary_account_are_rejected() {
         .unwrap();
 }
 
+// ---- Account commands check and write in one step -----------------------------
+
+/// A summary account over `members`, as the frontend sends one.
+fn new_summary(currency: &str, members: Vec<AccountId>) -> crate::dto::NewAccount {
+    crate::dto::NewAccount {
+        name: "All".to_owned(),
+        icon: "📊".to_owned(),
+        currency: Currency::new(currency).unwrap(),
+        opening_balance: Money::zero(),
+        anchor: Month::new(2026, 1).unwrap(),
+        kind: AccountKind::Summary,
+        members,
+    }
+}
+
+/// `account` in another currency, otherwise unchanged.
+fn in_currency(account: &Account, currency: &str) -> Account {
+    Account::new(
+        account.id(),
+        account.name().to_owned(),
+        account.icon().to_owned(),
+        Currency::new(currency).unwrap(),
+        account.opening_balance(),
+        account.anchor(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn a_summary_is_created_only_over_members_of_its_currency() {
+    let (_dir, pool) = fixture().await;
+    let usd = insert_account(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let refused =
+        crate::commands::create_account_inner(&pool, new_summary("EUR", vec![usd.id()])).await;
+    assert!(
+        matches!(refused, Err(CommandError::Validation(_))),
+        "{refused:?}"
+    );
+    assert_eq!(repo::account::list(&pool).await.unwrap().len(), 1);
+    let summary = crate::commands::create_account_inner(&pool, new_summary("USD", vec![usd.id()]))
+        .await
+        .unwrap();
+    assert_eq!(summary.members(), [usd.id()]);
+}
+
+#[tokio::test]
+async fn a_member_keeps_its_currency_while_it_belongs_to_a_summary() {
+    let (_dir, pool) = fixture().await;
+    let member = insert_account(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let lone = insert_account(&pool, &account_with("USD", "B"))
+        .await
+        .unwrap();
+    crate::commands::create_account_inner(&pool, new_summary("USD", vec![member.id()]))
+        .await
+        .unwrap();
+    let refused = crate::commands::update_account_inner(&pool, in_currency(&member, "EUR")).await;
+    assert!(
+        matches!(refused, Err(CommandError::Validation(_))),
+        "{refused:?}"
+    );
+    let stored = repo::account::get(&pool, member.id())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.currency().code(), "USD");
+    let moved = crate::commands::update_account_inner(&pool, in_currency(&lone, "EUR"))
+        .await
+        .unwrap();
+    assert_eq!(moved.currency().code(), "EUR");
+    let missing = Account::new(
+        AccountId::new(999),
+        "Gone".to_owned(),
+        "💰".to_owned(),
+        Currency::new("USD").unwrap(),
+        Money::zero(),
+        Month::new(2026, 1).unwrap(),
+    )
+    .unwrap();
+    assert!(matches!(
+        crate::commands::update_account_inner(&pool, missing).await,
+        Err(CommandError::NotFound)
+    ));
+}
+
+#[tokio::test]
+async fn an_account_is_deleted_only_once_no_summary_holds_it() {
+    let (_dir, pool) = fixture().await;
+    let member = insert_account(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    let summary =
+        crate::commands::create_account_inner(&pool, new_summary("USD", vec![member.id()]))
+            .await
+            .unwrap();
+    let refused = crate::commands::delete_account_inner(&pool, member.id()).await;
+    assert!(
+        matches!(refused, Err(CommandError::Validation(_))),
+        "{refused:?}"
+    );
+    assert!(repo::account::get(&pool, member.id())
+        .await
+        .unwrap()
+        .is_some());
+    // A summary itself may always go, and with it the membership.
+    crate::commands::delete_account_inner(&pool, summary.id())
+        .await
+        .unwrap();
+    crate::commands::delete_account_inner(&pool, member.id())
+        .await
+        .unwrap();
+    assert_eq!(
+        repo::account::list(&pool).await.unwrap(),
+        Vec::<Account>::new()
+    );
+    assert!(matches!(
+        crate::commands::delete_account_inner(&pool, member.id()).await,
+        Err(CommandError::NotFound)
+    ));
+}
+
+/// A second connection to the fixture's database that gives up at once when
+/// the database is locked, rather than waiting.
+async fn impatient_connection(dir: &TempDir) -> sqlx::SqliteConnection {
+    <sqlx::SqliteConnection as sqlx::Connection>::connect_with(
+        &SqliteConnectOptions::new()
+            .filename(dir.path().join(crate::db::DB_FILENAME))
+            .busy_timeout(std::time::Duration::ZERO),
+    )
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn a_write_transaction_holds_the_lock_from_its_start() {
+    // `BEGIN IMMEDIATE` takes the lock as the transaction opens, so no other
+    // write can land between what a command checks and what it writes; a
+    // plain `BEGIN` would take it only at the first write.
+    let (dir, pool) = fixture().await;
+    let mut other = impatient_connection(&dir).await;
+    let held = crate::db::begin_write(&pool).await.unwrap();
+    assert!(sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut other)
+        .await
+        .is_err());
+    held.rollback().await.unwrap();
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut other)
+        .await
+        .unwrap();
+    sqlx::query("ROLLBACK").execute(&mut other).await.unwrap();
+    sqlx::Connection::close(other).await.unwrap();
+}
+
+/// A database holding account A in a USD summary, and a second connection to
+/// it, for a test of whether a command checks under the write lock.
+async fn member_of_a_summary() -> (TempDir, SqlitePool, Account, sqlx::SqliteConnection) {
+    let (dir, pool) = fixture().await;
+    let member = insert_account(&pool, &account_with("USD", "A"))
+        .await
+        .unwrap();
+    crate::commands::create_account_inner(&pool, new_summary("USD", vec![member.id()]))
+        .await
+        .unwrap();
+    let other = impatient_connection(&dir).await;
+    (dir, pool, member, other)
+}
+
+/// Runs `refused` (a command its check refuses) once while `other` holds the
+/// write lock, then once it doesn't. A command that checked in a plain
+/// transaction would read and refuse at once; one that takes the lock first
+/// waits for it, and refuses only once it's free. It must then leave the lock
+/// free. Each test runs one command on a fresh pool, so a command that times
+/// out can't leave the next one waiting on the pool instead of the lock.
+async fn checks_under_the_write_lock<F, Fut>(
+    pool: SqlitePool,
+    mut other: sqlx::SqliteConnection,
+    refused: F,
+) where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<(), CommandError>>,
+{
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut other)
+        .await
+        .unwrap();
+    let wait = std::time::Duration::from_millis(500);
+    assert!(tokio::time::timeout(wait, refused()).await.is_err());
+    sqlx::query("ROLLBACK").execute(&mut other).await.unwrap();
+    assert!(matches!(refused().await, Err(CommandError::Validation(_))));
+    // The timed-out command's connection takes the lock once more as it
+    // rolls back; closing the pool waits until it has.
+    pool.close().await;
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut other)
+        .await
+        .unwrap();
+    sqlx::query("ROLLBACK").execute(&mut other).await.unwrap();
+    sqlx::Connection::close(other).await.unwrap();
+}
+
+#[tokio::test]
+async fn creating_a_summary_checks_under_the_write_lock() {
+    let (_dir, pool, member, other) = member_of_a_summary().await;
+    let refused = || async {
+        crate::commands::create_account_inner(&pool, new_summary("EUR", vec![member.id()]))
+            .await
+            .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn updating_an_account_checks_under_the_write_lock() {
+    let (_dir, pool, member, other) = member_of_a_summary().await;
+    let refused = || async {
+        crate::commands::update_account_inner(&pool, in_currency(&member, "EUR"))
+            .await
+            .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn deleting_an_account_checks_under_the_write_lock() {
+    let (_dir, pool, member, other) = member_of_a_summary().await;
+    let refused = || crate::commands::delete_account_inner(&pool, member.id());
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn a_transfer_checks_under_the_write_lock() {
+    let (_dir, pool, member, other) = member_of_a_summary().await;
+    let euro = insert_account(&pool, &account_with("EUR", "Euro"))
+        .await
+        .unwrap();
+    let refused = || async {
+        crate::commands::transfer(
+            &pool,
+            new_entry(member.id(), 1_00, EntryKind::Expense),
+            euro.id(),
+        )
+        .await
+        .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
 #[tokio::test]
 async fn summary_membership_requires_matching_currency() {
     let (_dir, pool) = fixture().await;
-    let usd = repo::account::insert(&pool, &account_with("USD", "A"))
+    let usd = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
     // A EUR summary cannot take a USD member...
+    let mut tx = pool.begin().await.unwrap();
     let draft = summary_over("EUR", "All", vec![usd.id()]);
     assert!(matches!(
-        crate::commands::validate_membership(&pool, &draft).await,
+        crate::commands::validate_membership(&mut tx, &draft).await,
         Err(CommandError::Validation(_))
     ));
     // ...while a USD one can.
     let draft = summary_over("USD", "All", vec![usd.id()]);
-    assert!(crate::commands::validate_membership(&pool, &draft)
+    assert!(crate::commands::validate_membership(&mut tx, &draft)
         .await
         .is_ok());
 }
@@ -1053,13 +1323,13 @@ async fn summary_membership_requires_matching_currency() {
 #[tokio::test]
 async fn backup_round_trip_preserves_summary_membership() {
     let (src_dir, src) = fixture().await;
-    let a = repo::account::insert(&src, &account_with("USD", "A"))
+    let a = insert_account(&src, &account_with("USD", "A"))
         .await
         .unwrap();
-    let b = repo::account::insert(&src, &account_with("USD", "B"))
+    let b = insert_account(&src, &account_with("USD", "B"))
         .await
         .unwrap();
-    repo::account::insert(&src, &summary_over("USD", "All", vec![a.id(), b.id()]))
+    insert_account(&src, &summary_over("USD", "All", vec![a.id(), b.id()]))
         .await
         .unwrap();
     let bytes = crate::backup::snapshot(&src, src_dir.path()).await.unwrap();
@@ -1196,7 +1466,7 @@ async fn delete_account_cascades_its_budgets() {
         .await
         .unwrap();
 
-    assert!(repo::account::delete(&pool, account.id()).await.unwrap());
+    assert!(delete_account(&pool, account.id()).await);
     assert_eq!(
         repo::budget::for_account(&pool, account.id())
             .await
@@ -1235,10 +1505,10 @@ async fn duplicate_budget_per_category_is_rejected() {
 #[tokio::test]
 async fn budget_on_a_summary_account_is_rejected() {
     let (_dir, pool) = fixture().await;
-    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+    let a = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id()]))
+    let summary = insert_account(&pool, &summary_over("USD", "All", vec![a.id()]))
         .await
         .unwrap();
     let groceries = seed_category(&pool, "Groceries").await;
@@ -1329,10 +1599,10 @@ async fn month_summary_reserves_unspent_budget() {
 #[tokio::test]
 async fn summary_account_concatenates_member_budget_statuses() {
     let (_dir, pool) = fixture().await;
-    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+    let a = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
-    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+    let b = insert_account(&pool, &account_with("USD", "B"))
         .await
         .unwrap();
     let groceries = seed_category(&pool, "Groceries").await;
@@ -1348,7 +1618,7 @@ async fn summary_account_concatenates_member_budget_statuses() {
         .unwrap();
     seed_categorized_expense(&pool, b.id(), groceries.id(), 30_000).await;
 
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+    let summary = insert_account(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
         .await
         .unwrap();
     let march = Month::new(2026, 3).unwrap();
@@ -1616,10 +1886,10 @@ async fn balance_as_of_counts_entries_up_to_the_date() {
 #[tokio::test]
 async fn summary_account_balance_as_of_sums_its_members() {
     let (_dir, pool) = fixture().await;
-    let a = repo::account::insert(&pool, &account_with("USD", "A"))
+    let a = insert_account(&pool, &account_with("USD", "A"))
         .await
         .unwrap();
-    let b = repo::account::insert(&pool, &account_with("USD", "B"))
+    let b = insert_account(&pool, &account_with("USD", "B"))
         .await
         .unwrap();
     let march = |d| date(2026, TMonth::March, d);
@@ -1628,7 +1898,7 @@ async fn summary_account_balance_as_of_sums_its_members() {
 
     // After the cut-off, so neither member counts it yet.
     seed_entry_on(&pool, b.id(), 99_900, EntryKind::Expense, march(20)).await;
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
+    let summary = insert_account(&pool, &summary_over("USD", "All", vec![a.id(), b.id()]))
         .await
         .unwrap();
 
@@ -1720,10 +1990,10 @@ async fn a_full_summary_at_the_opening_balance_cap_sums_without_overflow() {
             Month::new(2026, 1).unwrap(),
         )
         .unwrap();
-        members.push(repo::account::insert(&pool, &account).await.unwrap().id());
+        members.push(insert_account(&pool, &account).await.unwrap().id());
     }
     let count = i64::try_from(members.len()).unwrap();
-    let summary = repo::account::insert(&pool, &summary_over("USD", "All", members))
+    let summary = insert_account(&pool, &summary_over("USD", "All", members))
         .await
         .unwrap();
 
@@ -2450,7 +2720,7 @@ async fn populated_source() -> (TempDir, SqlitePool) {
     crate::commands::update_budget_inner(&pool, raised)
         .await
         .unwrap();
-    repo::account::insert(&pool, &summary_over("USD", "All", vec![account.id()]))
+    insert_account(&pool, &summary_over("USD", "All", vec![account.id()]))
         .await
         .unwrap();
     (dir, pool)
@@ -2516,7 +2786,7 @@ async fn forged_backup(pool: &SqlitePool, dir: &Path, sql: &str) -> Vec<u8> {
 /// the forgery in a failure.
 async fn assert_restore_refused(case: &str, bytes: &[u8], expected: &str) {
     let (dir, pool) = fixture().await;
-    let local = repo::account::insert(&pool, &account_with("EUR", "Local"))
+    let local = insert_account(&pool, &account_with("EUR", "Local"))
         .await
         .unwrap();
     let before = table_state(&pool).await;
@@ -2884,13 +3154,13 @@ async fn restore_refuses_accounts_that_break_their_rules() {
     // Two USD accounts (ids 1 and 2) and a summary over both (id 3). Each case
     // breaks one rule the app keeps for accounts.
     let (dir, src) = fixture().await;
-    let a = repo::account::insert(&src, &account_with("USD", "A"))
+    let a = insert_account(&src, &account_with("USD", "A"))
         .await
         .unwrap();
-    let b = repo::account::insert(&src, &account_with("USD", "B"))
+    let b = insert_account(&src, &account_with("USD", "B"))
         .await
         .unwrap();
-    repo::account::insert(&src, &summary_over("USD", "All", vec![a.id(), b.id()]))
+    insert_account(&src, &summary_over("USD", "All", vec![a.id(), b.id()]))
         .await
         .unwrap();
     for (case, sql) in [
@@ -3024,7 +3294,7 @@ async fn restore_accepts_ids_and_counters_at_the_limit() {
         .collect();
     assert_eq!(ids, [1 << 52]);
     // The restored counter carries on from there.
-    let next = repo::account::insert(&dst, &usd_account()).await.unwrap();
+    let next = insert_account(&dst, &usd_account()).await.unwrap();
     assert_eq!(next.id().get(), (1 << 52) + 1);
 }
 
@@ -3133,7 +3403,7 @@ async fn restore_refuses_text_longer_than_any_the_app_writes() {
 async fn restore_accepts_the_longest_text_the_app_writes() {
     // At four bytes a character, the widest UTF-8 can make them.
     let (dir, src) = fixture().await;
-    let account = repo::account::insert(&src, &account_with("USD", &"🙂".repeat(200)))
+    let account = insert_account(&src, &account_with("USD", &"🙂".repeat(200)))
         .await
         .unwrap();
     seed_category(&src, &"🙂".repeat(200)).await;
@@ -3296,7 +3566,7 @@ async fn restore_gives_a_file_only_so_long_to_prove_itself_ours() {
     )
     .await;
     let (dst_dir, dst) = fixture().await;
-    repo::account::insert(&dst, &account_with("EUR", "Local"))
+    insert_account(&dst, &account_with("EUR", "Local"))
         .await
         .unwrap();
     let before = table_state(&dst).await;

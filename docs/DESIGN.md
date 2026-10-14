@@ -313,14 +313,17 @@ Accepted as known debt for the scaffold; revisit before a release:
   boundary), but if a wider IPC/sync surface is ever added, scope the `WHERE` to
   the owning account and stop writing `account_id` on update. Rule amount history
   is already bounded (`MAX_AMOUNT_SEGMENTS`) alongside the note/amount caps.
-- **Account membership is checked outside the write.** `create_account`,
-  `update_account` and `delete_account` read what they validate (a summary's
-  members, whether an account belongs to one) before opening the transaction
-  that writes. Two account commands interleaved by crafted IPC could therefore
-  commit a mixed-currency or memberless summary, which the app still loads but
-  restore (§10) refuses, so every backup of that database would be refused
-  too. The shipped UI never issues two account writes at once. Fix: run each
-  command's checks and write in one `BEGIN IMMEDIATE` transaction.
+- **Records are checked against an account's kind outside the write lock.**
+  Entries, rules, budgets and single-occurrence edits refuse a summary account
+  (`reject_if_summary`), but check its kind before the transaction that
+  writes. An account's kind never changes in use, so that only matters
+  against a restore, which can bring an id back as the other kind: an entry
+  written for account 5 just as a restore commits a backup where 5 is a
+  summary would leave a summary owning a record, which restore then refuses,
+  so every later backup would be refused too. It takes a write racing a
+  restore, which the shipped UI never issues. Fix: check the kind in each
+  command's write transaction (`db::begin_write`), as the account commands
+  and transfers do.
 - **No log backend is installed.** Every `log::warn!`/`log::error!`, the
   restore refusal diagnostics included, is a no-op: nothing initialises a
   logger. Adding one (e.g. `tauri-plugin-log`) needs a redaction policy first,
@@ -557,7 +560,16 @@ deliberate, narrow amendment to the "no cross-account aggregation" stance of §2
   the constructors can't see other accounts, so they check only structural
   rules: a normal account has no members, a summary has a zero balance and
   distinct members. The command layer applies it whenever a summary is saved,
-  and restore to every summary in a backup (§10).
+  and restore to every summary in a backup (§10). Each account command runs its
+  checks (a summary's members, whether an account belongs to one) and its write
+  in one transaction that holds the write lock from its start
+  (`db::begin_write`, `BEGIN IMMEDIATE`), so no other write can land between
+  them: two account changes made at once can't leave a summary with no members,
+  or over accounts of mixed currencies. A transfer, which needs both its
+  accounts in one currency, does the same. Budgets lean on the database instead,
+  which refuses a second budget for a category; the check that an account isn't
+  a summary, made before an entry, rule or budget is written, still runs outside
+  the lock (§9).
 - **Derived figures.** The summary's `MonthSummary` is the field-wise sum of its
   members' summaries (`core::combine_summaries`); its entry list, occurrences, and
   category stats are the members' rows concatenated and run through the existing

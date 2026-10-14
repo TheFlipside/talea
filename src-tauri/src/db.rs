@@ -4,12 +4,12 @@ use std::path::Path;
 use std::time::Duration;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::error::RepoError;
 
 /// Filename of the `SQLite` database inside the app-data directory.
-const DB_FILENAME: &str = "talea.sqlite3";
+pub(crate) const DB_FILENAME: &str = "talea.sqlite3";
 
 /// The most memory `SQLite` may allocate, in bytes, across every connection in
 /// the process (256 MiB). Restore attaches a downloaded file before anything in
@@ -61,4 +61,20 @@ pub async fn init_pool(app_data_dir: &Path) -> Result<SqlitePool, RepoError> {
     sqlx::migrate!().run(&pool).await?;
 
     Ok(pool)
+}
+
+/// Opens a transaction holding the database's write lock from its first
+/// statement (`BEGIN IMMEDIATE`). A command that checks other rows before it
+/// writes (an account's summary memberships, a transfer's two currencies) runs
+/// both in one of these: in a plain transaction, which takes the lock only at
+/// its first write, another write could land between the check and the write
+/// and leave, say, a summary with no members. Another write waits on the
+/// pool's busy timeout meanwhile.
+///
+/// # Errors
+/// [`RepoError`] if the lock can't be had within the busy timeout.
+pub(crate) async fn begin_write(
+    pool: &SqlitePool,
+) -> Result<Transaction<'static, Sqlite>, RepoError> {
+    Ok(pool.begin_with("BEGIN IMMEDIATE").await?)
 }

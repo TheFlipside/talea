@@ -5,7 +5,7 @@
 //! here. All take the shared [`SqlitePool`] from Tauri state and return a
 //! [`CommandError`] on failure.
 
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 use tauri::{AppHandle, Manager, State};
 
 use talea_core::{
@@ -18,6 +18,7 @@ use talea_core::{
 
 use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
 use crate::confirm;
+use crate::db;
 use crate::dto::{IsoDate, NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
@@ -42,14 +43,17 @@ fn require_found(updated: bool) -> Result<(), CommandError> {
 /// Validates a summary account's membership against the rest of the database:
 /// loads the accounts its members name, then applies `core`'s cross-account
 /// rules ([`Account::check_members`]). Normal accounts have no members to check.
+/// It runs inside the caller's write transaction, so what it checks still
+/// holds when the caller writes.
 pub(crate) async fn validate_membership(
-    pool: &SqlitePool,
+    tx: &mut Transaction<'_, Sqlite>,
     draft: &Account,
 ) -> Result<(), CommandError> {
-    let mut members = Vec::with_capacity(draft.members().len());
-    for member_id in draft.members() {
-        members.extend(repo::account::get(pool, *member_id).await?);
+    if draft.kind() == AccountKind::Normal {
+        // No members to look up: `check_members` refuses any it has.
+        return Ok(draft.check_members(|_| None)?);
     }
+    let members = repo::account::get_many(&mut **tx, draft.members()).await?;
     Ok(draft.check_members(|id| members.iter().find(|member| member.id() == id))?)
 }
 
@@ -80,9 +84,21 @@ pub async fn create_account(
     state: State<'_, SqlitePool>,
     account: NewAccount,
 ) -> Result<Account, CommandError> {
+    create_account_inner(state.inner(), account).await
+}
+
+/// [`create_account`], checking a summary's members and inserting it in one
+/// write transaction (see [`db::begin_write`]).
+pub(crate) async fn create_account_inner(
+    pool: &SqlitePool,
+    account: NewAccount,
+) -> Result<Account, CommandError> {
     let draft = account.build()?;
-    validate_membership(state.inner(), &draft).await?;
-    Ok(repo::account::insert(state.inner(), &draft).await?)
+    let mut tx = db::begin_write(pool).await?;
+    validate_membership(&mut tx, &draft).await?;
+    let saved = repo::account::insert(&mut tx, &draft).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(saved)
 }
 
 /// Lists all accounts.
@@ -108,8 +124,17 @@ pub async fn update_account(
     state: State<'_, SqlitePool>,
     account: Account,
 ) -> Result<Account, CommandError> {
-    let pool = state.inner();
-    let existing = repo::account::get(pool, account.id())
+    update_account_inner(state.inner(), account).await
+}
+
+/// [`update_account`], checking and writing in one write transaction (see
+/// [`db::begin_write`]).
+pub(crate) async fn update_account_inner(
+    pool: &SqlitePool,
+    account: Account,
+) -> Result<Account, CommandError> {
+    let mut tx = db::begin_write(pool).await?;
+    let existing = repo::account::get(&mut *tx, account.id())
         .await?
         .ok_or(CommandError::NotFound)?;
     if existing.kind() != account.kind() {
@@ -119,14 +144,17 @@ pub async fn update_account(
     }
     if account.kind() == AccountKind::Normal
         && existing.currency().code() != account.currency().code()
-        && repo::account::is_member_of_any(pool, account.id()).await?
+        && repo::account::is_member_of_any(&mut *tx, account.id()).await?
     {
         return Err(CommandError::Validation(
             "remove this account from its summary account before changing its currency".to_owned(),
         ));
     }
-    validate_membership(pool, &account).await?;
-    require_found(repo::account::update(pool, &account).await?)?;
+    validate_membership(&mut tx, &account).await?;
+    // Read above in this same transaction, the row is still there; checked
+    // anyway, so the repository needn't trust its caller.
+    require_found(repo::account::update(&mut tx, &account).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
     Ok(account)
 }
 
@@ -144,13 +172,25 @@ pub async fn delete_account(
     state: State<'_, SqlitePool>,
     id: AccountId,
 ) -> Result<(), CommandError> {
-    let pool = state.inner();
-    if repo::account::is_member_of_any(pool, id).await? {
+    delete_account_inner(state.inner(), id).await
+}
+
+/// [`delete_account`], checking membership and deleting in one write
+/// transaction (see [`db::begin_write`]): a summary saved in between can't take the
+/// account as a member just before it goes.
+pub(crate) async fn delete_account_inner(
+    pool: &SqlitePool,
+    id: AccountId,
+) -> Result<(), CommandError> {
+    let mut tx = db::begin_write(pool).await?;
+    if repo::account::is_member_of_any(&mut *tx, id).await? {
         return Err(CommandError::Validation(
             "remove this account from its summary account before deleting it".to_owned(),
         ));
     }
-    require_found(repo::account::delete(pool, id).await?)
+    require_found(repo::account::delete(&mut tx, id).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(())
 }
 
 // ---- Category ---------------------------------------------------------------
@@ -301,12 +341,15 @@ pub(crate) async fn transfer(
         ));
     }
 
-    // Validate (read-only) before opening a write transaction: both accounts must
-    // exist and share a currency (there is no conversion).
-    let from = repo::account::get(pool, primary.account_id())
+    // Both accounts must exist and share a currency (there is no conversion),
+    // checked in the transaction that writes, under its lock (see
+    // `db::begin_write`): an account's currency changed in between would
+    // otherwise mirror the amount into the wrong currency.
+    let mut tx = db::begin_write(pool).await?;
+    let from = repo::account::get(&mut *tx, primary.account_id())
         .await?
         .ok_or(CommandError::NotFound)?;
-    let to = repo::account::get(pool, counter_account_id)
+    let to = repo::account::get(&mut *tx, counter_account_id)
         .await?
         .ok_or(CommandError::NotFound)?;
     if from.kind() == AccountKind::Summary || to.kind() == AccountKind::Summary {
@@ -333,7 +376,6 @@ pub(crate) async fn transfer(
         primary.category_id(),
     )?;
 
-    let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;
     let saved_primary = repo::entry::insert(&mut *tx, &primary).await?;
     let saved_counter = repo::entry::insert(&mut *tx, &counter).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;

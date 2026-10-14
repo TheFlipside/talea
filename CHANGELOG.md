@@ -18,6 +18,15 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **Changes made at once can no longer break a summary account or a transfer.**
+  Each account change checked what it depended on (a summary's members, whether
+  an account belonged to one) before it began writing, and so did a transfer
+  (that both accounts share a currency), so another change landing in between
+  could leave a summary with no members or over accounts of mixed currencies,
+  which restore refuses, so every backup of it was refused too; or mirror a
+  transfer into an account of another currency. Each of them now checks and
+  writes as one step.
+
 - **Editing an account refreshes everything derived from it, immediately.**
   Changing an account's opening balance or anchor month could leave the month
   bar showing the previous figures for a while, and changing a summary
