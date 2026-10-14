@@ -13,7 +13,7 @@ use tauri::{Manager, Runtime, Url};
 /// Whether Tauri serves the app over `http(s)://tauri.localhost` here, as on
 /// Android and Windows, rather than over `tauri://localhost`. This and the two
 /// origins below mirror where Tauri 2 serves a built frontend
-/// (`tauri::manager::AppManager::tauri_protocol_url`, private): after a Tauri
+/// (`tauri::protocol::origin`, private, as of Tauri 2.12): after a Tauri
 /// upgrade, check them, or the guard refuses the app its own pages.
 const SERVED_OVER_HTTP: bool = cfg!(any(windows, target_os = "android"));
 

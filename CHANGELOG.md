@@ -16,6 +16,14 @@ All notable changes to this project are documented in this file.
   shows its members' total. Display only — nothing is stored, and the
   home-screen widget is unchanged. Translated in all 12 locales.
 
+### Changed
+
+- **The app runs on Tauri 2.12.** The shell moves from Tauri 2.11 to 2.12.4,
+  with its dialog (2.8.2) and biometric (2.4.2) plugins and the matching
+  frontend packages. Among Tauri's fixes: a native plugin that answers after
+  the app stopped waiting, or answers twice (as Android's error path can), no
+  longer brings the app down.
+
 ### Fixed
 
 - **Changes made at once can no longer break a summary account or a transfer.**
@@ -70,6 +78,16 @@ All notable changes to this project are documented in this file.
   server's latest, though it is on the old one.
 
 ### Security
+
+- **Backups to Nextcloud use a TLS library without its known flaws.** rustls,
+  which secures every connection to your server, is updated from 0.23.40 to
+  0.23.46, past four advisories. One reached Talea: rustls accepted TLS 1.3
+  handshake messages that straddled a change of encryption keys, which the
+  protocol forbids. The other three need what the app doesn't use: a
+  post-quantum key exchange to downgrade (Talea's TLS offers only classical
+  ones), Brotli-compressed certificates, or a debug print of a TLS session.
+  The same update takes quick-xml past two denial-of-service advisories,
+  though the app only ever reads its own property lists with it.
 
 - **The build tools are updated past their known vulnerabilities.** Vite 8.3.4,
   Vitest 4.1.11 and the tools beneath them and ESLint (PostCSS, nanoid,
