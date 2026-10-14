@@ -43,6 +43,13 @@ All notable changes to this project are documented in this file.
   only copy of it. Backups and restores now run one at a time, start to
   finish.
 
+- **Saving and refreshing no longer stop while the device is offline.** With the
+  app open, turning on airplane mode or losing the connection could pause every
+  save and every refresh until the connection came back, though none of them
+  needs it: your data is on the device. They now run regardless. A backup,
+  restore or connection test, which do need the network, now report their own
+  error instead of waiting for it.
+
 - **The backup buttons stay disabled while an operation runs.** Leaving
   Settings and coming back enabled Save, Test, Back up and Restore again while
   a backup, restore or save was still running, so a second one could start
