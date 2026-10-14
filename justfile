@@ -17,12 +17,18 @@ default:
 install:
     npm --prefix frontend install
 
-# Install frontend deps only if missing, so a fresh clone's first `just dev`
-# (or build/test) doesn't fail on the not-yet-installed Vite toolchain.
+# Install frontend deps when they're missing, so a fresh clone's first
+# `just dev` (or build/test) doesn't fail on the not-yet-installed Vite
+# toolchain, or when the lockfile is newer than the last install, so a pull
+# that updates a tool (a security fix, say) reaches node_modules.
 _ensure-frontend:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ -d frontend/node_modules ] || npm --prefix frontend install
+    installed=frontend/node_modules/.package-lock.json
+    if [ ! -f "$installed" ] || [ frontend/package-lock.json -nt "$installed" ]; then
+        npm --prefix frontend install
+        touch "$installed"
+    fi
 
 # Run the desktop dev build (starts Vite, then the Tauri shell).
 dev: _ensure-frontend

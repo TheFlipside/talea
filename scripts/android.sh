@@ -82,7 +82,15 @@ setup_env() {
     info "NDK_HOME=$NDK_HOME"
 }
 
-ensure_frontend() { [ -d frontend/node_modules ] || npm --prefix frontend install; }
+# Install the frontend's deps when missing, or when the lockfile is newer than
+# the last install (a pull that updated a tool must reach node_modules).
+ensure_frontend() {
+    local installed=frontend/node_modules/.package-lock.json
+    if [ ! -f "$installed" ] || [ frontend/package-lock.json -nt "$installed" ]; then
+        npm --prefix frontend install
+        touch "$installed"
+    fi
+}
 
 # Prompt once for the keystore password into the environment (TALEA_KS_PASS).
 prompt_password() {

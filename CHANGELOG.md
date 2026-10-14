@@ -62,6 +62,15 @@ All notable changes to this project are documented in this file.
 
 ### Security
 
+- **The build tools are updated past their known vulnerabilities.** Vite 8.3.4,
+  Vitest 4.1.11 and the tools beneath them and ESLint (PostCSS, nanoid,
+  browserslist, brace-expansion and others) fix 17 advisories in nine packages,
+  12 of them high. None reached the app itself, which ships none of these tools:
+  they affected the development server, the test runner, the linter and the
+  build. `just` and the Android script now reinstall the frontend's tools
+  whenever the lockfile is newer than the last install, so an update like this
+  one reaches an existing checkout.
+
 - **An out-of-range opening balance can no longer crash the app.** Unlike
   amounts, opening balances had no upper bound, so an absurd one — typed in, or
   restored from a tampered backup — overflowed the ledger's arithmetic, and
