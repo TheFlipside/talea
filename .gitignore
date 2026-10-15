@@ -39,3 +39,6 @@ Thumbs.db
 
 # Testing / coverage
 lcov.info
+
+# graphify
+graphify-out/**
