@@ -24,7 +24,8 @@
     "ringSpent": "{{percent}}% der Mittel dieses Monats gebunden",
     "ringRemaining": "{{percent}}% der Mittel dieses Monats frei verfügbar",
     "combinedHint": "Zusammengefasste, schreibgeschützte Ansicht der enthaltenen Konten.",
-    "free": "Frei verfügbar"
+    "free": "Frei verfügbar",
+    "balanceToday": "Saldo heute"
   },
   "month": {
     "navigation": "Monatsnavigation",
@@ -151,8 +152,10 @@
     "backupRun": "Jetzt sichern",
     "backupRestore": "Wiederherstellen",
     "backupSaved": "Einstellungen gespeichert.",
+    "backupServerDeclined": "Nicht gespeichert: Der neue Server wurde nicht bestätigt.",
     "backupTestOk": "Verbindung funktioniert.",
     "backupRunOk": "In Nextcloud gesichert.",
+    "backupRunElsewhere": "Auf den vorherigen Server gesichert: Die Einstellungen haben sich während des Hochladens geändert.",
     "backupRestoreOk": "Aus Nextcloud wiederhergestellt.",
     "lastBackup": "Letzte Sicherung: {{when}}",
     "lastBackupNever": "Noch keine Sicherung.",

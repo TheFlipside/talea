@@ -3,6 +3,9 @@
 # Talea Android build & sign helper.
 #
 # Subcommands:
+#   device    Build a release APK for the connected device's ABI, sign it with
+#             the local debug key, install it in place (keeping the app's data)
+#             and launch it. The everyday way to try a change on a phone.
 #   apk       Build + sign a universal release APK for a test device, then print
 #             the `adb install` command.
 #   aab       Build + sign the Play Store bundle; copy "<App>-<ver>.aab" and the
@@ -15,7 +18,8 @@
 # The signing keystore/alias come from $TALEA_KEYSTORE / $TALEA_KEY_ALIAS
 # (defaults below). The password is prompted once up front and handed to the
 # signers via the environment (never on the command line / in the process list),
-# so the rest runs unattended.
+# so the rest runs unattended. `device` signs with the debug keystore instead
+# ($TALEA_DEBUG_KEYSTORE), so it prompts for nothing.
 #
 # JAVA_HOME is forced to a JDK <= 21 (Gradle/AGP and the generated buildSrc's
 # Kotlin compiler reject newer majors, e.g. JDK 25), NDK is auto-detected as the
@@ -27,6 +31,9 @@ set -euo pipefail
 KEYSTORE="${TALEA_KEYSTORE:-$HOME/play-store_release-key.keystore}"
 KEY_ALIAS="${TALEA_KEY_ALIAS:-play-store_release}"
 DESKTOP="${TALEA_DESKTOP:-$HOME/Desktop}"
+# The keystore Android Studio / Gradle create for debug builds. `device` signs
+# with it so its builds install over `tauri android dev` builds and each other.
+DEBUG_KEYSTORE="${TALEA_DEBUG_KEYSTORE:-$HOME/.android/debug.keystore}"
 
 # ---- repo root (this script lives in scripts/) ------------------------------
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +55,7 @@ java_major() { "$1/bin/java" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\
 
 app_name() { jq -r '.productName' src-tauri/tauri.conf.json; }
 app_version() { jq -r '.version' src-tauri/tauri.conf.json; }
+app_id() { jq -r '.identifier' src-tauri/tauri.conf.json; }
 
 # Latest versioned subdirectory of $1 (NDK / build-tools), or empty.
 latest_dir() { find "$1" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort -V | tail -1; }
@@ -82,7 +90,15 @@ setup_env() {
     info "NDK_HOME=$NDK_HOME"
 }
 
-ensure_frontend() { [ -d frontend/node_modules ] || npm --prefix frontend install; }
+# Install the frontend's deps when missing, or when the lockfile is newer than
+# the last install (a pull that updated a tool must reach node_modules).
+ensure_frontend() {
+    local installed=frontend/node_modules/.package-lock.json
+    if [ ! -f "$installed" ] || [ frontend/package-lock.json -nt "$installed" ]; then
+        npm --prefix frontend install
+        touch "$installed"
+    fi
+}
 
 # Prompt once for the keystore password into the environment (TALEA_KS_PASS).
 prompt_password() {
@@ -96,7 +112,95 @@ prompt_password() {
     export TALEA_KS_PASS
 }
 
+# Fail unless adb sees exactly one ready device (or the one $ANDROID_SERIAL names).
+require_device() {
+    command -v adb >/dev/null \
+        || die "adb not found on PATH (it ships in \$ANDROID_HOME/platform-tools)"
+    adb get-state >/dev/null 2>&1 \
+        || die "no single device ready over adb (connect one, or pick one with ANDROID_SERIAL)"
+}
+
+# The `tauri android build --target` for the connected device's primary ABI, so
+# only the one native library the device runs gets compiled.
+device_target() {
+    local abi; abi="$(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
+    case "$abi" in
+        arm64-v8a)   echo aarch64 ;;
+        armeabi-v7a) echo armv7 ;;
+        x86_64)      echo x86_64 ;;
+        x86)         echo i686 ;;
+        *)           die "unsupported device ABI: ${abi:-<none>}" ;;
+    esac
+}
+
+# The unsigned release APK the build wrote (its name can vary by flavour).
+locate_unsigned() {
+    local apk="$APK_DIR/app-universal-release-unsigned.apk"
+    [ -f "$apk" ] || apk="$(find "$APK_DIR" -name '*-release-unsigned.apk' 2>/dev/null | head -1)"
+    [ -f "$apk" ] || die "unsigned APK not found in $APK_DIR"
+    printf '%s\n' "$apk"
+}
+
+# Align APK $2 with the build-tools in $1, sign it into $3 with the apksigner
+# key options that follow (`--ks …`), and verify the result.
+align_and_sign() {
+    local bt="$1" unsigned="$2" signed="$3"; shift 3
+    local aligned="$APK_DIR/app-universal-release-aligned.apk"
+    "$bt/zipalign" -f -p 4 "$unsigned" "$aligned"
+    "$bt/apksigner" sign "$@" --out "$signed" "$aligned"
+    "$bt/apksigner" verify "$signed" >/dev/null
+}
+
 # ---- subcommands ------------------------------------------------------------
+cmd_device() {
+    setup_env
+    require_device
+    [ -f "$DEBUG_KEYSTORE" ] \
+        || die "debug keystore not found: $DEBUG_KEYSTORE (one debug build in Android Studio creates it; or set TALEA_DEBUG_KEYSTORE)"
+    ensure_frontend
+    local bt; bt="$(latest_dir "$ANDROID_HOME/build-tools")"
+    [ -n "$bt" ] || die "no build-tools under $ANDROID_HOME/build-tools"
+    local target id; target="$(device_target)"; id="$(app_id)"
+
+    # Clear the previous outputs first, so a build that writes none can't send
+    # an older APK (perhaps for another ABI) to the device.
+    local unsigned signed="$APK_DIR/app-universal-release-debug-signed.apk"
+    rm -f "$APK_DIR"/*-release-unsigned.apk "$signed"
+
+    info "Building release APK for $target…"
+    cargo tauri android build --apk --target "$target"
+    unsigned="$(locate_unsigned)"
+
+    # The debug keystore's password is Android's published default, not a
+    # secret, so unlike the release key it may sit on the command line.
+    info "Aligning + signing with the debug key…"
+    align_and_sign "$bt" "$unsigned" "$signed" --ks "$DEBUG_KEYSTORE" \
+        --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android
+
+    # `-r` replaces the installed app and keeps its data. Android refuses that
+    # for an app signed with another key; the only way past is uninstalling,
+    # which deletes the data, so that is left to the user. Success is read from
+    # adb's output too, since older adb versions exit 0 on a failed install.
+    info "Installing on $(adb shell getprop ro.product.model | tr -d '\r')…"
+    local out
+    if ! out="$(adb install -r "$signed" 2>&1)" || [[ "$out" != *Success* ]]; then
+        printf '%s\n' "$out" >&2
+        case "$out" in
+            *INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
+                die "the installed $id is signed with another key (a Play or \`android-apk\` build?). Uninstalling it (adb uninstall $id) deletes its data: back it up first." ;;
+            *) die "adb install failed" ;;
+        esac
+    fi
+
+    info "Launching…"
+    local activity
+    activity="$(adb shell cmd package resolve-activity --brief \
+        -a android.intent.action.MAIN -c android.intent.category.LAUNCHER "$id" \
+        | tail -1 | tr -d '\r')"
+    [[ "$activity" == "$id"/* ]] || die "no launcher activity found for $id"
+    adb shell am start -n "$activity" >/dev/null
+}
+
 cmd_apk() {
     setup_env
     prompt_password
@@ -104,22 +208,18 @@ cmd_apk() {
     local bt; bt="$(latest_dir "$ANDROID_HOME/build-tools")"
     [ -n "$bt" ] || die "no build-tools under $ANDROID_HOME/build-tools"
 
+    # As in `device`: clear the previous outputs, so a build that writes none
+    # can't leave an older APK to sign.
+    local unsigned signed="$APK_DIR/app-universal-release-signed.apk"
+    rm -f "$APK_DIR"/*-release-unsigned.apk "$signed"
+
     info "Building release APK…"
     cargo tauri android build --apk
-
-    local unsigned aligned signed
-    unsigned="$APK_DIR/app-universal-release-unsigned.apk"
-    [ -f "$unsigned" ] || unsigned="$(find "$APK_DIR" -name '*-release-unsigned.apk' 2>/dev/null | head -1)"
-    [ -f "$unsigned" ] || die "unsigned APK not found in $APK_DIR"
-    aligned="$APK_DIR/app-universal-release-aligned.apk"
-    signed="$APK_DIR/app-universal-release-signed.apk"
+    unsigned="$(locate_unsigned)"
 
     info "Aligning + signing…"
-    "$bt/zipalign" -f -p 4 "$unsigned" "$aligned"
-    "$bt/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" \
-        --ks-pass "env:TALEA_KS_PASS" --key-pass "env:TALEA_KS_PASS" \
-        --out "$signed" "$aligned"
-    "$bt/apksigner" verify "$signed" >/dev/null
+    align_and_sign "$bt" "$unsigned" "$signed" --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" \
+        --ks-pass "env:TALEA_KS_PASS" --key-pass "env:TALEA_KS_PASS"
     info "Signed APK ready. Install it with:"
     printf '\n  adb install -r "%s"\n\n' "$ROOT/$signed"
 }
@@ -170,12 +270,14 @@ cmd_symbols() {
     info "→ $out"
 }
 
+# Print the header comment (line 3 up to the first line of code).
 usage() {
-    sed -n '3,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,/^[^#]/{/^#/s/^# \{0,1\}//p;}' "${BASH_SOURCE[0]}"
     exit "${1:-0}"
 }
 
 case "${1:-}" in
+    device)  cmd_device ;;
     apk)     cmd_apk ;;
     aab)     cmd_aab ;;
     symbols) cmd_symbols ;;

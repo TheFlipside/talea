@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT r.id AS \"id!\", r.account_id AS \"account_id!\", r.amount AS \"amount!\",\n                  r.kind AS \"kind!\", r.note, r.category_id, r.start_date AS \"start_date!\",\n                  r.end_kind AS \"end_kind!\", r.end_date, r.freq_unit AS \"freq_unit!\",\n                  r.freq_interval AS \"freq_interval!\",\n                  ra.effective_from AS \"seg_from?\", ra.amount AS \"seg_amount?\"\n           FROM recurring_rule r\n           LEFT JOIN rule_amount ra ON ra.rule_id = r.id\n           WHERE r.account_id = ?\n           ORDER BY r.id, ra.effective_from",
+  "query": "SELECT r.id AS \"id!\", r.account_id AS \"account_id!\", r.amount AS \"amount!\",\n                  r.kind AS \"kind!\", r.note, r.category_id, r.start_date AS \"start_date!\",\n                  r.end_kind AS \"end_kind!\", r.end_date, r.freq_unit AS \"freq_unit!\",\n                  r.freq_interval AS \"freq_interval!\",\n                  (SELECT json_group_array(json_array(ra.effective_from, ra.amount)\n                                           ORDER BY ra.effective_from)\n                   FROM rule_amount ra WHERE ra.rule_id = r.id) AS \"segments!: String\"\n           FROM recurring_rule r\n           WHERE r.account_id = ?\n           ORDER BY r.id",
   "describe": {
     "columns": [
       {
@@ -125,26 +125,10 @@
         }
       },
       {
-        "name": "seg_from?",
+        "name": "segments!: String",
         "ordinal": 11,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "rule_amount",
-            "name": "effective_from"
-          }
-        }
-      },
-      {
-        "name": "seg_amount?",
-        "ordinal": 12,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "rule_amount",
-            "name": "amount"
-          }
-        }
+        "type_info": "Null",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -162,9 +146,8 @@
       true,
       false,
       false,
-      true,
       true
     ]
   },
-  "hash": "4ab9aa087dfeec6d99ee82368c3d0689c278054afc09a03e53a821d0630570d0"
+  "hash": "b6c62b1c9cbd66caa146e04fad0bce917421149074a284b21c615042f1e0b684"
 }

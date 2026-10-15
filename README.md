@@ -16,7 +16,9 @@ day-to-day development.
 
 - **Monthly cashflow ledger with carry-over** — for the selected month: income,
   expenses, and *available to end of month*; a surplus or overspend carries into
-  the next month, per account. Swipe between months.
+  the next month, per account. Swipe between months. In the current month,
+  **balance today** shows what your bank should say right now, so a forgotten
+  entry stands out.
 - **Accounts** with a fixed currency and opening balance — plus **summary
   accounts**, a read-only type that combines several same-currency accounts into
   one overview (combined budget, merged entry list and stats, widget target).
@@ -74,8 +76,8 @@ changes. The full rationale, the budgeting model, and the schema live in
 
 ## Prerequisites
 
-- Rust (stable, ≥ 1.80) with `cargo`.
-- Node.js ≥ 20 and npm.
+- Rust (stable, ≥ 1.99) with `cargo`.
+- Node.js 20.19+ or 22.12+ (what Vite 8 needs) and npm.
 - Tauri 2 system dependencies for your platform — see the
   [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 

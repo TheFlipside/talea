@@ -5,6 +5,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Select } from '../components/Select';
 import {
   useBackupNow,
+  useNextcloudBusy,
   useNextcloudConfig,
   useNextcloudSetConfig,
   useNextcloudTest,
@@ -117,7 +118,8 @@ type Status = { kind: 'ok' | 'err'; text: string } | null;
  * Manual backup/restore to the user's own Nextcloud over WebDAV. Address and
  * username are persisted; the app password is write-only (left blank keeps the
  * stored one and is never read back). Restore is destructive, so it's guarded by
- * a confirmation dialog.
+ * a confirmation dialog; a new server is confirmed by the shell, in a native
+ * dialog this page can't answer for the user.
  */
 function BackupSection() {
   const { t, i18n } = useTranslation();
@@ -144,8 +146,13 @@ function BackupSection() {
   }
 
   const configured = config.data?.configured ?? false;
-  const busy =
-    saveConfig.isPending || test.isPending || backup.isPending || restore.isPending;
+  // "Leave blank to keep" only holds for the same server and user: the
+  // backend won't carry the stored app password to a new address.
+  const keepsPassword =
+    configured &&
+    baseUrl.trim() === config.data?.baseUrl &&
+    username.trim() === config.data?.username;
+  const busy = useNextcloudBusy();
 
   const lastBackup = config.data?.lastBackup;
   const lastBackupLabel = lastBackup
@@ -198,7 +205,7 @@ function BackupSection() {
           autoComplete="off"
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
-          placeholder={configured ? t('settings.nextcloudPasswordKeep') : undefined}
+          placeholder={keepsPassword ? t('settings.nextcloudPasswordKeep') : undefined}
         />
       </label>
 
@@ -209,7 +216,19 @@ function BackupSection() {
           disabled={busy}
           onClick={() =>
             run(async () => {
-              await saveConfig.mutateAsync({ baseUrl, username, password });
+              let saved: boolean;
+              try {
+                saved = await saveConfig.mutateAsync({ baseUrl, username, password });
+              } finally {
+                // Saved or not, the password in the mutation's state goes.
+                saveConfig.reset();
+              }
+              // A new server waits on the user's confirmation in a native
+              // dialog. Declined, nothing is saved, and the fields stay as
+              // typed so the address can be corrected.
+              if (!saved) {
+                throw new Error(t('settings.backupServerDeclined'));
+              }
               setPassword('');
             }, t('settings.backupSaved'))
           }
@@ -228,7 +247,15 @@ function BackupSection() {
           type="button"
           className="btn btn--ghost"
           disabled={busy || !configured}
-          onClick={() => run(() => backup.mutateAsync(), t('settings.backupRunOk'))}
+          onClick={() =>
+            run(async () => {
+              // No time: the settings moved to another server mid-upload, so
+              // the backup went to the one set before, not the one shown now.
+              if (typeof (await backup.mutateAsync()) !== 'string') {
+                throw new Error(t('settings.backupRunElsewhere'));
+              }
+            }, t('settings.backupRunOk'))
+          }
         >
           {t('settings.backupRun')}
         </button>

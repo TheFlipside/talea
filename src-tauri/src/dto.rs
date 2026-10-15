@@ -22,6 +22,40 @@ pub struct OccurrenceRef {
     pub date: Date,
 }
 
+/// A bare date argument (e.g. `balance_as_of`'s "today"). A newtype, so the
+/// `iso_date` format applies to a top-level command argument too: serde reads a
+/// newtype as its inner value, so the JSON is just the `YYYY-MM-DD` string.
+///
+/// Its years are held to `1..=9999`, the domain's `Month` bound, where `time`
+/// alone admits ±9999. That holds for this argument type only: the date fields
+/// of the payloads below keep `time`'s range, which every ledger window
+/// tolerates. The field is private, so the bound can't be skipped in-crate.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(try_from = "IsoDateRepr")]
+pub struct IsoDate(Date);
+
+impl IsoDate {
+    /// The validated date.
+    #[must_use]
+    pub const fn get(self) -> Date {
+        self.0
+    }
+}
+
+/// The unvalidated wire shape of an [`IsoDate`].
+#[derive(Deserialize)]
+struct IsoDateRepr(#[serde(with = "iso_date")] Date);
+
+impl TryFrom<IsoDateRepr> for IsoDate {
+    type Error = DomainError;
+
+    fn try_from(IsoDateRepr(date): IsoDateRepr) -> Result<Self, Self::Error> {
+        // `Month::new` owns the year bound; the month of a parsed date is valid.
+        Month::new(date.year(), u8::from(date.month()))?;
+        Ok(Self(date))
+    }
+}
+
 // Dates arrive from the frontend as ISO `YYYY-MM-DD` strings (the core's own
 // date serde module is crate-private and unreachable here).
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");

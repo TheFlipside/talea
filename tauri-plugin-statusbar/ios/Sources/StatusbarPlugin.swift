@@ -27,7 +27,9 @@ class StatusbarPlugin: Plugin {
   }
 }
 
+// `public` keeps the symbol global in release builds made with Xcode 27, which
+// otherwise hides it and the app fails to link: Tauri calls it by name.
 @_cdecl("init_plugin_statusbar")
-func initPlugin() -> Plugin {
+public func initPlugin() -> Plugin {
   return StatusbarPlugin()
 }

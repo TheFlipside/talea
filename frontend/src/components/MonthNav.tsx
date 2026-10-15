@@ -1,12 +1,16 @@
 import { useTranslation } from 'react-i18next';
 
-import { currentMonth, monthEquals, monthLabel } from '../lib/month';
-import { useSelectedMonth } from '../state/contexts';
+import { isoMonthOf } from '../lib/date';
+import { monthEquals, monthLabel } from '../lib/month';
+import { useSelectedMonth, useToday } from '../state/contexts';
 
 export function MonthNav() {
   const { t } = useTranslation();
   const { month, setMonth, next, prev } = useSelectedMonth();
-  const isCurrent = monthEquals(month, currentMonth());
+  // From the app's shared clock, so "current" moves on at midnight together
+  // with the month bar's "Balance today", not at the next unrelated re-render.
+  const current = isoMonthOf(useToday());
+  const isCurrent = monthEquals(month, current);
   const label = monthLabel(month);
   return (
     <nav className="month-nav" aria-label={t('month.navigation')}>
@@ -23,7 +27,7 @@ export function MonthNav() {
         aria-label={isCurrent ? undefined : `${label}, ${t('month.goToCurrent')}`}
         title={isCurrent ? undefined : t('month.goToCurrent')}
         disabled={isCurrent}
-        onClick={() => setMonth(currentMonth())}
+        onClick={() => setMonth(current)}
       >
         {label}
       </button>

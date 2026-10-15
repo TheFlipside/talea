@@ -12,9 +12,12 @@ use talea_core::Money;
 
 mod backup;
 mod commands;
+mod confirm;
 mod db;
 mod dto;
 mod error;
+mod lock;
+mod navigation;
 mod repo;
 mod webdav;
 
@@ -35,8 +38,9 @@ struct SmokeInfo {
 /// Returns a greeting plus a sample [`Money`] value sourced from `talea-core`.
 ///
 /// This exists purely to verify the wiring; it carries no budgeting logic.
+/// Async, as every command here is, so it runs off the main thread.
 #[tauri::command]
-fn smoke_check(name: &str) -> SmokeInfo {
+async fn smoke_check(name: String) -> SmokeInfo {
     // Bound untrusted IPC input before allocating with it. Cap by chars, not
     // bytes, so we never slice inside a multi-byte UTF-8 sequence. This sets the
     // expected pattern for every command that follows.
@@ -75,10 +79,15 @@ pub fn run() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     // Status-bar theming and the widget publisher work on all platforms (no-ops
-    // on desktop), so they're registered unconditionally.
+    // on desktop), so they're registered unconditionally. So is the dialog
+    // plugin, which only Rust uses (see `confirm.rs`): the capabilities deny
+    // the webview its commands.
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_statusbar::init())
-        .plugin(tauri_plugin_budgetwidget::init());
+        .plugin(tauri_plugin_budgetwidget::init())
+        .plugin(tauri_plugin_dialog::init())
+        // Keeps the webview on the app's own pages (see `navigation.rs`).
+        .plugin(navigation::init());
     // The biometric app lock is mobile-only; the plugin isn't built into the
     // desktop binary (see Cargo.toml), so the frontend just sees it unavailable.
     #[cfg(mobile)]
@@ -118,6 +127,7 @@ pub fn run() {
             commands::delete_budget,
             commands::month_budgets,
             commands::month_summary,
+            commands::balance_as_of,
             commands::summaries_for_range,
             commands::expenses_by_category,
             commands::month_occurrences,

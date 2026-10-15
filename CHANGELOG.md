@@ -2,6 +2,182 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Balance today** — the month bar now leads with what the account should hold
+  *right now*: the opening balance plus every entry and recurring occurrence
+  dated up to and including today. Compare it with your bank: if the two
+  disagree, a transaction is missing or extra, and the size of the gap tells you
+  what to look for. Unlike *Available to end of month*, it leaves out anything
+  dated later this month (a pre-recorded bill, an upcoming recurring
+  occurrence). Shown only while viewing the current month; a summary account
+  shows its members' total. Display only — nothing is stored, and the
+  home-screen widget is unchanged. Translated in all 12 locales.
+
+### Changed
+
+- **The app runs on Tauri 2.12.** The shell moves from Tauri 2.11 to 2.12.4,
+  with its dialog (2.8.2) and biometric (2.4.2) plugins and the matching
+  frontend packages. Among Tauri's fixes: a native plugin that answers after
+  the app stopped waiting, or answers twice (as Android's error path can), no
+  longer brings the app down.
+
+- **Building Talea needs Rust 1.99.** The workspace declared Rust 1.80, which
+  its dependencies had long outgrown (sqlx 0.9 alone needs 1.94). It now
+  declares the current stable release, and the code uses what that allows.
+
+- **`just android-dev` installs a release build instead of running a dev
+  server.** It builds an APK for the connected phone, signs it with the debug
+  key, installs it in place (the app keeps its data) and launches it, so the
+  phone shows what testers get. A dev-server build only looked broken there: a
+  white screen for seconds at every start, and a reload back to the start
+  screen whenever its connection dropped. `android-dev-host` is gone;
+  `cargo tauri android dev` still gives live reload when wanted.
+
+### Fixed
+
+- **iOS release builds link with Xcode 27.** Xcode 27 hides a native plugin's
+  entry point in a release build unless it is public, so the app couldn't link
+  against its status-bar and widget plugins. Both entry points are now public,
+  as Tauri's own plugins made theirs in this release.
+
+- **Changes made at once can no longer break a summary account or a transfer.**
+  Each account change checked what it depended on (a summary's members, whether
+  an account belonged to one) before it began writing, and so did a transfer
+  (that both accounts share a currency), so another change landing in between
+  could leave a summary with no members or over accounts of mixed currencies,
+  which restore refuses, so every backup of it was refused too; or mirror a
+  transfer into an account of another currency. Each of them now checks and
+  writes as one step.
+
+- **Editing an account refreshes everything derived from it, immediately.**
+  Changing an account's opening balance or anchor month could leave the month
+  bar showing the previous figures for a while, and changing a summary
+  account's members left its merged entry list, statistics and budgets stale
+  the same way. An account edit now refreshes all of them at once.
+
+- **Summary accounts refresh when a member changes.** Recording, editing or
+  deleting an entry, recurring rule or single occurrence on an account left
+  any summary account containing it showing the old figures, merged list and
+  statistics for up to 30 seconds, and the home-screen widget's ring for that
+  summary could stay behind for the rest of the session. Such a change now
+  refreshes every summary containing the account as well.
+
+- **The home-screen widget moves on to a new month at midnight.** Left open
+  across a month boundary, the app kept publishing the previous month's ring
+  until it was next brought back to the foreground. The widget now follows
+  the same clock as the month bar's balance today.
+
+- **A backup and a restore can no longer overlap.** Starting a restore while a
+  backup was still uploading (by leaving Settings and coming back, which
+  enabled the button again) could leave this device with the server's old copy
+  and the server with this device's data, so the next backup overwrote the
+  only copy of it. Backups and restores now run one at a time, start to
+  finish.
+
+- **Saving and refreshing no longer stop while the device is offline.** With the
+  app open, turning on airplane mode or losing the connection could pause every
+  save and every refresh until the connection came back, though none of them
+  needs it: your data is on the device. They now run regardless. A backup,
+  restore or connection test, which do need the network, now report their own
+  error instead of waiting for it.
+
+- **The backup buttons stay disabled while an operation runs.** Leaving
+  Settings and coming back enabled Save, Test, Back up and Restore again while
+  a backup, restore or save was still running, so a second one could start
+  over it. They now stay disabled until it finishes.
+
+- **A backup counts as the last one only for the server it went to.** Changing
+  the backup server while a backup was still uploading (by leaving Settings
+  and coming back, which enabled Save again) showed that backup as the new
+  server's latest, though it is on the old one.
+
+### Security
+
+- **Backups to Nextcloud use a TLS library without its known flaws.** rustls,
+  which secures every connection to your server, is updated from 0.23.40 to
+  0.23.46, past four advisories. One reached Talea: rustls accepted TLS 1.3
+  handshake messages that straddled a change of encryption keys, which the
+  protocol forbids. The other three need what the app doesn't use: a
+  post-quantum key exchange to downgrade (Talea's TLS offers only classical
+  ones), Brotli-compressed certificates, or a debug print of a TLS session.
+  The same update takes quick-xml past two denial-of-service advisories,
+  though the app only ever reads its own property lists with it.
+
+- **The build tools are updated past their known vulnerabilities.** Vite 8.3.4,
+  Vitest 4.1.11 and the tools beneath them and ESLint (PostCSS, nanoid,
+  browserslist, brace-expansion and others) fix 17 advisories in nine packages,
+  12 of them high. None reached the app itself, which ships none of these tools:
+  they affected the development server, the test runner, the linter and the
+  build. `just` and the Android script now reinstall the frontend's tools
+  whenever the lockfile is newer than the last install, so an update like this
+  one reaches an existing checkout.
+
+- **An out-of-range opening balance can no longer crash the app.** Unlike
+  amounts, opening balances had no upper bound, so an absurd one — typed in, or
+  restored from a tampered backup — overflowed the ledger's arithmetic, and
+  release builds abort on that. Opening balances are now capped at the same one
+  quadrillion as amounts (overdrawn or not), and a stored value beyond it is
+  reported as corrupt data instead of crashing the app.
+
+- **The dev server stays on loopback when `TAURI_DEV_HOST` is empty.** Setting
+  it to an empty string — say, `export TAURI_DEV_HOST=` to unset it — bound the
+  Vite dev server, sources and HMR socket included, to every network interface
+  instead of loopback, as an unset variable does. Development builds only.
+
+- **The stored Nextcloud app password stays with its own server.** Saving the
+  backup settings with the password left blank kept the stored app password
+  even when the address or username had changed, so it went to whichever server
+  answered at the new address, where a crafted call could collect it. A blank
+  password now keeps the stored one only for the same server and user; for any
+  other it is dropped, so a new server needs its own password, and clearing
+  both fields disconnects completely. The last-backup time no longer carries
+  over to a different server, and the password no longer lingers in the app's
+  query cache after a save.
+
+- **The app-lock switch can no longer show a lock that isn't stored.** The
+  lock is read from storage at launch, but a failed write to that storage went
+  unnoticed, so the switch could show the lock as on while the next launch
+  opened unlocked. The switch now moves only once storage has accepted the
+  setting; if it doesn't, the switch stays where it was.
+
+- **Restore checks a backup before it replaces your data.** It used to copy a
+  downloaded backup in and commit before checking the app could read it, so a
+  hand-edited or tampered backup could replace your data with rows the app
+  then refused to load, leaving even the account list unreadable, with no way
+  back short of clearing the app's data. Restore now refuses a backup whose
+  tables aren't exactly Talea's or are damaged, or that holds more records than
+  Talea can handle; reads every row back through the same checks the app uses;
+  refuses ids the app can't handle and accounts that break their rules; and
+  only then commits: a refused backup leaves your data untouched. A file built
+  to stall a restore or exhaust memory is cut off instead of freezing the app
+  or getting it killed. Backups are now held to 64 MiB both ways, far past any
+  ledger kept by hand, so none is made that restore would refuse. A backup whose schema version wasn't a number also
+  made Restore crash the app; it is now refused as not a Talea backup.
+
+- **The app's web view can no longer leave the app.** A script running there
+  that shouldn't, such as a compromised dependency, could read your data and
+  carry it off by navigating the page to a server of its own, or to a link
+  another app opens (mail, messages), the data in the address. Navigation is
+  now held to the app's own pages, and forms can't be sent anywhere.
+
+- **A new backup server must be confirmed outside the app's web view.** Whatever
+  saves the backup settings decides where your whole database is uploaded to,
+  and the app's web view could save them, so any script running there that
+  shouldn't, such as a compromised dependency, could send your data to a server
+  of its own. Saving a different address or username now asks first, in a native
+  system dialog no script can click, showing the full address and the user;
+  nothing is saved unless you confirm, and a confirm that comes too soon after
+  the dialog opens doesn't count. The dialog follows your device's language, in
+  all 12 that Talea speaks. One is asked at a time, it counts as declined after
+  two minutes, and after three declines in a row Talea stops asking for ten
+  minutes, longer with each further decline. A new server needs both an address
+  and a username, each shown whole and as it is: an address with a login, query,
+  spaces or unusual characters in its path, or a username with characters no
+  Nextcloud user ID holds, is refused, with a message saying what to change.
+
 ## 1.5.0 - 2026-08-08
 
 ### Added

@@ -20,6 +20,7 @@ import type {
   Entry,
   EntryId,
   IsoDate,
+  Money,
   Month,
   MonthSummary,
   NewAccount,
@@ -65,6 +66,10 @@ export const deleteEntry = (id: EntryId): Promise<void> =>
 
 export const monthSummary = (accountId: AccountId, month: Month): Promise<MonthSummary> =>
   call('month_summary', { accountId, month });
+
+/** The account's running balance at the end of `date` (in practice, today). */
+export const balanceAsOf = (accountId: AccountId, date: IsoDate): Promise<Money> =>
+  call('balance_as_of', { accountId, date });
 
 export const expensesByCategory = (
   accountId: AccountId,
@@ -136,18 +141,24 @@ export const nextcloudGetConfig = (): Promise<NextcloudConfigView> =>
   call('nextcloud_get_config');
 
 /** Saves the address/username and, when `password` is non-empty, the app
- *  password (an empty string keeps the stored one). */
+ *  password. An empty string keeps the stored one only for the same address
+ *  and username, compared exactly after trimming; for any other address or
+ *  username, the stored password is dropped. A new server is saved only once
+ *  the user confirms it in a native dialog. Resolves to whether the settings
+ *  were saved: `false` means the user didn't confirm, nothing was written, and
+ *  a caller must not report a save. */
 export const nextcloudSetConfig = (
   baseUrl: string,
   username: string,
   password: string,
-): Promise<void> => call('nextcloud_set_config', { baseUrl, username, password });
+): Promise<boolean> => call('nextcloud_set_config', { baseUrl, username, password });
 
 /** Verifies the stored address and credentials against the server. */
 export const nextcloudTest = (): Promise<void> => call('nextcloud_test');
 
-/** Snapshots the database and uploads it; resolves to the backup's RFC-3339 time. */
-export const backupNow = (): Promise<string> => call('backup_now');
+/** Snapshots the database and uploads it; resolves to the backup's RFC-3339
+ *  time, or `null` if the settings moved to another server meanwhile. */
+export const backupNow = (): Promise<string | null> => call('backup_now');
 
 /** Downloads the latest backup and replaces all local data with it. */
 export const restoreNow = (): Promise<void> => call('restore_now');

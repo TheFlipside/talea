@@ -24,7 +24,8 @@
     "ringSpent": "{{percent}}% van de middelen van deze maand vastgelegd",
     "ringRemaining": "{{percent}}% van de middelen van deze maand vrij te besteden",
     "combinedHint": "Gecombineerde, alleen-lezen weergave van de opgenomen rekeningen.",
-    "free": "Vrij te besteden"
+    "free": "Vrij te besteden",
+    "balanceToday": "Saldo vandaag"
   },
   "month": {
     "navigation": "Maandnavigatie",
@@ -151,8 +152,10 @@
     "backupRun": "Nu back-uppen",
     "backupRestore": "Herstellen",
     "backupSaved": "Instellingen opgeslagen.",
+    "backupServerDeclined": "Niet opgeslagen: de nieuwe server is niet bevestigd.",
     "backupTestOk": "Verbinding werkt.",
     "backupRunOk": "Geback-upt naar Nextcloud.",
+    "backupRunElsewhere": "Back-up gemaakt op de vorige server: de instellingen zijn tijdens het uploaden gewijzigd.",
     "backupRestoreOk": "Hersteld vanaf Nextcloud.",
     "lastBackup": "Laatste back-up: {{when}}",
     "lastBackupNever": "Nog geen back-up.",

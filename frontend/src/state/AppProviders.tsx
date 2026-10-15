@@ -7,12 +7,15 @@ import { BudgetWidgetPublisher } from '../components/BudgetWidgetPublisher';
 import { currentMonth, nextMonth, prevMonth } from '../lib/month';
 import type { RingMode } from '../lib/ring';
 import { setStatusBarDark } from '../lib/statusbar';
+import { loadAppLock, loadString, persist, saveAppLock } from '../lib/storage';
 import { resolveTheme, systemPrefersLight, type ThemePref } from '../lib/theme';
+import { useTodayClock } from '../lib/today';
 import {
   ActiveAccountContext,
   NavigationContext,
   SelectedMonthContext,
   SettingsContext,
+  TodayContext,
   type ActiveAccountValue,
   type NavigationValue,
   type Screen,
@@ -82,36 +85,6 @@ function SelectedMonthProvider({ children }: { children: ReactNode }) {
 
 const THEME_KEY = 'talea.theme';
 const RING_KEY = 'talea.ringMode';
-const LOCK_KEY = 'talea.appLock';
-
-function loadBool(key: string, fallback: boolean): boolean {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw === null ? fallback : raw === 'true';
-  } catch {
-    return fallback;
-  }
-}
-
-function loadString<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw && (allowed as readonly string[]).includes(raw)) {
-      return raw as T;
-    }
-  } catch {
-    // Ignore; use fallback.
-  }
-  return fallback;
-}
-
-function persist(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Ignore persistence failures.
-  }
-}
 
 const THEME_PREFS = ['system', 'light', 'dark'] as const;
 const RING_MODES = ['spent', 'remaining'] as const;
@@ -119,7 +92,7 @@ const RING_MODES = ['spent', 'remaining'] as const;
 function SettingsProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemePref>(() => loadString(THEME_KEY, THEME_PREFS, 'system'));
   const [ringMode, setRingModeState] = useState<RingMode>(() => loadString(RING_KEY, RING_MODES, 'spent'));
-  const [appLock, setAppLockState] = useState<boolean>(() => loadBool(LOCK_KEY, false));
+  const [appLock, setAppLockState] = useState<boolean>(loadAppLock);
 
   // Apply the resolved theme to the document, and track OS changes while on
   // "system". Touches the DOM only (no React state) so it's effect-safe.
@@ -140,6 +113,7 @@ function SettingsProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener('change', apply);
   }, [theme]);
 
+  // Cosmetic: if storing fails, the choice still applies for this session.
   const setTheme = useCallback((next: ThemePref) => {
     setThemeState(next);
     persist(THEME_KEY, next);
@@ -150,9 +124,13 @@ function SettingsProvider({ children }: { children: ReactNode }) {
     persist(RING_KEY, next);
   }, []);
 
+  // Not cosmetic: the launch gate enforces the lock from what is stored (only
+  // the resume re-lock follows the switch itself), so the switch may move only
+  // once storage has accepted the write. Shown as on but never stored, it would
+  // promise a lock the next launch doesn't keep; left where it was, it shows
+  // the truth and can be tried again.
   const setAppLock = useCallback((next: boolean) => {
-    setAppLockState(next);
-    persist(LOCK_KEY, String(next));
+    saveAppLock(next, setAppLockState);
   }, []);
 
   const value = useMemo<SettingsValue>(
@@ -172,17 +150,26 @@ function NavigationProvider({ children }: { children: ReactNode }) {
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 }
 
+/** Owns the app's shared "today" clock: one timer and one listener, read by the
+ *  month bar's balance, month navigation and the home-screen widget. */
+function TodayProvider({ children }: { children: ReactNode }) {
+  const today = useTodayClock();
+  return <TodayContext.Provider value={today}>{children}</TodayContext.Provider>;
+}
+
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <SettingsProvider>
-      <NavigationProvider>
-        <ActiveAccountProvider>
-          <SelectedMonthProvider>
-            <BudgetWidgetPublisher />
-            {children}
-          </SelectedMonthProvider>
-        </ActiveAccountProvider>
-      </NavigationProvider>
+      <TodayProvider>
+        <NavigationProvider>
+          <ActiveAccountProvider>
+            <SelectedMonthProvider>
+              <BudgetWidgetPublisher />
+              {children}
+            </SelectedMonthProvider>
+          </ActiveAccountProvider>
+        </NavigationProvider>
+      </TodayProvider>
     </SettingsProvider>
   );
 }

@@ -1,13 +1,23 @@
 /** TanStack Query hooks over the typed commands. */
 
 import {
+  type QueryClient,
+  type UseMutationOptions,
+  useIsMutating,
   useMutation,
   useQuery,
   useQueryClient,
-  type QueryClient,
 } from '@tanstack/react-query';
 
 import * as api from './commands';
+import {
+  invalidateBudgetData,
+  invalidateDeletedAccount,
+  invalidateDetachData,
+  invalidateEntryData,
+  invalidateOccurrenceData,
+  invalidateRuleData,
+} from './invalidation';
 import { queryKeys } from './queryKeys';
 import type {
   Account,
@@ -22,6 +32,7 @@ import type {
   Entry,
   EntryId,
   IsoDate,
+  Money,
   Month,
   MonthSummary,
   NewAccount,
@@ -34,52 +45,6 @@ import type {
   RecurringRule,
   RecurringRuleId,
 } from './types';
-
-/**
- * Refresh everything that an entry change can affect. Carry-over couples every
- * later month, so we invalidate the account's entries AND *all* of its cached
- * month summaries (prefix match), not just the edited month.
- *
- * Budget progress is in there too: spending in a budgeted category consumes its
- * reservation, which moves `reserved`/`free` on the month summary.
- */
-function invalidateAccountData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.entries(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-}
-
-/**
- * Refresh everything a recurring-rule change can affect: the rule list, the
- * month's occurrences, and (since rules feed the ledger) all month summaries,
- * category breakdowns, and budget progress for the account — a rule's expansion
- * counts toward a budget's actual just as an ad-hoc entry does.
- */
-function invalidateRuleData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.rules(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-}
-
-/**
- * Refresh what a budget change affects: the budget list, the month's progress,
- * and the month summaries carrying `reserved`/`free` (and so the ring).
- *
- * Everything is invalidated for **every** account, not just this one: a summary
- * account aggregates its members' budgets *and* their `reserved`, so scoping to
- * the mutated account would leave the summary's list and its "Free to spend"
- * figure stale — the latter visible on the home-screen widget. Budget edits are
- * rare (unlike entries, whose helpers stay account-scoped), so the wider sweep
- * costs nothing in practice.
- */
-function invalidateBudgetData(client: QueryClient): void {
-  void client.invalidateQueries({ queryKey: queryKeys.budgetsAll });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsAll });
-  void client.invalidateQueries({ queryKey: ['monthSummary'] });
-}
 
 export function useAccounts() {
   return useQuery<Account[], CommandError>({
@@ -99,6 +64,14 @@ export function useMonthSummary(accountId: AccountId, month: Month) {
   return useQuery<MonthSummary, CommandError>({
     queryKey: queryKeys.monthSummary(accountId, month),
     queryFn: () => api.monthSummary(accountId, month),
+  });
+}
+
+/** The account's running balance at the end of `date` (in practice, today). */
+export function useBalanceAsOf(accountId: AccountId, date: IsoDate) {
+  return useQuery<Money, CommandError>({
+    queryKey: queryKeys.balanceAsOf(accountId, date),
+    queryFn: () => api.balanceAsOf(accountId, date),
   });
 }
 
@@ -124,7 +97,12 @@ export function useUpdateAccount() {
   return useMutation<Account, CommandError, Account>({
     mutationFn: api.updateAccount,
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: queryKeys.accounts });
+      // An account edit can move anything derived from it, for every account:
+      // the opening balance and anchor seed each running balance (a summary's
+      // totals included), and a summary's membership decides its whole view —
+      // merged list, stats, budgets. Edits are rare, and only on-screen queries
+      // refetch (the rest are just marked stale), so refresh everything.
+      void client.invalidateQueries();
     },
   });
 }
@@ -133,13 +111,7 @@ export function useDeleteAccount() {
   const client = useQueryClient();
   return useMutation<void, CommandError, AccountId>({
     mutationFn: api.deleteAccount,
-    onSuccess: (_data, accountId) => {
-      void client.invalidateQueries({ queryKey: queryKeys.accounts });
-      invalidateAccountData(client, accountId);
-      // The account's budgets cascade away with it, and a summary that contained
-      // it would otherwise keep listing them — hence the account-wide sweep.
-      invalidateBudgetData(client);
-    },
+    onSuccess: (_data, accountId) => invalidateDeletedAccount(client, accountId),
   });
 }
 
@@ -189,7 +161,7 @@ export function useDeleteCategory() {
       // and every account's must be refreshed, or the ring goes stale.
       void client.invalidateQueries({ queryKey: queryKeys.budgetsAll });
       void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsAll });
-      void client.invalidateQueries({ queryKey: ['monthSummary'] });
+      void client.invalidateQueries({ queryKey: queryKeys.monthSummaryAll });
     },
   });
 }
@@ -198,7 +170,7 @@ export function useCreateEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<Entry, CommandError, NewEntry>({
     mutationFn: api.createEntry,
-    onSuccess: () => invalidateAccountData(client, accountId),
+    onSuccess: () => invalidateEntryData(client, [accountId]),
   });
 }
 
@@ -208,9 +180,9 @@ export function useCreateTransfer(accountId: AccountId) {
     {
       mutationFn: ({ entry, counterAccountId }) => api.createTransfer(entry, counterAccountId),
       onSuccess: (_data, { counterAccountId }) => {
-        // A transfer writes an entry on each account; refresh both.
-        invalidateAccountData(client, accountId);
-        invalidateAccountData(client, counterAccountId);
+        // A transfer writes an entry on each account. Refresh both in one call,
+        // so a summary containing both is refreshed once, not twice.
+        invalidateEntryData(client, [accountId, counterAccountId]);
       },
     },
   );
@@ -220,7 +192,7 @@ export function useUpdateEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<Entry, CommandError, Entry>({
     mutationFn: api.updateEntry,
-    onSuccess: () => invalidateAccountData(client, accountId),
+    onSuccess: () => invalidateEntryData(client, [accountId]),
   });
 }
 
@@ -228,7 +200,7 @@ export function useDeleteEntry(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<void, CommandError, EntryId>({
     mutationFn: api.deleteEntry,
-    onSuccess: () => invalidateAccountData(client, accountId),
+    onSuccess: () => invalidateEntryData(client, [accountId]),
   });
 }
 
@@ -270,15 +242,6 @@ export function useDeleteRule(accountId: AccountId) {
   });
 }
 
-/** Removing/editing a single occurrence changes the month's occurrences and the
- *  ledger-derived figures (summary, stats), but not the rule list itself. */
-function invalidateOccurrenceData(client: QueryClient, accountId: AccountId): void {
-  void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthSummaryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.expensesByCategoryByAccount(accountId) });
-  void client.invalidateQueries({ queryKey: queryKeys.monthBudgetsByAccount(accountId) });
-}
-
 export function useSkipOccurrence(accountId: AccountId) {
   const client = useQueryClient();
   return useMutation<void, CommandError, { ruleId: RecurringRuleId; date: IsoDate }>({
@@ -297,8 +260,7 @@ export function useDetachOccurrence(accountId: AccountId) {
     mutationFn: ({ ruleId, date, entry }) => api.detachOccurrence(accountId, ruleId, date, entry),
     onSuccess: () => {
       // A detach removes an occurrence AND adds a standalone entry.
-      invalidateAccountData(client, accountId);
-      void client.invalidateQueries({ queryKey: queryKeys.occurrencesByAccount(accountId) });
+      invalidateDetachData(client, accountId);
     },
   });
 }
@@ -355,28 +317,66 @@ export function useNextcloudConfig() {
   });
 }
 
-export function useNextcloudSetConfig() {
-  const client = useQueryClient();
-  return useMutation<void, CommandError, { baseUrl: string; username: string; password: string }>({
+/** Prefix of every Nextcloud mutation's key. */
+export const nextcloudMutation = ['nextcloud'] as const;
+
+/** Whether a Nextcloud save, test, backup or restore is still running, even
+ *  one started before the screen asking last mounted: a component's own
+ *  `isPending` forgets it on remount, which let a second operation start
+ *  over a running one. */
+export function useNextcloudBusy(): boolean {
+  return useIsMutating({ mutationKey: nextcloudMutation }) > 0;
+}
+
+/** What a save of the Nextcloud settings is given. */
+export type NextcloudSettings = { baseUrl: string; username: string; password: string };
+
+/** The save's options, apart from the hook so a test can check them. */
+export function nextcloudSetConfigOptions(
+  client: QueryClient,
+): UseMutationOptions<boolean, CommandError, NextcloudSettings> {
+  return {
+    mutationKey: [...nextcloudMutation, 'save'],
     mutationFn: ({ baseUrl, username, password }) =>
       api.nextcloudSetConfig(baseUrl, username, password),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
+    // The app password rides in this mutation's variables: once the caller
+    // resets it, drop it from the cache within a second, not after the default
+    // 5 min. (Not 0: a save left pending, waiting on the native dialog after
+    // Settings unmounts, re-arms its collection timer each time it fires.)
+    // (Pass no per-call options to `mutate`: the observer keeps those past a
+    // reset, along with anything their callbacks close over.)
+    gcTime: 1_000,
+    // `false` is a declined new server, which changed nothing. An error may
+    // mean another save moved the settings meanwhile, so refetch then too.
+    onSettled: (saved) => {
+      if (saved !== false) {
+        void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
+      }
     },
-  });
+  };
+}
+
+export function useNextcloudSetConfig() {
+  return useMutation(nextcloudSetConfigOptions(useQueryClient()));
 }
 
 /** Tests the connection. No cache effect — the caller surfaces success/error. */
 export function useNextcloudTest() {
-  return useMutation<void, CommandError, void>({ mutationFn: api.nextcloudTest });
+  return useMutation<void, CommandError, void>({
+    mutationKey: [...nextcloudMutation, 'test'],
+    mutationFn: api.nextcloudTest,
+  });
 }
 
-/** Uploads a backup; resolves to its RFC-3339 timestamp and refreshes the
- *  "last backup" line via the config query. */
+/** Uploads a backup; resolves to its RFC-3339 timestamp (`null` if the
+ *  settings moved to another server meanwhile) and refreshes the "last backup"
+ *  line via the config query. */
 export function useBackupNow() {
   const client = useQueryClient();
-  return useMutation<string, CommandError, void>({
+  return useMutation<string | null, CommandError, void>({
+    mutationKey: [...nextcloudMutation, 'backup'],
     mutationFn: api.backupNow,
+    // Even on `null` (the settings moved mid-upload): they changed, so refetch.
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.nextcloudConfig });
     },
@@ -388,6 +388,7 @@ export function useBackupNow() {
 export function useRestoreNow() {
   const client = useQueryClient();
   return useMutation<void, CommandError, void>({
+    mutationKey: [...nextcloudMutation, 'restore'],
     mutationFn: api.restoreNow,
     onSuccess: () => {
       void client.invalidateQueries();

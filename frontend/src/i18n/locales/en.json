@@ -24,7 +24,8 @@
     "ringSpent": "{{percent}}% of this month's funds committed",
     "ringRemaining": "{{percent}}% of this month's funds free to spend",
     "combinedHint": "Combined, read-only view of this summary's member accounts.",
-    "free": "Free to spend"
+    "free": "Free to spend",
+    "balanceToday": "Balance today"
   },
   "month": {
     "navigation": "Month navigation",
@@ -151,8 +152,10 @@
     "backupRun": "Back up now",
     "backupRestore": "Restore",
     "backupSaved": "Settings saved.",
+    "backupServerDeclined": "Not saved: the new server wasn't confirmed.",
     "backupTestOk": "Connection works.",
     "backupRunOk": "Backed up to Nextcloud.",
+    "backupRunElsewhere": "Backed up to the previous server: the settings changed during the upload.",
     "backupRestoreOk": "Restored from Nextcloud.",
     "lastBackup": "Last backup: {{when}}",
     "lastBackupNever": "No backup yet.",

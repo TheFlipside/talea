@@ -1,6 +1,6 @@
 /** Central TanStack Query key factory. */
 
-import type { AccountId, Month } from './types';
+import type { AccountId, IsoDate, Month } from './types';
 
 export const queryKeys = {
   accounts: ['accounts'] as const,
@@ -13,6 +13,18 @@ export const queryKeys = {
     ['monthSummary', accountId, month.year, month.month] as const,
   /** Prefix matching every cached month summary for an account. */
   monthSummaryByAccount: (accountId: AccountId) => ['monthSummary', accountId] as const,
+  /** Prefix matching every account's month summaries (e.g. after a budget
+   *  change, which a summary account's `reserved` also reflects). */
+  monthSummaryAll: ['monthSummary'] as const,
+  /** An account's balance at the end of one day (the month bar's "today"). The
+   *  date is in the key, so a new day (see `useToday`) fetches afresh. */
+  balanceAsOf: (accountId: AccountId, date: IsoDate) => ['balanceAsOf', accountId, date] as const,
+  /** Prefix matching every cached day balance for an account. */
+  balanceAsOfByAccount: (accountId: AccountId) => ['balanceAsOf', accountId] as const,
+  /** Prefix matching every account's day balances, for the sweeps over every
+   *  account: after an account is deleted, and whenever the account list can't
+   *  say which summaries an account belongs to. */
+  balanceAsOfAll: ['balanceAsOf'] as const,
   /** Per-month category expense breakdown (stats screen). */
   expensesByCategory: (accountId: AccountId, month: Month) =>
     ['expensesByCategory', accountId, month.year, month.month] as const,

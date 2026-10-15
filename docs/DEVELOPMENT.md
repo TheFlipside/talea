@@ -142,15 +142,37 @@ ships the stock Tauri logo.
    app deliberately does **not** lock (so you can't get stranded), so without
    enrolment you'd never see the prompt.
 
-### Run it (live dev server)
+### Run it
 
 ```bash
-# Over the LAN — most reliable for a physical device. Pass your machine's LAN IP:
-just android-dev-host 192.168.1.20
-
-# Or over USB (uses adb reverse to map the device's localhost to the host):
 just android-dev
 ```
+
+This builds a release APK for the connected phone's ABI (one native library,
+not four), signs it with the local debug key, installs it with `adb install -r`
+and launches it. The frontend is bundled exactly as in the shipped app, so what
+you see is what testers get: no dev server, no network, no firewall. Signed
+with the debug key, each run replaces the installed app and keeps its data. A
+Play or `just android-apk` build is signed with the release key instead, and
+Android won't replace one with the other: the recipe then stops and says so
+rather than uninstall, since uninstalling deletes the app's data.
+
+The first run downloads Gradle dependencies and is slow; later runs rebuild
+only what changed.
+
+#### Live dev server (optional)
+
+For quick frontend iteration, `cargo tauri android dev` loads the UI from the
+Vite dev server instead: over USB through `adb reverse`, or over the LAN with
+`TAURI_DEV_HOST=<your-LAN-IP> cargo tauri android dev --host <your-LAN-IP>`.
+Don't judge startup time or stability by it:
+
+- **The first screen stays white for seconds.** The dev build carries no UI. It
+  fetches hundreds of unbundled modules through Tauri's dev proxy (debug Rust),
+  and Vite applies the CSS only once they have run.
+- **It reloads on its own.** Vite reloads the page whenever its HMR socket drops
+  and reconnects (the phone sleeps, the app goes to the background, Wi-Fi
+  blips), which lands you back on the start screen.
 
 > **Firewall (important):** in LAN mode the device connects to the Vite dev
 > server on your machine, so a host firewall will block it and you get a blank
@@ -163,9 +185,6 @@ just android-dev
 >
 > This was the cause of the first white screen during bring-up. Revoke later
 > with `sudo ufw delete allow 1420/tcp` (and `1421/tcp`) if you prefer.
-
-The first run downloads Gradle dependencies and is slow; later runs are quick
-and hot-reload the frontend.
 
 ### Build & sign with `scripts/android.sh` (recommended)
 
@@ -192,10 +211,8 @@ script does, for reference or one-off tweaks.
 
 ### Run it (standalone APK — no dev server)
 
-To run without a live dev server (the frontend is bundled into the APK), build
-and install a package. This also sidesteps the firewall/networking entirely, so
-it's a good way to confirm whether a blank screen is a dev-server connection
-problem.
+`just android-dev` does this for you (release build, debug key). The steps below
+are what it automates, for reference or one-off variants.
 
 **Debug (simplest — auto-signed with the debug key, installs directly):**
 
@@ -224,10 +241,11 @@ adb install -r "$OUT/app-universal-release-signed.apk"
 doesn't realign). `apksigner` prompts for the keystore/key passwords — don't pass
 them on the command line. If a build signed with a different key (e.g. the debug
 APK) is already installed, `adb install` fails with
-`INSTALL_FAILED_UPDATE_INCOMPATIBLE`; `adb uninstall com.luminaapps.talea` first.
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`; `adb uninstall com.luminaapps.talea` first,
+which deletes the app's data, so back it up beforehand.
 
-(If the packaged app renders but `android-dev*` doesn't, the issue is the dev
-server connection — see Troubleshooting. The exact APK path can vary by
+(If the packaged app renders but `cargo tauri android dev` doesn't, the issue is
+the dev server connection — see Troubleshooting. The exact APK path can vary by
 target/flavour; check the `cargo tauri android build` output.)
 
 ### Play Store release bundle (`.aab`)
@@ -358,9 +376,9 @@ edits to the generated `gen/android` project are needed.
 
 To test on a device:
 
-1. Build/run the app (`just android-dev` / `just android-dev-host <ip>`) and open
-   it at least once so it publishes a snapshot (the plugin writes the abstract
-   per-account ring fraction to `SharedPreferences "talea_widget"`).
+1. Build/run the app (`just android-dev`) and open it at least once so it
+   publishes a snapshot (the plugin writes the abstract per-account ring
+   fraction to `SharedPreferences "talea_widget"`).
 2. Long-press the home screen → **Widgets** → Talea → drag the widget out. The
    config screen lists your accounts; pick one. The ring + percentage render.
 3. Record an entry or switch accounts in-app: the widget redraws (the app pushes
@@ -671,12 +689,15 @@ cargo update -p bitflags@2.12.0 --precise 2.9.1   # adjust the from-version
 
 ### Blank / white screen on launch
 
-This almost always means the device's WebView can't reach the Vite dev server.
+With `just android-dev` the UI is bundled, so a blank screen there is a real
+fault: look for a Rust panic or a JS error in `just android-log` (a release
+build's WebView can't be inspected). Under `cargo tauri android dev` it almost
+always means the device's WebView can't reach the Vite dev server.
 
-1. **Inspect the WebView.** Open `chrome://inspect/#devices` in desktop Chrome
-   with the device connected, click *inspect* on the Talea WebView, and look at
-   the Console/Network tabs — that shows the real error (a refused connection to
-   `:1420`, a CSP violation, or a JS error).
+1. **Inspect the WebView** (dev builds). Open `chrome://inspect/#devices` in
+   desktop Chrome with the device connected, click *inspect* on the Talea
+   WebView, and look at the Console/Network tabs — that shows the real error (a
+   refused connection to `:1420`, a CSP violation, or a JS error).
 2. **Open the firewall** (the most common cause). In LAN mode the device must
    reach the dev server on your machine; `ufw` silently drops it:
 
@@ -685,9 +706,12 @@ This almost always means the device's WebView can't reach the Vite dev server.
    sudo ufw allow 1421/tcp    # Vite HMR
    ```
 
-3. **Prefer the LAN host path.** Run `just android-dev-host <your-LAN-IP>` with
-   the phone and PC on the **same network**. This avoids relying on `adb reverse`.
-4. **If using USB (`just android-dev`),** confirm the reverse tunnel exists:
+3. **Prefer the LAN host path.** Run
+   `TAURI_DEV_HOST=<your-LAN-IP> cargo tauri android dev --host <your-LAN-IP>`
+   with the phone and PC on the **same network**. This avoids relying on
+   `adb reverse`.
+4. **If using USB (`cargo tauri android dev`),** confirm the reverse tunnel
+   exists:
 
    ```bash
    adb reverse --list                      # expect: ... tcp:1420 tcp:1420
@@ -696,11 +720,12 @@ This almost always means the device's WebView can't reach the Vite dev server.
 
 5. **Confirm Vite is serving** — the `cargo tauri android dev` terminal should
    show `VITE ready` and a local URL.
-6. **Still stuck?** Build a standalone APK (see "Run it (standalone APK)") — it
-   bundles the frontend and needs no dev server, isolating networking issues.
-7. **HMR over LAN.** The dev CSP is `connect-src 'self'`; the HMR socket on a
-   separate port may be blocked, which breaks live-reload but not the initial
-   render. A full re-run picks up changes if HMR is quiet.
+6. **Still stuck?** Run `just android-dev`: it bundles the frontend and needs no
+   dev server, isolating networking issues.
+7. **HMR over LAN.** On mobile, `tauri dev` serves the frontend through its
+   dev proxy without the app's CSP, so the CSP isn't what stops an HMR socket;
+   look at the network path (the reverse tunnel, the LAN address) instead. A
+   full re-run picks up changes if HMR is quiet.
 
 ### Watching logs
 

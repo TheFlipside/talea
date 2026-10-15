@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn empty_when_no_expenses() {
         let entries = [entry(1, 9_000, EntryKind::Income, 3, None)];
-        assert!(expenses_by_category(m(2026, 1), &entries, &[]).is_empty());
+        assert_eq!(expenses_by_category(m(2026, 1), &entries, &[]), []);
     }
 
     #[test]

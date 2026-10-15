@@ -17,12 +17,18 @@ default:
 install:
     npm --prefix frontend install
 
-# Install frontend deps only if missing, so a fresh clone's first `just dev`
-# (or build/test) doesn't fail on the not-yet-installed Vite toolchain.
+# Install frontend deps when they're missing, so a fresh clone's first
+# `just dev` (or build/test) doesn't fail on the not-yet-installed Vite
+# toolchain, or when the lockfile is newer than the last install, so a pull
+# that updates a tool (a security fix, say) reaches node_modules.
 _ensure-frontend:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ -d frontend/node_modules ] || npm --prefix frontend install
+    installed=frontend/node_modules/.package-lock.json
+    if [ ! -f "$installed" ] || [ frontend/package-lock.json -nt "$installed" ]; then
+        npm --prefix frontend install
+        touch "$installed"
+    fi
 
 # Run the desktop dev build (starts Vite, then the Tauri shell).
 dev: _ensure-frontend
@@ -92,21 +98,12 @@ android-init:
     cargo tauri android init
     cargo tauri icon src-tauri/icons/icon-manifest.json
 
-# Run on a connected device over USB (maps the device's localhost via adb reverse).
+# Signed with the debug key, so it replaces the installed app and keeps its
+# data. The frontend is bundled as in the shipped app: no dev server. For live
+# reload instead, see "Live dev server" in docs/DEVELOPMENT.md.
+# Build a release APK for the connected device, install it and launch it.
 android-dev: _ensure-frontend
-    #!/usr/bin/env bash
-    set -euo pipefail
-    export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
-    cargo tauri android dev
-
-# Run on a device over the LAN (most reliable for physical devices). Pass your
-# machine's LAN IP, e.g. `just android-dev-host 192.168.1.20`.
-android-dev-host ip: _ensure-frontend
-    #!/usr/bin/env bash
-    set -euo pipefail
-    export NDK_HOME="${NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
-    export TAURI_DEV_HOST="{{ip}}"
-    cargo tauri android dev --host "{{ip}}"
+    ./scripts/android.sh device
 
 # Build a release APK/AAB (output under src-tauri/gen/android).
 android-build: _ensure-frontend

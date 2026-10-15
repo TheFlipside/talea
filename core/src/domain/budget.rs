@@ -265,9 +265,7 @@ impl Budget {
     /// Whether this budget reserves anything in `month`.
     #[must_use]
     pub fn applies_in(&self, month: Month) -> bool {
-        // `map_or(true, ..)` rather than `is_none_or`, which post-dates the
-        // crate's MSRV (1.80).
-        month >= self.start && self.end.map_or(true, |end| month <= end)
+        month >= self.start && self.end.is_none_or(|end| month <= end)
     }
 }
 
@@ -493,7 +491,7 @@ mod tests {
     #[test]
     fn applies_only_from_its_start_month() {
         let budgets = [budget(40_000, None)];
-        assert!(budget_status(m(2025, 12), &budgets, &[], &[]).is_empty());
+        assert_eq!(budget_status(m(2025, 12), &budgets, &[], &[]), []);
         assert_eq!(budget_status(m(2026, 1), &budgets, &[], &[]).len(), 1);
     }
 
@@ -501,7 +499,7 @@ mod tests {
     fn applies_up_to_and_including_its_end_month() {
         let budgets = [budget(40_000, Some(m(2026, 3)))];
         assert_eq!(budget_status(m(2026, 3), &budgets, &[], &[]).len(), 1);
-        assert!(budget_status(m(2026, 4), &budgets, &[], &[]).is_empty());
+        assert_eq!(budget_status(m(2026, 4), &budgets, &[], &[]), []);
     }
 
     #[test]

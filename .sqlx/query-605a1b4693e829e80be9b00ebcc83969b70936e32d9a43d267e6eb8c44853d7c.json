@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", name AS \"name!\", icon AS \"icon!\", currency AS \"currency!\",\n                  opening_balance AS \"opening_balance!\", anchor_year AS \"anchor_year!\",\n                  anchor_month AS \"anchor_month!\", kind AS \"kind!\"\n           FROM account WHERE id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "icon!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "icon"
+          }
+        }
+      },
+      {
+        "name": "currency!",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "name": "opening_balance!",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "opening_balance"
+          }
+        }
+      },
+      {
+        "name": "anchor_year!",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "anchor_year"
+          }
+        }
+      },
+      {
+        "name": "anchor_month!",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "anchor_month"
+          }
+        }
+      },
+      {
+        "name": "kind!",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "account",
+            "name": "kind"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "605a1b4693e829e80be9b00ebcc83969b70936e32d9a43d267e6eb8c44853d7c"
+}

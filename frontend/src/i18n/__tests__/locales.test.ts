@@ -13,6 +13,9 @@ import pt from '../locales/pt.json';
 import ru from '../locales/ru.json';
 import tr from '../locales/tr.json';
 import zh from '../locales/zh.json';
+// The shell words its native dialogs itself (frontend → shell is the allowed
+// direction for a check like this one).
+import nativeDialogs from '../../../../src-tauri/locales/native-dialogs.json';
 
 // Non-English locales. A locale may have *extra* keys (e.g. Russian/Polish carry
 // the `_few`/`_many` plural forms their grammar needs), so we only assert that
@@ -50,6 +53,11 @@ describe('locale catalogs', () => {
       expect(missing).toEqual([]);
     });
   }
+
+  it("the shell's native dialogs speak every bundled locale (and no other)", () => {
+    const bundled = ['en', ...Object.keys(locales)].sort();
+    expect(Object.keys(nativeDialogs.newBackupServer).sort()).toEqual(bundled);
+  });
 
   it('every bundled locale is offered in Settings (and vice versa)', () => {
     const offered = new Set(AVAILABLE_LANGUAGES.map((language) => language.code));

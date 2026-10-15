@@ -23,6 +23,10 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      // The shell's dialog plugin makes `confirm()` return a promise, which is
+      // always truthy, so `if (confirm(…))` would never stop anything. Use
+      // `ConfirmDialog`.
+      'no-alert': 'error',
     },
   },
   {

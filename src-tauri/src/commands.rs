@@ -5,21 +5,24 @@
 //! here. All take the shared [`SqlitePool`] from Tauri state and return a
 //! [`CommandError`] on failure.
 
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 use tauri::{AppHandle, Manager, State};
 
 use talea_core::{
-    budget_status as core_budget_status, combine_summaries as core_combine_summaries,
-    expenses_by_category as core_expenses_by_category, month_summary as core_month_summary,
-    summaries_for_range as core_summaries_for_range, Account, AccountId, AccountKind, Budget,
-    BudgetId, BudgetStatus, Category, CategoryExpense, CategoryId, Entry, EntryId, Month,
-    MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
+    balance_as_of as core_balance_as_of, budget_status as core_budget_status,
+    combine_summaries as core_combine_summaries, expenses_by_category as core_expenses_by_category,
+    month_summary as core_month_summary, summaries_for_range as core_summaries_for_range, Account,
+    AccountId, AccountKind, Budget, BudgetId, BudgetStatus, Category, CategoryExpense, CategoryId,
+    Entry, EntryId, Money, Month, MonthSummary, RecurringRule, RecurringRuleId, VirtualEntry,
 };
 
 use crate::backup::{self, NextcloudConfig, NextcloudConfigView};
-use crate::dto::{NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
+use crate::confirm;
+use crate::db;
+use crate::dto::{IsoDate, NewAccount, NewBudget, NewCategory, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
+use crate::repo::ledger::AccountData;
 use crate::webdav::WebDav;
 
 /// Upper bound on the number of months a single range query may span (100
@@ -38,43 +41,20 @@ fn require_found(updated: bool) -> Result<(), CommandError> {
 // ---- Account ----------------------------------------------------------------
 
 /// Validates a summary account's membership against the rest of the database:
-/// each member must exist, be a **normal** account (no nesting), share the
-/// summary's currency, and not be the summary itself. Normal accounts have no
-/// members to check. (`core` already rejected duplicates and a non-zero summary
-/// balance; these are the cross-account rules it can't see.)
+/// loads the accounts its members name, then applies `core`'s cross-account
+/// rules ([`Account::check_members`]). Normal accounts have no members to check.
+/// It runs inside the caller's write transaction, so what it checks still
+/// holds when the caller writes.
 pub(crate) async fn validate_membership(
-    pool: &SqlitePool,
+    tx: &mut Transaction<'_, Sqlite>,
     draft: &Account,
 ) -> Result<(), CommandError> {
-    if draft.kind() != AccountKind::Summary {
-        return Ok(());
+    if draft.kind() == AccountKind::Normal {
+        // No members to look up: `check_members` refuses any it has.
+        return Ok(draft.check_members(|_| None)?);
     }
-    if draft.members().is_empty() {
-        return Err(CommandError::Validation(
-            "a summary account needs at least one member account".to_owned(),
-        ));
-    }
-    for member_id in draft.members() {
-        if *member_id == draft.id() {
-            return Err(CommandError::Validation(
-                "a summary account cannot include itself".to_owned(),
-            ));
-        }
-        let member = repo::account::get(pool, *member_id).await?.ok_or_else(|| {
-            CommandError::Validation("a member account no longer exists".to_owned())
-        })?;
-        if member.kind() != AccountKind::Normal {
-            return Err(CommandError::Validation(
-                "a summary account's members must be normal accounts".to_owned(),
-            ));
-        }
-        if member.currency().code() != draft.currency().code() {
-            return Err(CommandError::Validation(
-                "all member accounts must share the summary account's currency".to_owned(),
-            ));
-        }
-    }
-    Ok(())
+    let members = repo::account::get_many(&mut **tx, draft.members()).await?;
+    Ok(draft.check_members(|id| members.iter().find(|member| member.id() == id))?)
 }
 
 /// Errors if `account_id` names a summary account — they hold no records, so
@@ -104,9 +84,21 @@ pub async fn create_account(
     state: State<'_, SqlitePool>,
     account: NewAccount,
 ) -> Result<Account, CommandError> {
+    create_account_inner(state.inner(), account).await
+}
+
+/// [`create_account`], checking a summary's members and inserting it in one
+/// write transaction (see [`db::begin_write`]).
+pub(crate) async fn create_account_inner(
+    pool: &SqlitePool,
+    account: NewAccount,
+) -> Result<Account, CommandError> {
     let draft = account.build()?;
-    validate_membership(state.inner(), &draft).await?;
-    Ok(repo::account::insert(state.inner(), &draft).await?)
+    let mut tx = db::begin_write(pool).await?;
+    validate_membership(&mut tx, &draft).await?;
+    let saved = repo::account::insert(&mut tx, &draft).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(saved)
 }
 
 /// Lists all accounts.
@@ -132,8 +124,17 @@ pub async fn update_account(
     state: State<'_, SqlitePool>,
     account: Account,
 ) -> Result<Account, CommandError> {
-    let pool = state.inner();
-    let existing = repo::account::get(pool, account.id())
+    update_account_inner(state.inner(), account).await
+}
+
+/// [`update_account`], checking and writing in one write transaction (see
+/// [`db::begin_write`]).
+pub(crate) async fn update_account_inner(
+    pool: &SqlitePool,
+    account: Account,
+) -> Result<Account, CommandError> {
+    let mut tx = db::begin_write(pool).await?;
+    let existing = repo::account::get(&mut *tx, account.id())
         .await?
         .ok_or(CommandError::NotFound)?;
     if existing.kind() != account.kind() {
@@ -143,14 +144,17 @@ pub async fn update_account(
     }
     if account.kind() == AccountKind::Normal
         && existing.currency().code() != account.currency().code()
-        && repo::account::is_member_of_any(pool, account.id()).await?
+        && repo::account::is_member_of_any(&mut *tx, account.id()).await?
     {
         return Err(CommandError::Validation(
             "remove this account from its summary account before changing its currency".to_owned(),
         ));
     }
-    validate_membership(pool, &account).await?;
-    require_found(repo::account::update(pool, &account).await?)?;
+    validate_membership(&mut tx, &account).await?;
+    // Read above in this same transaction, the row is still there; checked
+    // anyway, so the repository needn't trust its caller.
+    require_found(repo::account::update(&mut tx, &account).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
     Ok(account)
 }
 
@@ -168,13 +172,25 @@ pub async fn delete_account(
     state: State<'_, SqlitePool>,
     id: AccountId,
 ) -> Result<(), CommandError> {
-    let pool = state.inner();
-    if repo::account::is_member_of_any(pool, id).await? {
+    delete_account_inner(state.inner(), id).await
+}
+
+/// [`delete_account`], checking membership and deleting in one write
+/// transaction (see [`db::begin_write`]): a summary saved in between can't take the
+/// account as a member just before it goes.
+pub(crate) async fn delete_account_inner(
+    pool: &SqlitePool,
+    id: AccountId,
+) -> Result<(), CommandError> {
+    let mut tx = db::begin_write(pool).await?;
+    if repo::account::is_member_of_any(&mut *tx, id).await? {
         return Err(CommandError::Validation(
             "remove this account from its summary account before deleting it".to_owned(),
         ));
     }
-    require_found(repo::account::delete(pool, id).await?)
+    require_found(repo::account::delete(&mut tx, id).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(())
 }
 
 // ---- Category ---------------------------------------------------------------
@@ -325,12 +341,15 @@ pub(crate) async fn transfer(
         ));
     }
 
-    // Validate (read-only) before opening a write transaction: both accounts must
-    // exist and share a currency (there is no conversion).
-    let from = repo::account::get(pool, primary.account_id())
+    // Both accounts must exist and share a currency (there is no conversion),
+    // checked in the transaction that writes, under its lock (see
+    // `db::begin_write`): an account's currency changed in between would
+    // otherwise mirror the amount into the wrong currency.
+    let mut tx = db::begin_write(pool).await?;
+    let from = repo::account::get(&mut *tx, primary.account_id())
         .await?
         .ok_or(CommandError::NotFound)?;
-    let to = repo::account::get(pool, counter_account_id)
+    let to = repo::account::get(&mut *tx, counter_account_id)
         .await?
         .ok_or(CommandError::NotFound)?;
     if from.kind() == AccountKind::Summary || to.kind() == AccountKind::Summary {
@@ -357,7 +376,6 @@ pub(crate) async fn transfer(
         primary.category_id(),
     )?;
 
-    let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;
     let saved_primary = repo::entry::insert(&mut *tx, &primary).await?;
     let saved_counter = repo::entry::insert(&mut *tx, &counter).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;
@@ -592,14 +610,6 @@ async fn ledger_source_accounts(
     })
 }
 
-/// One account's ledger inputs, read from a single consistent snapshot.
-pub(crate) struct AccountData {
-    pub account: Account,
-    pub entries: Vec<Entry>,
-    pub rules: Vec<RecurringRule>,
-    pub budgets: Vec<Budget>,
-}
-
 pub(crate) async fn load_account_data(
     pool: &SqlitePool,
     account_id: AccountId,
@@ -610,20 +620,11 @@ pub(crate) async fn load_account_data(
     // from budgets *and* entries together, so a second read transaction would let
     // a concurrent write land between the two halves of one figure.
     let mut tx = pool.begin().await.map_err(RepoError::Sqlx)?;
-    let account = repo::account::get(&mut *tx, account_id)
+    let data = repo::ledger::read(&mut tx, account_id)
         .await?
         .ok_or(CommandError::NotFound)?;
-    let entries = repo::entry::for_account(&mut *tx, account_id).await?;
-    let rules = repo::rule::for_account(&mut *tx, account_id).await?;
-    let skips = repo::skip::for_account(&mut *tx, account_id).await?;
-    let budgets = repo::budget::for_account(&mut *tx, account_id).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;
-    Ok(AccountData {
-        account,
-        entries,
-        rules: attach_skips(rules, skips),
-        budgets,
-    })
+    Ok(data)
 }
 
 /// Loads an account's recurring rules with their skips attached (verifying the
@@ -637,29 +638,9 @@ pub(crate) async fn load_account_rules(
     repo::account::get(&mut *tx, account_id)
         .await?
         .ok_or(CommandError::NotFound)?;
-    let rules = repo::rule::for_account(&mut *tx, account_id).await?;
-    let skips = repo::skip::for_account(&mut *tx, account_id).await?;
+    let rules = repo::ledger::rules(&mut tx, account_id).await?;
     tx.commit().await.map_err(RepoError::Sqlx)?;
-    Ok(attach_skips(rules, skips))
-}
-
-/// Attaches each rule's skipped occurrence dates so its expansion omits them.
-fn attach_skips(
-    rules: Vec<RecurringRule>,
-    skips: Vec<(RecurringRuleId, time::Date)>,
-) -> Vec<RecurringRule> {
-    use std::collections::HashMap;
-    let mut by_rule: HashMap<RecurringRuleId, Vec<time::Date>> = HashMap::new();
-    for (rule_id, date) in skips {
-        by_rule.entry(rule_id).or_default().push(date);
-    }
-    rules
-        .into_iter()
-        .map(|rule| {
-            let dates = by_rule.remove(&rule.id()).unwrap_or_default();
-            rule.with_skips(dates)
-        })
-        .collect()
+    Ok(rules)
 }
 
 /// Number of months in `from..=to` (negative if `to` precedes `from`).
@@ -711,13 +692,62 @@ pub(crate) async fn month_summary_inner(
         let data = load_account_data(pool, account_id).await?;
         Ok(core_month_summary(
             month,
-            account.opening_balance(),
-            account.anchor(),
+            data.account.opening_balance(),
+            data.account.anchor(),
             &data.entries,
             &data.rules,
             &data.budgets,
         ))
     }
+}
+
+/// Computes an account's running balance at the end of `date`. For today, that
+/// is what the real account should show if every transaction was recorded
+/// (`docs/DESIGN.md` §13).
+///
+/// The frontend supplies the date from the device's local clock: `core` has no
+/// clock by design, and `time`'s local-offset lookup is unreliable once the
+/// process is multithreaded.
+///
+/// # Errors
+/// [`CommandError::NotFound`] if the account does not exist;
+/// [`CommandError::Database`] / [`CommandError::Corrupt`] on a database error.
+#[tauri::command]
+pub async fn balance_as_of(
+    state: State<'_, SqlitePool>,
+    account_id: AccountId,
+    date: IsoDate,
+) -> Result<Money, CommandError> {
+    balance_as_of_inner(state.inner(), account_id, date.get()).await
+}
+
+/// `balance_as_of` against a pool (summary-aware), separated so it's testable.
+pub(crate) async fn balance_as_of_inner(
+    pool: &SqlitePool,
+    account_id: AccountId,
+    as_of: time::Date,
+) -> Result<Money, CommandError> {
+    // A summary account keeps no ledger of its own: its balance is its members'
+    // total (they share the currency), each against its own opening balance and
+    // anchor — the per-member sum `combine_summaries` applies to month figures.
+    let mut total = Money::zero();
+    for id in ledger_source_accounts(pool, account_id).await? {
+        // Each ledger's opening balance and anchor come from the same snapshot
+        // as its entries, so no one ledger's figure mixes two reads.
+        let data = load_account_data(pool, id).await?;
+        let balance = core_balance_as_of(
+            as_of,
+            data.account.opening_balance(),
+            data.account.anchor(),
+            &data.entries,
+            &data.rules,
+        );
+        // With every input capped this can't overflow (DESIGN.md §9), but it is a
+        // new sum across ledgers, so check it rather than risk an abort. Only
+        // out-of-range data could trip it, which is what `Corrupt` reports.
+        total = total.checked_add(balance).ok_or(CommandError::Corrupt)?;
+    }
+    Ok(total)
 }
 
 /// Computes contiguous budget summaries for `from..=to` of an account.
@@ -780,8 +810,8 @@ pub async fn summaries_for_range(
         Ok(core_summaries_for_range(
             from,
             to,
-            account.opening_balance(),
-            account.anchor(),
+            data.account.opening_balance(),
+            data.account.anchor(),
             &data.entries,
             &data.rules,
             &data.budgets,
@@ -921,6 +951,14 @@ pub(crate) async fn detach_occurrence_inner(
 
 // ---- Nextcloud backup / restore --------------------------------------------
 
+/// Runs backups and restores one at a time, each from its first step to its
+/// last, network included. Side by side, a backup's upload could land after a
+/// restore's download, leaving this device with the server's old copy and the
+/// server with this device's: an outcome neither order would give. Taken
+/// before `backup`'s own scratch-file lock, and not re-entrant: nothing called
+/// under it may take it again.
+static TRANSFER: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
+
 /// Resolves the app-data directory (where the Nextcloud config lives).
 fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, CommandError> {
     app.path().app_data_dir().map_err(|err| {
@@ -947,33 +985,43 @@ fn client_for(config: &NextcloudConfig) -> Result<WebDav, CommandError> {
 /// Returns the stored Nextcloud settings — never the password, only whether one
 /// is set.
 ///
+/// Async, as every command here is, so it runs off the main thread, which
+/// also draws the native confirmation (see `confirm.rs`).
+///
 /// # Errors
 /// [`CommandError::Backup`] if app storage is unavailable.
-// Tauri's command macro requires `AppHandle` by value; it's an `Arc`-backed
-// handle, so passing it by value is cheap and idiomatic.
-#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
-pub fn nextcloud_get_config(app: AppHandle) -> Result<NextcloudConfigView, CommandError> {
+pub async fn nextcloud_get_config(app: AppHandle) -> Result<NextcloudConfigView, CommandError> {
     let dir = app_data_dir(&app)?;
     Ok((&backup::load_config(&dir)).into())
 }
 
 /// Saves the Nextcloud address/username, and the app password when a non-empty
-/// one is given (an empty password keeps the stored one).
+/// one is given; returns whether it saved them. A new server is saved only
+/// once the user confirms it in a native dialog (see [`confirm`]), so
+/// declining is an answer, not an error. An empty password keeps the stored
+/// one for the same address and username only; for any other it drops it, so a
+/// stored password never follows a changed address (see
+/// [`backup::save_settings`]).
 ///
 /// # Errors
-/// [`CommandError::Backup`] if the settings can't be written.
-// Tauri's command macro requires owned `AppHandle`/`String` arguments.
-#[allow(clippy::needless_pass_by_value)]
+/// [`CommandError::Backup`] if the password is longer than any app password,
+/// a new address or username isn't usable, the dialog can't be asked (another
+/// is open, or the questions are paused after repeated declines), its confirm
+/// was pressed too soon to have been read, the settings changed while it was
+/// open, or they can't be written.
 #[tauri::command]
-pub fn nextcloud_set_config(
+pub async fn nextcloud_set_config(
     app: AppHandle,
     base_url: String,
     username: String,
     password: String,
-) -> Result<(), CommandError> {
+) -> Result<bool, CommandError> {
     let dir = app_data_dir(&app)?;
-    backup::set_credentials(&dir, &base_url, &username, &password)
+    backup::save_settings(&dir, &base_url, &username, &password, |server| {
+        confirm::confirm_server(&app, server)
+    })
+    .await
 }
 
 /// Verifies the stored Nextcloud address and credentials.
@@ -988,7 +1036,8 @@ pub async fn nextcloud_test(app: AppHandle) -> Result<(), CommandError> {
 }
 
 /// Snapshots the database and uploads it to Nextcloud; returns the RFC-3339
-/// timestamp of the backup.
+/// timestamp of the backup, or `None` if the settings moved to another server
+/// while it uploaded, since the backup isn't on that one.
 ///
 /// # Errors
 /// [`CommandError::Backup`] if not configured or the upload fails;
@@ -997,12 +1046,17 @@ pub async fn nextcloud_test(app: AppHandle) -> Result<(), CommandError> {
 pub async fn backup_now(
     app: AppHandle,
     state: State<'_, SqlitePool>,
-) -> Result<String, CommandError> {
+) -> Result<Option<String>, CommandError> {
+    let _transfer = TRANSFER.lock().await;
     let dir = app_data_dir(&app)?;
-    let client = client_for(&backup::load_config(&dir))?;
-    let bytes = backup::snapshot(state.inner(), &dir).await?;
-    client.put_backup(bytes).await?;
-    backup::mark_backed_up(&dir)
+    let (pool, scratch) = (state.inner(), dir.as_path());
+    backup::back_up(&dir, |config| async move {
+        let client = client_for(&config)?;
+        let bytes = backup::snapshot(pool, scratch).await?;
+        client.put_backup(bytes).await?;
+        Ok(())
+    })
+    .await
 }
 
 /// Downloads the Nextcloud backup and replaces all local data with it.
@@ -1012,6 +1066,7 @@ pub async fn backup_now(
 /// is not a same-version Talea backup.
 #[tauri::command]
 pub async fn restore_now(app: AppHandle, state: State<'_, SqlitePool>) -> Result<(), CommandError> {
+    let _transfer = TRANSFER.lock().await;
     let dir = app_data_dir(&app)?;
     let client = client_for(&backup::load_config(&dir))?;
     let bytes = client.get_backup().await?;

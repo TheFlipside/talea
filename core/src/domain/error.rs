@@ -22,13 +22,35 @@ pub const MAX_AMOUNT_SEGMENTS: usize = 100;
 /// per-member ledger scans on every read.
 pub const MAX_SUMMARY_MEMBERS: usize = 50;
 
-/// Largest single amount accepted (one quadrillion). Far below
-/// `Decimal::MAX` (~7.9e28), so even pathological prefix-sums over the bounded
-/// month range cannot overflow the ledger's arithmetic.
-const MAX_AMOUNT_MINOR: i64 = 1_000_000_000_000_000;
+/// The earliest year an account's ledger may start. Every month view walks each
+/// month from the account's anchor, so an anchor centuries back makes every
+/// view slow. The app anchors a new account at the month it is created, by the
+/// device clock, and 1969 rather than 1970 so that a clock reset to the Unix
+/// epoch still passes west of Greenwich, where it reads December 1969. So no
+/// account the app creates starts earlier; one that does was crafted, over IPC
+/// or in a backup.
+pub const MIN_ANCHOR_YEAR: i32 = 1969;
+
+/// Largest magnitude of any money term the ledger sums — a single entry, rule
+/// or budget amount, or an account's opening balance: one quadrillion, in whole
+/// currency units. With every term capped, overflowing `Decimal::MAX` (~7.9e28)
+/// would take some 8e13 maximal terms. Rows can't supply that many: even a
+/// weekly rule expands to only about 520,000 occurrences across the 9,999 years
+/// a `Month` spans, so it would take over 10^8 rules. Nothing writes rows in
+/// bulk except a restore, which holds a backup to 1,000 rules and 250,000
+/// entries (`TABLES` in `src-tauri`'s `backup.rs`), some 10^5 times short of
+/// that; raising those caps erodes the margin. That bound, not a proof, is what
+/// keeps the ledger's panic-on-overflow arithmetic safe.
+const MAX_AMOUNT_UNITS: i64 = 1_000_000_000_000_000;
+
+/// [`MAX_AMOUNT_UNITS`] as money (whole units, scale 0), shared by both
+/// validators so the two bounds can't drift apart.
+fn amount_ceiling() -> Money {
+    Money::from_minor_units(MAX_AMOUNT_UNITS, 0)
+}
 
 /// Validates an entry/rule amount: a positive magnitude within
-/// [`MAX_AMOUNT_MINOR`].
+/// [`MAX_AMOUNT_UNITS`].
 ///
 /// # Errors
 ///
@@ -38,8 +60,24 @@ pub(crate) fn validate_amount(amount: Money) -> Result<(), DomainError> {
     if !amount.is_positive() {
         return Err(DomainError::NonPositiveAmount(amount));
     }
-    if amount.amount() > Money::from_minor_units(MAX_AMOUNT_MINOR, 0).amount() {
+    if amount.amount() > amount_ceiling().amount() {
         return Err(DomainError::AmountTooLarge(amount));
+    }
+    Ok(())
+}
+
+/// Validates an account's opening balance: either sign (an account may open
+/// overdrawn), but no larger in magnitude than [`MAX_AMOUNT_UNITS`]. It seeds
+/// every running balance, so it needs the same bound as the amounts summed onto
+/// it — without one, the ledger's panic-on-overflow arithmetic was reachable,
+/// and release builds abort on panic.
+///
+/// # Errors
+///
+/// [`DomainError::OpeningBalanceTooLarge`] if its magnitude exceeds the ceiling.
+pub(crate) fn validate_opening_balance(balance: Money) -> Result<(), DomainError> {
+    if balance.amount().abs() > amount_ceiling().amount() {
+        return Err(DomainError::OpeningBalanceTooLarge(balance));
     }
     Ok(())
 }
@@ -69,6 +107,10 @@ pub enum DomainError {
     /// An entry amount exceeded the accepted ceiling.
     #[error("entry amount {0} exceeds the maximum accepted value")]
     AmountTooLarge(Money),
+
+    /// An account's opening balance exceeded the accepted ceiling in magnitude.
+    #[error("opening balance {0} exceeds the maximum accepted value")]
+    OpeningBalanceTooLarge(Money),
 
     /// A note exceeded [`MAX_NOTE_LEN`].
     #[error("note exceeds {max} characters (was {len})")]
@@ -118,6 +160,31 @@ pub enum DomainError {
         /// The enforced maximum.
         max: usize,
     },
+
+    /// An account's anchor month was before [`MIN_ANCHOR_YEAR`].
+    #[error("an account cannot start before {min}", min = MIN_ANCHOR_YEAR)]
+    AnchorTooEarly,
+
+    /// A summary account had no members, so nothing to sum.
+    #[error("a summary account needs at least one member account")]
+    SummaryWithoutMembers,
+
+    /// A summary account listed itself as a member.
+    #[error("a summary account cannot include itself")]
+    SummaryIncludesItself,
+
+    /// A summary account named a member account that doesn't exist.
+    #[error("a member account no longer exists")]
+    MissingMember,
+
+    /// A summary account named another summary as a member (no nesting).
+    #[error("a summary account's members must be normal accounts")]
+    NestedSummary,
+
+    /// A summary account's member had a different currency (figures are summed,
+    /// never converted).
+    #[error("all member accounts must share the summary account's currency")]
+    MemberCurrencyMismatch,
 
     /// A recurrence interval was zero; it must be at least one.
     #[error("recurrence interval must be >= 1")]

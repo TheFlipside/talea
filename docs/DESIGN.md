@@ -24,7 +24,8 @@ Talea is a **month-focused cashflow ledger**, not envelope budgeting.
 - The unit of attention is **the current month and upcoming months**. The main
   screen shows, for the selected month, a top bar with **income, expenses, and
   the resulting available budget to end of month**, followed by the list of
-  recorded entries. Swiping moves between months.
+  recorded entries. Swiping moves between months. In the current month the bar
+  also leads with the **balance today** (§13).
 - **Available to end of month** = `carry-in + Σ income(month) − Σ expenses(month)`,
   where entries include both ad-hoc recordings **and** the expansion of recurring
   rules that apply to that month.
@@ -172,6 +173,9 @@ plugin (Android/iOS), with the device PIN/passcode allowed as a fallback.
   to authenticate, and desktop is a development target.
 - **Toggle timing:** enabling/disabling the lock takes effect on the **next
   launch**, so flipping it on can't strand the user behind a prompt they cancel.
+  Since the launch gate reads it from storage, the switch only moves once
+  storage has accepted that write: shown as on but never stored, it would
+  promise a lock the next launch doesn't keep.
 - **Lock-on-resume:** the lock re-engages when the app returns from the
   background, not only at cold start (`LockGate` listens for
   `visibilitychange`). A guard ignores the background/resume the native prompt
@@ -203,6 +207,12 @@ Implemented with the §2 types:
   ISO code.
 - **Amount sign discipline.** `Entry`/`RecurringRule` amounts are positive
   magnitudes; the sign is derived from `EntryKind`. Zero/negative is rejected.
+- **Anchor floor.** An account's anchor month can't precede 1969
+  (`MIN_ANCHOR_YEAR`). Every month view walks each month from the anchor over
+  all of the account's rows, so an anchor centuries back would make every view
+  crawl. The app only ever anchors an account at the month it is created, by
+  the device clock, so only a crafted account starts earlier (1969, not 1970:
+  a clock reset to the Unix epoch reads December 1969 west of Greenwich).
 
 ---
 
@@ -214,18 +224,59 @@ Accepted as known debt for the scaffold; revisit before a release:
   inline styles; `script-src` is already `'self'` (the XSS-critical one). Tighten
   to `'self'` via hashes/nonces once the production asset pipeline is settled and
   runtime-verified.
+- **The webview stays on the app's own pages.** The CSP governs what a page
+  loads and connects to, not where it goes, so a script that read the ledger
+  could have carried it off by navigating to a server of its own, the data in
+  the URL, or to a scheme another app handles (`mailto:`, `intent:`). An in-tree
+  plugin (`navigation.rs`) now cancels every top-level navigation off the app's
+  origin: on each platform the one Tauri serves it from (`tauri://localhost`, or
+  `http(s)://tauri.localhost` on Android and Windows, mirrored from Tauri's own
+  choice, so a Tauri upgrade must re-check them), and in a dev build the dev
+  server. Frames are held by the CSP (`default-src 'self'`), which matters on
+  Windows, where WebView2 doesn't report a frame's navigation to the guard. The
+  CSP also adds `form-action 'none'` and `base-uri 'none'`; `img-src` no longer
+  names the asset protocol, which nothing uses; and `connect-src` names
+  `http://ipc.localhost` only on Windows, whose IPC runs over it, and Android,
+  which fetches channel data there (`tauri.windows.conf.json`,
+  `tauri.android.conf.json`, overriding just that directive; a test holds them
+  to it). Elsewhere that host, like the other platforms' app origin, is an
+  ordinary name a resolver might send anywhere. `window.open` opens no window on
+  any platform (no handler is set, and each engine's default declines) and stays
+  in the same, guarded view on Android. Left open, with no switch Tauri or the
+  CSP offers: a script can still carry data out in DNS lookups (`<link
+  rel="dns-prefetch">`, `preconnect`) and, where the engine ships WebRTC
+  (Android, iOS, Windows), in the credentials of a TURN server it asks for. The
+  defence there is keeping untrusted script out of the bundle. Also known: a URL
+  the runtime can't parse is let through rather than checked (an upstream choice
+  in `tauri-runtime-wry`; the engines parse URLs the same way, so none is known
+  to slip by); a dev build serves the frontend from the dev server, without the
+  CSP; and on Android the guard rests on WebView's `shouldOverrideUrlLoading`,
+  to be checked on a device for `location` changes, a meta refresh,
+  `window.open`, and `mailto:` or `intent:` links clicked from script.
 - **`core:event` emit scope.** `core:default` grants `allow-emit`/`allow-emit-to`.
   Harmless for one window; narrow to listen-only if a second webview is added.
 - **`panic = "abort"`** (release profile) turns any handler panic into a hard
   crash. Mitigated by bounding IPC inputs and preferring `Money::checked_*`; keep
   that discipline as commands are added.
 - **Ledger arithmetic uses `Money`'s `+`/`-`** (panic-on-overflow, by design,
-  consistent with `money.rs`). Overflow is made unreachable in practice by two
-  caps: `Month` years are bounded to `1..=9999` (so the carry-over walk length
-  is bounded and date math can't panic), and entry/rule amounts are capped at one
-  quadrillion — far below `Decimal::MAX`. If a stricter guarantee is ever wanted,
-  convert the ledger functions to return `Result` with checked arithmetic. Note
-  the ledger is O(history); the persistence layer may cache per-month aggregates.
+  consistent with `money.rs`). Overflow is made unreachable in practice by
+  capping every term: `Month` years are bounded to `1..=9999` (so the carry-over
+  walk length is bounded and date math can't panic; dates arriving over IPC are
+  held to the same range), entry/rule amounts are capped at one quadrillion —
+  far below `Decimal::MAX` — and so is the magnitude of an account's opening
+  balance, which seeds every running balance. That last cap was missing until
+  the §13 security audit: an absurd opening balance, typed in or restored from a
+  tampered backup, overflowed and, with `panic = "abort"`, crashed the app. A
+  stored value beyond the cap now reads as a corrupt row, and restore refuses a
+  backup holding one (§10). With every term capped, an overflow takes some 8e13
+  maximal terms, and rows can't supply that many: a recurring rule expands to
+  at most about 520,000 (weekly, across all 9,999 years), so it would take over
+  10^8 rules. Restore, the only bulk writer, holds a backup to 1,000 rules and
+  250,000 entries (§10), some 10^5 times short of that. A sum across ledgers in the command layer
+  (`balance_as_of`'s summary total) uses `checked_add` on top. If a stricter
+  guarantee is ever wanted, convert the ledger functions to return `Result` with
+  checked arithmetic. Note the ledger is O(history); the persistence layer may
+  cache per-month aggregates.
 - **The biometric app lock (§7) is a UI gate, not encryption.** The lock
   preference lives in `localStorage` and the lock deters casual access on a
   running device; it does not protect data against someone with filesystem
@@ -262,6 +313,56 @@ Accepted as known debt for the scaffold; revisit before a release:
   boundary), but if a wider IPC/sync surface is ever added, scope the `WHERE` to
   the owning account and stop writing `account_id` on update. Rule amount history
   is already bounded (`MAX_AMOUNT_SEGMENTS`) alongside the note/amount caps.
+- **Records are checked against an account's kind outside the write lock.**
+  Entries, rules, budgets and single-occurrence edits refuse a summary account
+  (`reject_if_summary`), but check its kind before the transaction that
+  writes. An account's kind never changes in use, so that only matters
+  against a restore, which can bring an id back as the other kind: an entry
+  written for account 5 just as a restore commits a backup where 5 is a
+  summary would leave a summary owning a record, which restore then refuses,
+  so every later backup would be refused too. It takes a write racing a
+  restore, which the shipped UI never issues. Fix: check the kind in each
+  command's write transaction (`db::begin_write`), as the account commands
+  and transfers do.
+- **No log backend is installed.** Every `log::warn!`/`log::error!`, the
+  restore refusal diagnostics included, is a no-op: nothing initialises a
+  logger. Adding one (e.g. `tauri-plugin-log`) needs a redaction policy first,
+  since some messages quote stored values (each bounded to 64 characters).
+- **Restore holds the write lock while it validates.** The read-back (§10) runs
+  inside the restore's transaction, so a write issued meanwhile waits on the
+  5 s busy timeout: past about a million entries, that can fail. Accepted:
+  validating what is about to be committed is the point, and validating the
+  file beforehand would read through its indexes, which nothing verifies.
+- **The SQLite heap cap narrows an out-of-memory failure, not removes it.** A
+  crafted backup whose statistics nearly fill the cap while it is attached can
+  make another connection's query fail to copy a row, and sqlx `expect`s that
+  copy, so the app aborts. A single oversized request fails without taking any
+  memory, so this needs a file sized to fill the cap without overrunning it,
+  and a query landing in that moment. Closing it needs sqlx to report that
+  failure rather than panic.
+- **An unreadable account row blanks the app.** Accounts load as one list, so
+  a single row the loaders refuse (only a tampered database, or one restored
+  by an older build from a tampered backup, holds one) fails the whole list,
+  and the app shows only an error, leaving Settings and Restore out of reach.
+  Fix: let Settings open without the account list, so a good backup can be
+  restored.
+- **Restore keeps the whole download in memory until it finishes**, and writes
+  the scratch copy on an async worker; `nextcloud.json` is rewritten in place,
+  so a crash mid-write can lose the stored credentials. Fix: take the buffer
+  by value and drop it once written, write through `spawn_blocking`, and save
+  the config via a temporary file and rename.
+- **Backend error messages are English only.** Every `CommandError` carries an
+  English message the frontend shows as is, the backup settings' refusals
+  included, while the rest of the UI (and the native confirmation, §10) speaks
+  12 languages. Fix: return a stable code with each error and let the frontend
+  word it.
+- **A compromised webview can still harm the data it can reach.** The native
+  confirmation (§10) keeps backups from going to another server, but the
+  webview's commands still edit and delete records, and back up and restore
+  against the confirmed server without a native prompt: a script could empty
+  the ledger and back that up over the only remote copy, which nothing
+  versions. Fix: confirm a restore natively, and keep earlier backups on the
+  server.
 
 ---
 
@@ -278,15 +379,72 @@ Those remain future work if concurrent multi-device editing is ever needed.
 - **Single-writer, latest-snapshot model.** One fixed remote file,
   `Talea/talea-backup.sqlite3` under the user's files root. *Back up* overwrites
   it; *Restore* downloads it. No versioned history in v1 (a noted follow-up).
+  A backup is held to 64 MiB both ways (`MAX_BACKUP_BYTES`): no larger download
+  is read, so a hostile server can't exhaust memory, and no larger snapshot is
+  uploaded, so no backup is made that restore would refuse. A ledger kept by
+  hand stays far below it (250,000 entries with short notes come to about
+  35 MB), and since a restored ledger is read whole for every month view, the
+  cap also bounds the memory one can take.
 - **Backup** is a `VACUUM INTO` snapshot — a clean single file with no
   `-wal`/`-shm` sidecars — read into memory and `PUT`. **Restore** must **not**
   swap the live `sqlx` pool (every command holds `State<SqlitePool>`; swapping
   would mean refactoring them all). Instead it replaces table contents **in
   place, in one transaction** with `PRAGMA defer_foreign_keys = ON`: `ATTACH` the
-  downloaded file, `DELETE` then `INSERT … SELECT *` across
-  `account, category, entry, recurring_rule, rule_amount, rule_skip` (plus
-  `sqlite_sequence`, so AUTOINCREMENT counters don't collide), `COMMIT`/`DETACH`.
-  Any failure rolls back and leaves local data intact.
+  downloaded file, then `DELETE` and `INSERT … SELECT` each data table in
+  `TABLES` (plus `sqlite_sequence`, so AUTOINCREMENT counters don't collide),
+  then `COMMIT`. Any failure rolls back and leaves local data intact; the
+  connection that held the attachment is closed rather than returned to the
+  pool.
+- **A backup is validated before it replaces anything.** The downloaded file
+  is untrusted. Attaching it is the one step that reads it unchecked: SQLite
+  loads a file's statistics tables (`sqlite_stat1`/`sqlite_stat4`) as it
+  attaches it, with no switch to skip that. So until the file is known to be
+  ours it gets 60 s (`PRE_CHECK_BUDGET`, kept by a progress handler, which runs
+  between SQLite's steps, so one long step can overrun it), and SQLite as a
+  whole has a 256 MiB heap cap (`hard_heap_limit`, set at pool init): a file
+  sized to stall restore or exhaust memory is refused instead of freezing it or
+  getting the app killed. Restore then compares schema versions, first,
+  so an older backup reads as another version's rather than a stranger's file;
+  it reads the version only once `_sqlx_migrations` is a plain table with a
+  stored `version` column. Every table it reads, `sqlite_sequence` included,
+  must then have exactly this app's `CREATE` statement. Comparing the stored
+  text evaluates nothing, whereas reading a view, a virtual table or a
+  generated column runs SQL the file supplies. SQLite's `quick_check` must
+  pass on each of those tables, scoped to them, since over the whole file it
+  would evaluate the `CHECK` constraints of whatever else the file holds;
+  nothing else in it is read. No table may hold more rows than restore allows
+  (`TABLES`: 200 accounts, 500 categories, 1,000 rules, 2,000 budgets, 250,000
+  entries, and their dependents to match), no rule or budget more amount
+  breakpoints than its history may hold (99, the base amount aside), no text
+  cell longer than the domain lets that column be (notes 1,000 characters;
+  labels, names and icons 200; money, dates and codes 16; at four bytes a
+  character), and `sqlite_sequence` no more than one in-range counter per
+  table. No ledger kept by hand comes near those,
+  while past them a crafted backup could exhaust memory as it is read back, or
+  make every month view crawl, since the ledger walks each month from an
+  account's anchor (§8) over all of its rows; a cell padded past any the app
+  writes would even pass validation where the domain trims it. Every read of
+  the file's tables skips its indexes (`NOT INDEXED`), since nothing checks
+  them against their tables. The copy names each table's columns rather than
+  selecting `*`: given `*`, SQLite copies the rows of a table without foreign
+  keys as raw records, fields tacked on past the declared columns included.
+  Rules and budgets are read one row each, their amount histories aggregated
+  in the same statement, so a breakpoint never repeats its rule's note. After copying, still inside the transaction,
+  restore reads everything back through the validating constructors, which
+  also refuse membership rows under a normal account and an opening balance on
+  a summary, and refuses ids above 2^52 or AUTOINCREMENT counters outside
+  `0..=2^52` (ids cross to the frontend as JSON numbers, and one at `i64::MAX`
+  would make every later insert fail; the loaders refuse a stored id that isn't
+  positive, rather than alias it). It re-checks every summary account against
+  the membership rules (§11) and that it owns no records, then checks foreign
+  keys. Only then does it commit, so a refused backup leaves local data
+  untouched. A failure is put down to the file only when it is the file's
+  doing (damaged, not a database, a value that won't decode, a row the schema
+  refuses, or out of time); anything else (a full disk, an I/O error) keeps its
+  own error. Columns are read with `try_get`, never `get`, whose panic on an
+  undecodable value would abort the app. The commands run backups and restores
+  one at a time, each from end to end, network included, and their scratch
+  copies are readable by the app's user alone.
 - **Same-version restore only.** Restore compares `MAX(version)` in each side's
   `_sqlx_migrations` and **refuses** a backup from a different schema version
   with a clear message, rather than risk a column mismatch. Cross-version restore
@@ -297,8 +455,80 @@ Those remain future work if concurrent multi-device editing is ever needed.
   is never returned to the frontend and never logged. At rest it is plaintext
   protected by the same OS file-encryption baseline as the rest of the app's data
   (§9). Use a Nextcloud **app password** (app-scoped, revocable), not the login
-  password. OS-keychain storage is a tracked follow-up (the `keyring` crate
-  doesn't cover Android, so it isn't a clean cross-platform win today).
+  password. Saving with the password left blank keeps the stored one only
+  while the address and username are unchanged, and drops it otherwise
+  (clearing both fields disconnects): kept across a change, it would follow
+  the address to whatever server answers there. OS-keychain storage is
+  a tracked follow-up (the `keyring` crate doesn't cover Android, so it isn't a
+  clean cross-platform win today).
+- **A new server is confirmed natively.** Whatever saves the settings decides
+  where the whole database is uploaded to and restored from, and the webview
+  can save them, so a script running there that shouldn't (a compromised
+  dependency, say) could point backups at a server of its own. Saving an
+  address or username other than the stored ones, a first one included,
+  therefore asks the user first, in a dialog the OS draws outside the webview,
+  where no script can click it, reword it or cover it up (`tauri-plugin-dialog`,
+  for the shell alone: the capabilities deny the webview its commands; see
+  `confirm.rs` and `backup::save_settings`).
+  - *What it shows.* The full address in the form requests use, international
+    host names in their ASCII form so a look-alike can't pass for a familiar
+    one, and the path too, since one host can serve several Nextclouds; then
+    the username. Both must show whole and as they are, or the save is refused
+    before anything is asked: an `https://` address of at most 128 characters,
+    typed with nothing that doesn't print as itself, with no login, query or
+    fragment, a host of letters, digits, `-` and `.` (or an IPv6 literal) in
+    labels DNS can resolve, and a path of letters, digits and `-._~/` alone, so
+    an `@` or `:` can't dress the path up as a familiar host; and a username of
+    at most 64 of the characters Nextcloud allows in a user id (ASCII letters,
+    digits, spaces and `_.@-'`), so no line break, direction mark, invisible
+    character or letter from another script can disguise it. Neither can hold a
+    `%`, which the Linux dialog (`rfd`'s GTK backend) reads as a `printf`
+    format.
+  - *Its wording* is the shell's own: `src-tauri/locales/native-dialogs.json`,
+    compiled in by `build.rs`, so the webview can't change it at runtime, and
+    the OS's language, never the webview's, picks which. (On Android only the
+    first system language is known, so a user whose first language the app
+    doesn't speak sees it in English even where the app's own text is in their
+    second.) It words the consent itself, so an edit to it deserves the review
+    shell code gets; a frontend test holds its languages to the app's, and a
+    wording whose two buttons the plugin couldn't tell apart is refused rather
+    than shown.
+  - *What counts as yes.* Only the confirm button, and only a second and a half
+    or more after the dialog was asked for: a script can't press it, but it
+    could open the dialog just as the user taps where the button will appear. A
+    confirm sooner than that is refused, says why, and counts as a decline, so
+    luring taps gets no more tries than being turned down. Even then the save
+    goes through only if the stored server is still the one the question was
+    decided against, and reads and writes of `nextcloud.json` take one lock, so
+    no save slips between another's read and write. Clearing both fields
+    (disconnecting) needs no confirmation, nor does a new password for the
+    stored server: a script can still stop backups, just not redirect them.
+  - *How often it asks.* One question is asked at a time, and a dialog holds the
+    screen until it is answered: one left unanswered for two minutes counts as
+    no but keeps the screen, until it has been up for ten minutes, past which it
+    is taken to be gone (the OS can take one away without answering) and another
+    may open. After three declines in a row the app stops asking for ten
+    minutes, each further decline doubling that up to a day, until a server is
+    confirmed. Both run by the wall clock, since a phone's monotonic clock stops
+    while it sleeps, and a clock set back further than either lasts ends it
+    rather than stretching it. A dialog that couldn't be shown is an error, not
+    a decline, except on mobile, where the plugin reports one as a press of
+    Cancel.
+  - *Accepted limits.* A server saved before this check existed is kept as it
+    is, unconfirmed and unchecked, until it is changed. A dialog past its two
+    minutes stays on screen, since the plugin can't close it, but confirming it
+    saves nothing. A script that lets dialogs lapse holds off setting up a
+    server for as long as the pause lasts, or until the app restarts. The read
+    time is counted from the request to show the dialog, not from when it
+    appears, and a script can keep the main thread busy (Tauri's own sync
+    commands, the IPC requests themselves), so the dialog may appear with some
+    of it spent: a partial defence. The Settings screen's side of a declined
+    save (reporting it, keeping the typed password) has no automated test, as
+    the frontend has no DOM test harness. And the dialog guards the server, not
+    the user's reading of it: a script could swap its own server in for the one
+    the user just typed, and only the dialog's address line would tell.
+  - *The last backup* counts only for the server it was uploaded to, so moving
+    the settings mid-upload doesn't credit the new server with it.
 - **HTTPS only.** The WebDAV client (`src-tauri/src/webdav.rs`) rejects non-
   `https://` addresses and authenticates with HTTP Basic. TLS is `reqwest` +
   **rustls with the `ring` provider** (not the default `aws-lc-rs`), chosen so the
@@ -324,9 +554,22 @@ deliberate, narrow amendment to the "no cross-account aggregation" stance of §2
   rules, and `core` fixes its opening balance to zero. Membership is a
   many-to-many relation (`account_member`), edited **on the summary account**.
 - **Same-currency only.** A summary has a fixed currency; every member must match
-  it (validated in the command layer, which `core` can't do — `core` only checks
-  structural rules: a normal account has no members, a summary has a zero balance
-  and distinct members). No nesting: members must be normal accounts.
+  it. No nesting: members must be normal accounts. These cross-account rules
+  (plus: at least one member, each existing, none the summary itself) live in
+  `core` as `Account::check_members`, which takes a way to look the members up;
+  the constructors can't see other accounts, so they check only structural
+  rules: a normal account has no members, a summary has a zero balance and
+  distinct members. The command layer applies it whenever a summary is saved,
+  and restore to every summary in a backup (§10). Each account command runs its
+  checks (a summary's members, whether an account belongs to one) and its write
+  in one transaction that holds the write lock from its start
+  (`db::begin_write`, `BEGIN IMMEDIATE`), so no other write can land between
+  them: two account changes made at once can't leave a summary with no members,
+  or over accounts of mixed currencies. A transfer, which needs both its
+  accounts in one currency, does the same. Budgets lean on the database instead,
+  which refuses a second budget for a category; the check that an account isn't
+  a summary, made before an entry, rule or budget is written, still runs outside
+  the lock (§9).
 - **Derived figures.** The summary's `MonthSummary` is the field-wise sum of its
   members' summaries (`core::combine_summaries`); its entry list, occurrences, and
   category stats are the members' rows concatenated and run through the existing
@@ -466,3 +709,48 @@ free     = available − reserved
   state declaratively: it needs a table rebuild plus a command-layer overlap
   check. Also deferred: envelope rollover, budgets spanning several categories,
   non-monthly periods.
+
+---
+
+## 13. Balance today — 🟢 DONE (implemented)
+
+Everyday use exposed drift: forget to record one purchase and the ledger quietly
+parts ways with the real account, with nothing to compare it against — every
+figure in the month bar is a month-end projection. **Balance today** is that
+comparison point: what the account should hold *right now* if every transaction
+was recorded. When it disagrees with the bank, something is missing (or extra),
+and the size of the gap says what to look for.
+
+```
+balance_as_of(date) = opening_balance + Σ entries and occurrences dated ≤ date
+```
+
+- **The §1 prefix sum at day granularity.** `core::balance_as_of` is
+  `balance_at_end_of` for the previous month plus the current month's activity up
+  to and **including** `date`; on a month's last day the two agree exactly
+  (unit-tested). An entry dated today counts; one pre-recorded for later this
+  month doesn't yet — which is exactly how today's figure can differ from
+  `available`. A recurring occurrence counts from its scheduled day, a skipped
+  one never. A date before the anchor month yields the opening balance, as in §1.
+  Budgets play no part: like `available`, it is the real balance, never `free`.
+- **Current month only.** The bar shows it above Income only while viewing the
+  month that contains today; a point-in-time figure beside another month's
+  totals would read as belonging to that month.
+- **Its own row, its own state.** The figure has its own query, and while it
+  loads or if it fails only its row says so (`…` / `—`): the month's figures
+  never wait for it or vanish with it. Unlike `free`, nothing else in the bar is
+  derived from it, so a split state can't leave two figures contradicting.
+- **"Today" comes from the device clock, via the frontend.** `core` has no clock
+  by design, and the shell can't reliably read the local offset (`time`'s
+  `now_local` refuses once the process is multithreaded), so the frontend passes
+  its local date to the `balance_as_of` command. `useToday` re-reads it at local
+  midnight and whenever the app returns to the foreground (a backgrounded
+  webview suspends its timers); the date is part of the query key, so a new day
+  fetches afresh, and once the month turns the row leaves the old month's bar.
+- **Summary accounts** sum their members' balances, each against its own opening
+  balance and anchor — the same per-member rule as §11.
+- **Display only.** Nothing is stored and no money moves. It stays in-app: the
+  widget boundary (§6) is unchanged, so no absolute figure reaches the OS.
+- **Deferred.** A *reconcile* action — enter the bank's figure, book the
+  difference as a correction entry dated today — would close the loop on fixing
+  drift; for now that entry is added by hand.

@@ -4,12 +4,25 @@ use std::path::Path;
 use std::time::Duration;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
-use sqlx::SqlitePool;
+use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::error::RepoError;
 
 /// Filename of the `SQLite` database inside the app-data directory.
-const DB_FILENAME: &str = "talea.sqlite3";
+pub(crate) const DB_FILENAME: &str = "talea.sqlite3";
+
+/// The most memory `SQLite` may allocate, in bytes, across every connection in
+/// the process (256 MiB). Restore attaches a downloaded file before anything in
+/// it can be checked, and attaching makes `SQLite` load that file's statistics
+/// tables, which a crafted file can size to gigabytes. Under this cap the attach
+/// fails as out of memory, and the restore with it, instead of the device
+/// killing the app. Real use, a large restore included, stays far below it.
+/// It narrows that failure rather than removing it: while such an attach holds
+/// most of the cap, a query on another connection whose row sqlx can't copy
+/// aborts the app (sqlx `expect`s that copy to succeed). A single oversized
+/// request fails without taking anything, so this needs a file sized to fill
+/// the cap without overrunning it, and a query landing in that moment.
+const HEAP_LIMIT_BYTES: &str = "268435456";
 
 /// Opens (creating if needed) the database under `app_data_dir`, applies
 /// pragmas, and runs all pending migrations.
@@ -36,7 +49,9 @@ pub async fn init_pool(app_data_dir: &Path) -> Result<SqlitePool, RepoError> {
         // WAL replay still recovers from without corruption). Don't "upgrade" to
         // Full without reason.
         .synchronous(SqliteSynchronous::Normal)
-        .busy_timeout(Duration::from_secs(5));
+        .busy_timeout(Duration::from_secs(5))
+        // Process-wide: setting it per connection only repeats it.
+        .pragma("hard_heap_limit", HEAP_LIMIT_BYTES);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(4)
@@ -46,4 +61,20 @@ pub async fn init_pool(app_data_dir: &Path) -> Result<SqlitePool, RepoError> {
     sqlx::migrate!().run(&pool).await?;
 
     Ok(pool)
+}
+
+/// Opens a transaction holding the database's write lock from its first
+/// statement (`BEGIN IMMEDIATE`). A command that checks other rows before it
+/// writes (an account's summary memberships, a transfer's two currencies) runs
+/// both in one of these: in a plain transaction, which takes the lock only at
+/// its first write, another write could land between the check and the write
+/// and leave, say, a summary with no members. Another write waits on the
+/// pool's busy timeout meanwhile.
+///
+/// # Errors
+/// [`RepoError`] if the lock can't be had within the busy timeout.
+pub(crate) async fn begin_write(
+    pool: &SqlitePool,
+) -> Result<Transaction<'static, Sqlite>, RepoError> {
+    Ok(pool.begin_with("BEGIN IMMEDIATE").await?)
 }

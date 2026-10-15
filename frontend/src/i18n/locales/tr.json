@@ -24,7 +24,8 @@
     "ringSpent": "Bu ayki kaynakların %{{percent}} kadarı bağlandı",
     "ringRemaining": "Bu ayki kaynakların %{{percent}} kadarı serbest",
     "combinedHint": "Dahil edilen hesapların birleşik, salt okunur görünümü.",
-    "free": "Serbest harcanabilir"
+    "free": "Serbest harcanabilir",
+    "balanceToday": "Bugünkü bakiye"
   },
   "month": {
     "navigation": "Ay gezinmesi",
@@ -151,8 +152,10 @@
     "backupRun": "Şimdi yedekle",
     "backupRestore": "Geri yükle",
     "backupSaved": "Ayarlar kaydedildi.",
+    "backupServerDeclined": "Kaydedilmedi: yeni sunucu onaylanmadı.",
     "backupTestOk": "Bağlantı çalışıyor.",
     "backupRunOk": "Nextcloud'a yedeklendi.",
+    "backupRunElsewhere": "Önceki sunucuya yedeklendi: ayarlar yükleme sırasında değişti.",
     "backupRestoreOk": "Nextcloud'dan geri yüklendi.",
     "lastBackup": "Son yedek: {{when}}",
     "lastBackupNever": "Henüz yedek yok.",

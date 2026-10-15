@@ -14,11 +14,12 @@ pub mod domain;
 pub mod money;
 
 pub use domain::{
-    balance_at_end_of, budget_status, combine_summaries, expenses_by_category, month_summary,
-    reserved_in, summaries_for_range, Account, AccountId, AccountKind, AmountSegment, Budget,
-    BudgetId, BudgetSegment, BudgetStatus, Category, CategoryExpense, CategoryIcon, CategoryId,
-    Currency, DomainError, Entry, EntryId, EntryKind, FreqUnit, Frequency, Month, MonthSummary,
-    RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
+    balance_as_of, balance_at_end_of, budget_status, combine_summaries, expenses_by_category,
+    month_summary, reserved_in, summaries_for_range, Account, AccountId, AccountKind,
+    AmountSegment, Budget, BudgetId, BudgetSegment, BudgetStatus, Category, CategoryExpense,
+    CategoryIcon, CategoryId, Currency, DomainError, Entry, EntryId, EntryKind, FreqUnit,
+    Frequency, Month, MonthSummary, RecurringRule, RecurringRuleId, RuleEnd, VirtualEntry,
+    MAX_AMOUNT_SEGMENTS, MAX_LABEL_LEN, MAX_NOTE_LEN,
 };
 pub use money::{Money, MoneyError};
 
@@ -35,6 +36,6 @@ mod tests {
 
     #[test]
     fn version_is_reported() {
-        assert!(!version().is_empty());
+        assert_ne!(version(), "");
     }
 }

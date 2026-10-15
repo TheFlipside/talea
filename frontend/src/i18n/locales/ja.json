@@ -24,7 +24,8 @@
     "ringSpent": "今月の資金の{{percent}}%を使用・確保済み",
     "ringRemaining": "今月の資金の{{percent}}%が自由に使えます",
     "combinedHint": "対象口座を合算した読み取り専用の表示です。",
-    "free": "自由に使える額"
+    "free": "自由に使える額",
+    "balanceToday": "今日の残高"
   },
   "month": {
     "navigation": "月の移動",
@@ -151,8 +152,10 @@
     "backupRun": "今すぐバックアップ",
     "backupRestore": "復元",
     "backupSaved": "設定を保存しました。",
+    "backupServerDeclined": "保存されていません：新しいサーバーが確認されませんでした。",
     "backupTestOk": "接続できました。",
     "backupRunOk": "Nextcloud にバックアップしました。",
+    "backupRunElsewhere": "以前のサーバーにバックアップしました。アップロード中に設定が変更されました。",
     "backupRestoreOk": "Nextcloud から復元しました。",
     "lastBackup": "前回のバックアップ: {{when}}",
     "lastBackupNever": "まだバックアップがありません。",

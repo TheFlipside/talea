@@ -1,11 +1,12 @@
 //! Entry persistence.
 
 use sqlx::SqlitePool;
-use talea_core::{AccountId, CategoryId, Entry, EntryId, Money};
+use talea_core::{AccountId, CategoryId, Entry, EntryId};
 
 use crate::error::RepoError;
 use crate::repo::map::{
     date_from_text, date_to_text, id_from_rowid, id_to_i64, kind_from_text, kind_to_text,
+    money_from_text,
 };
 
 #[allow(clippy::too_many_arguments)] // mirrors the row columns; private helper
@@ -18,14 +19,15 @@ fn row_to_entry(
     note: Option<String>,
     category_id: Option<i64>,
 ) -> Result<Entry, RepoError> {
-    let amount = Money::try_from_str(amount)
-        .map_err(|e| RepoError::Corrupt(format!("invalid money {amount:?}: {e}")))?;
+    let amount = money_from_text(amount)?;
     let kind = kind_from_text(kind)?;
     let date = date_from_text(date)?;
-    let category = category_id.map(|c| CategoryId::new(id_from_rowid(c)));
+    let category = category_id
+        .map(|c| id_from_rowid(c).map(CategoryId::new))
+        .transpose()?;
     Entry::new(
-        EntryId::new(id_from_rowid(id)),
-        AccountId::new(id_from_rowid(account_id)),
+        EntryId::new(id_from_rowid(id)?),
+        AccountId::new(id_from_rowid(account_id)?),
         amount,
         kind,
         date,

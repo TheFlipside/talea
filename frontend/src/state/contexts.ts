@@ -3,9 +3,20 @@
 
 import { createContext, useContext } from 'react';
 
-import type { AccountId, Month } from '../api/types';
+import type { AccountId, IsoDate, Month } from '../api/types';
 import type { RingMode } from '../lib/ring';
 import type { ThemePref } from '../lib/theme';
+
+/** Today's local date, from the app's single clock (`useTodayClock`). */
+export const TodayContext = createContext<IsoDate | null>(null);
+
+export function useToday(): IsoDate {
+  const value = useContext(TodayContext);
+  if (value === null) {
+    throw new Error('useToday must be used within TodayProvider');
+  }
+  return value;
+}
 
 export interface ActiveAccountValue {
   activeAccountId: AccountId | null;

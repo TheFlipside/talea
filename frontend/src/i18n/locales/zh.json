@@ -24,7 +24,8 @@
     "ringSpent": "本月资金已使用或预留 {{percent}}%",
     "ringRemaining": "本月资金可自由支配 {{percent}}%",
     "combinedHint": "所含账户的合并只读视图。",
-    "free": "可自由支配"
+    "free": "可自由支配",
+    "balanceToday": "今日余额"
   },
   "month": {
     "navigation": "月份导航",
@@ -151,8 +152,10 @@
     "backupRun": "立即备份",
     "backupRestore": "恢复",
     "backupSaved": "设置已保存。",
+    "backupServerDeclined": "未保存：新服务器未获确认。",
     "backupTestOk": "连接正常。",
     "backupRunOk": "已备份到 Nextcloud。",
+    "backupRunElsewhere": "已备份到之前的服务器：上传期间设置已更改。",
     "backupRestoreOk": "已从 Nextcloud 恢复。",
     "lastBackup": "上次备份：{{when}}",
     "lastBackupNever": "尚无备份。",

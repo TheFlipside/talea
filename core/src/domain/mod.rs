@@ -14,7 +14,8 @@
 //! - [`Budget`] — a planned monthly amount for one [`Category`], consumed by
 //!   that month's spending in it ([`budget_status`], [`reserved_in`]).
 //! - [`ledger`] — carry-over math: [`MonthSummary`], [`month_summary`],
-//!   [`summaries_for_range`], [`balance_at_end_of`].
+//!   [`summaries_for_range`], [`balance_at_end_of`], and the day-granular
+//!   [`balance_as_of`].
 //!
 //! Every type with invariants is built through a validating constructor and
 //! deserializes through that same path, so malformed input (over IPC or
@@ -37,10 +38,11 @@ pub use account::{Account, AccountKind, Currency};
 pub use budget::{budget_status, reserved_in, Budget, BudgetSegment, BudgetStatus};
 pub use category::{Category, CategoryIcon};
 pub use entry::{Entry, EntryKind};
-pub use error::{DomainError, MAX_LABEL_LEN, MAX_NOTE_LEN};
+pub use error::{DomainError, MAX_AMOUNT_SEGMENTS, MAX_LABEL_LEN, MAX_NOTE_LEN};
 pub use ids::{AccountId, BudgetId, CategoryId, EntryId, RecurringRuleId};
 pub use ledger::{
-    balance_at_end_of, combine_summaries, month_summary, summaries_for_range, MonthSummary,
+    balance_as_of, balance_at_end_of, combine_summaries, month_summary, summaries_for_range,
+    MonthSummary,
 };
 pub use month::Month;
 pub use recurring::{AmountSegment, FreqUnit, Frequency, RecurringRule, RuleEnd, VirtualEntry};
