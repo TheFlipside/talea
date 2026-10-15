@@ -59,11 +59,19 @@ pub(crate) async fn validate_membership(
 
 /// Errors if `account_id` names a summary account — they hold no records, so
 /// every write path rejects them (defense in depth behind the hidden UI).
-pub(crate) async fn reject_if_summary(
-    pool: &SqlitePool,
+///
+/// Writers run it in the transaction that writes (see [`db::begin_write`]): a
+/// restore committed between the check and the write could bring the id back
+/// as a summary, which would then own a record, and restore refuses every
+/// backup of that.
+pub(crate) async fn reject_if_summary<'e, E>(
+    executor: E,
     account_id: AccountId,
-) -> Result<(), CommandError> {
-    let account = repo::account::get(pool, account_id)
+) -> Result<(), CommandError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
+    let account = repo::account::get(executor, account_id)
         .await?
         .ok_or(CommandError::NotFound)?;
     if account.kind() == AccountKind::Summary {
@@ -253,9 +261,21 @@ pub async fn create_entry(
     state: State<'_, SqlitePool>,
     entry: NewEntry,
 ) -> Result<Entry, CommandError> {
+    create_entry_inner(state.inner(), entry).await
+}
+
+/// [`create_entry`], checking its account and inserting in one write
+/// transaction (see [`reject_if_summary`]).
+pub(crate) async fn create_entry_inner(
+    pool: &SqlitePool,
+    entry: NewEntry,
+) -> Result<Entry, CommandError> {
     let draft = entry.build()?;
-    reject_if_summary(state.inner(), draft.account_id()).await?;
-    Ok(repo::entry::insert(state.inner(), &draft).await?)
+    let mut tx = db::begin_write(pool).await?;
+    reject_if_summary(&mut *tx, draft.account_id()).await?;
+    let saved = repo::entry::insert(&mut *tx, &draft).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(saved)
 }
 
 /// Lists all entries for an account.
@@ -293,9 +313,20 @@ pub async fn update_entry(
     state: State<'_, SqlitePool>,
     entry: Entry,
 ) -> Result<Entry, CommandError> {
+    update_entry_inner(state.inner(), entry).await
+}
+
+/// [`update_entry`], checking its account and updating in one write
+/// transaction (see [`reject_if_summary`]).
+pub(crate) async fn update_entry_inner(
+    pool: &SqlitePool,
+    entry: Entry,
+) -> Result<Entry, CommandError> {
+    let mut tx = db::begin_write(pool).await?;
     // Reject moving an entry onto a summary account (a crafted `account_id`).
-    reject_if_summary(state.inner(), entry.account_id()).await?;
-    require_found(repo::entry::update(state.inner(), &entry).await?)?;
+    reject_if_summary(&mut *tx, entry.account_id()).await?;
+    require_found(repo::entry::update(&mut *tx, &entry).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
     Ok(entry)
 }
 
@@ -393,9 +424,21 @@ pub async fn create_rule(
     state: State<'_, SqlitePool>,
     rule: NewRule,
 ) -> Result<RecurringRule, CommandError> {
+    create_rule_inner(state.inner(), rule).await
+}
+
+/// [`create_rule`], checking its account and inserting in one write
+/// transaction (see [`reject_if_summary`]).
+pub(crate) async fn create_rule_inner(
+    pool: &SqlitePool,
+    rule: NewRule,
+) -> Result<RecurringRule, CommandError> {
     let draft = rule.build()?;
-    reject_if_summary(state.inner(), draft.account_id()).await?;
-    Ok(repo::rule::insert(state.inner(), &draft).await?)
+    let mut tx = db::begin_write(pool).await?;
+    reject_if_summary(&mut *tx, draft.account_id()).await?;
+    let saved = repo::rule::insert(&mut tx, &draft).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(saved)
 }
 
 /// Lists all recurring rules for an account.
@@ -419,8 +462,19 @@ pub async fn update_rule(
     state: State<'_, SqlitePool>,
     rule: RecurringRule,
 ) -> Result<RecurringRule, CommandError> {
-    reject_if_summary(state.inner(), rule.account_id()).await?;
-    require_found(repo::rule::update(state.inner(), &rule).await?)?;
+    update_rule_inner(state.inner(), rule).await
+}
+
+/// [`update_rule`], checking its account and updating in one write
+/// transaction (see [`reject_if_summary`]).
+pub(crate) async fn update_rule_inner(
+    pool: &SqlitePool,
+    rule: RecurringRule,
+) -> Result<RecurringRule, CommandError> {
+    let mut tx = db::begin_write(pool).await?;
+    reject_if_summary(&mut *tx, rule.account_id()).await?;
+    require_found(repo::rule::update(&mut tx, &rule).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
     Ok(rule)
 }
 
@@ -443,21 +497,26 @@ pub async fn delete_rule(
 /// exist, and the account must not already budget that category.
 ///
 /// `excluding` is the budget being updated, so an unchanged row doesn't collide
-/// with itself. The `UNIQUE (account_id, category_id)` constraint remains the
-/// race-proof backstop behind this friendlier check.
+/// with itself. Run in the write transaction (see [`reject_if_summary`]); the
+/// `UNIQUE (account_id, category_id)` constraint backs the duplicate check.
 async fn validate_budget(
-    pool: &SqlitePool,
+    tx: &mut Transaction<'_, Sqlite>,
     budget: &Budget,
     excluding: Option<BudgetId>,
 ) -> Result<(), CommandError> {
-    reject_if_summary(pool, budget.account_id()).await?;
-    if !repo::category::exists(pool, budget.category_id()).await? {
+    reject_if_summary(&mut **tx, budget.account_id()).await?;
+    if !repo::category::exists(&mut **tx, budget.category_id()).await? {
         return Err(CommandError::Validation(
             "that category no longer exists".to_owned(),
         ));
     }
-    if repo::budget::exists_for_category(pool, budget.account_id(), budget.category_id(), excluding)
-        .await?
+    if repo::budget::exists_for_category(
+        &mut **tx,
+        budget.account_id(),
+        budget.category_id(),
+        excluding,
+    )
+    .await?
     {
         return Err(CommandError::Validation(
             "this category already has a budget on this account".to_owned(),
@@ -486,8 +545,11 @@ pub(crate) async fn create_budget_inner(
     budget: NewBudget,
 ) -> Result<Budget, CommandError> {
     let draft = budget.build()?;
-    validate_budget(pool, &draft, None).await?;
-    Ok(repo::budget::insert(pool, &draft).await?)
+    let mut tx = db::begin_write(pool).await?;
+    validate_budget(&mut tx, &draft, None).await?;
+    let saved = repo::budget::insert(&mut tx, &draft).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(saved)
 }
 
 /// Lists an account's budgets. A summary account concatenates its members'.
@@ -528,8 +590,10 @@ pub(crate) async fn update_budget_inner(
 ) -> Result<Budget, CommandError> {
     // Checked against the *payload's* account_id, so a crafted call can't move a
     // budget onto a summary account (as `update_entry` does for entries).
-    validate_budget(pool, &budget, Some(budget.id())).await?;
-    require_found(repo::budget::update(pool, &budget).await?)?;
+    let mut tx = db::begin_write(pool).await?;
+    validate_budget(&mut tx, &budget, Some(budget.id())).await?;
+    require_found(repo::budget::update(&mut tx, &budget).await?)?;
+    tx.commit().await.map_err(RepoError::from)?;
     Ok(budget)
 }
 
@@ -892,12 +956,15 @@ pub async fn skip_occurrence(
 
 /// Confirms a rule belongs to `account_id` before a per-occurrence mutation,
 /// so a crafted call can't touch another account's rule.
-async fn require_rule_in_account(
-    pool: &SqlitePool,
+async fn require_rule_in_account<'e, E>(
+    executor: E,
     rule_id: RecurringRuleId,
     account_id: AccountId,
-) -> Result<(), CommandError> {
-    if repo::rule::belongs_to(pool, rule_id, account_id).await? {
+) -> Result<(), CommandError>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
+    if repo::rule::belongs_to(executor, rule_id, account_id).await? {
         Ok(())
     } else {
         Err(CommandError::NotFound)
@@ -910,9 +977,12 @@ pub(crate) async fn skip_occurrence_inner(
     account_id: AccountId,
     occurrence: OccurrenceRef,
 ) -> Result<(), CommandError> {
-    reject_if_summary(pool, account_id).await?;
-    require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
-    Ok(repo::skip::add(pool, occurrence.rule_id, occurrence.date).await?)
+    let mut tx = db::begin_write(pool).await?;
+    reject_if_summary(&mut *tx, account_id).await?;
+    require_rule_in_account(&mut *tx, occurrence.rule_id, account_id).await?;
+    repo::skip::add(&mut *tx, occurrence.rule_id, occurrence.date).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(())
 }
 
 /// "Detaches" a single occurrence into an editable standalone entry: records a
@@ -940,13 +1010,16 @@ pub(crate) async fn detach_occurrence_inner(
     occurrence: OccurrenceRef,
     entry: NewEntry,
 ) -> Result<Entry, CommandError> {
-    reject_if_summary(pool, account_id).await?;
-    require_rule_in_account(pool, occurrence.rule_id, account_id).await?;
     let draft = entry.build()?;
+    let mut tx = db::begin_write(pool).await?;
+    reject_if_summary(&mut *tx, account_id).await?;
+    require_rule_in_account(&mut *tx, occurrence.rule_id, account_id).await?;
     // The detached entry carries its own `account_id`; never let it land on a
     // summary account (a crafted payload could differ from `account_id`).
-    reject_if_summary(pool, draft.account_id()).await?;
-    Ok(repo::skip::detach(pool, occurrence.rule_id, occurrence.date, &draft).await?)
+    reject_if_summary(&mut *tx, draft.account_id()).await?;
+    let saved = repo::skip::detach(&mut tx, occurrence.rule_id, occurrence.date, &draft).await?;
+    tx.commit().await.map_err(RepoError::from)?;
+    Ok(saved)
 }
 
 // ---- Nextcloud backup / restore --------------------------------------------

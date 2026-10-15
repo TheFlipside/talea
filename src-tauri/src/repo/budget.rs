@@ -84,13 +84,16 @@ fn end_columns(budget: &Budget) -> (Option<i64>, Option<i64>) {
 }
 
 /// Inserts a validated draft budget (and any amount breakpoints) in one
-/// transaction, returning it with the assigned id.
+/// transaction (a savepoint, given one), returning it with the assigned id.
 ///
 /// # Errors
 /// [`RepoError`] on a database error — including the `UNIQUE (account_id,
 /// category_id)` constraint, which backstops the command layer's friendlier
 /// duplicate check.
-pub async fn insert(pool: &SqlitePool, draft: &Budget) -> Result<Budget, RepoError> {
+pub async fn insert<'a, A>(conn: A, draft: &Budget) -> Result<Budget, RepoError>
+where
+    A: sqlx::Acquire<'a, Database = sqlx::Sqlite>,
+{
     let account_id = id_to_i64(draft.account_id().get())?;
     let category_id = id_to_i64(draft.category_id().get())?;
     let amount = draft.base_amount().to_string();
@@ -98,7 +101,7 @@ pub async fn insert(pool: &SqlitePool, draft: &Budget) -> Result<Budget, RepoErr
     let (end_year, end_month) = end_columns(draft);
     let segments = extra_segments(draft);
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
     let rec = sqlx::query!(
         r#"INSERT INTO budget
                (account_id, category_id, amount, start_year, start_month,
@@ -209,12 +212,15 @@ where
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn exists_for_category(
-    pool: &SqlitePool,
+pub async fn exists_for_category<'e, E>(
+    executor: E,
     account_id: AccountId,
     category_id: CategoryId,
     excluding: Option<BudgetId>,
-) -> Result<bool, RepoError> {
+) -> Result<bool, RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let account_key = id_to_i64(account_id.get())?;
     let category_key = id_to_i64(category_id.get())?;
     // `-1` can never be a rowid, so "exclude nothing" needs no second query.
@@ -230,18 +236,21 @@ pub async fn exists_for_category(
         category_key,
         exclude
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await?;
 
     Ok(row.is_some())
 }
 
-/// Updates a budget (base fields and full amount history) in one transaction.
-/// Returns `true` if the budget existed.
+/// Updates a budget (base fields and full amount history) in one transaction
+/// (a savepoint, given one). Returns `true` if the budget existed.
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn update(pool: &SqlitePool, budget: &Budget) -> Result<bool, RepoError> {
+pub async fn update<'a, A>(conn: A, budget: &Budget) -> Result<bool, RepoError>
+where
+    A: sqlx::Acquire<'a, Database = sqlx::Sqlite>,
+{
     let id = id_to_i64(budget.id().get())?;
     let account_id = id_to_i64(budget.account_id().get())?;
     let category_id = id_to_i64(budget.category_id().get())?;
@@ -250,7 +259,7 @@ pub async fn update(pool: &SqlitePool, budget: &Budget) -> Result<bool, RepoErro
     let (end_year, end_month) = end_columns(budget);
     let segments = extra_segments(budget);
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
     let result = sqlx::query!(
         r#"UPDATE budget
            SET account_id = ?, category_id = ?, amount = ?, start_year = ?,

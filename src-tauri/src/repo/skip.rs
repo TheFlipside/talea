@@ -5,7 +5,6 @@
 //! "Editing" an occurrence is a skip plus a normal standalone entry carrying the
 //! edited values, written together so the two never diverge.
 
-use sqlx::SqlitePool;
 use talea_core::{AccountId, Entry, RecurringRuleId};
 use time::Date;
 
@@ -16,7 +15,10 @@ use crate::repo::map::{date_from_text, date_to_text, id_from_rowid, id_to_i64};
 ///
 /// # Errors
 /// [`RepoError`] on a database error (e.g. a non-existent `rule_id`).
-pub async fn add(pool: &SqlitePool, rule_id: RecurringRuleId, date: Date) -> Result<(), RepoError> {
+pub async fn add<'e, E>(executor: E, rule_id: RecurringRuleId, date: Date) -> Result<(), RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let id = id_to_i64(rule_id.get())?;
     let date = date_to_text(date);
     sqlx::query!(
@@ -24,7 +26,7 @@ pub async fn add(pool: &SqlitePool, rule_id: RecurringRuleId, date: Date) -> Res
         id,
         date
     )
-    .execute(pool)
+    .execute(executor)
     .await?;
     Ok(())
 }
@@ -62,20 +64,24 @@ where
 }
 
 /// Atomically "detaches" an occurrence: records the skip and inserts the
-/// standalone replacement entry in one transaction, returning the new entry.
+/// standalone replacement entry in one transaction (a savepoint, given one),
+/// returning the new entry.
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn detach(
-    pool: &SqlitePool,
+pub async fn detach<'a, A>(
+    conn: A,
     rule_id: RecurringRuleId,
     date: Date,
     draft: &Entry,
-) -> Result<Entry, RepoError> {
+) -> Result<Entry, RepoError>
+where
+    A: sqlx::Acquire<'a, Database = sqlx::Sqlite>,
+{
     let id = id_to_i64(rule_id.get())?;
     let date_text = date_to_text(date);
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
     // Plain INSERT (not OR IGNORE): if this occurrence was already skipped, the
     // PK conflict aborts the transaction so we never create a second standalone
     // entry for one occurrence. (The UI can't reach this — a skipped occurrence

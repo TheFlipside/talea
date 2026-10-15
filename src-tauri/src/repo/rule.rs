@@ -85,11 +85,14 @@ fn extra_segments(rule: &RecurringRule) -> Vec<(String, String)> {
 }
 
 /// Inserts a validated draft rule (and any amount breakpoints) in one
-/// transaction, returning it with the assigned id.
+/// transaction (a savepoint, given one), returning it with the assigned id.
 ///
 /// # Errors
 /// [`RepoError`] on a database error (e.g. a non-existent `account_id`).
-pub async fn insert(pool: &SqlitePool, draft: &RecurringRule) -> Result<RecurringRule, RepoError> {
+pub async fn insert<'a, A>(conn: A, draft: &RecurringRule) -> Result<RecurringRule, RepoError>
+where
+    A: sqlx::Acquire<'a, Database = sqlx::Sqlite>,
+{
     let account_id = id_to_i64(draft.account_id().get())?;
     let amount = draft.base_amount().to_string();
     let kind = kind_to_text(draft.kind());
@@ -104,7 +107,7 @@ pub async fn insert(pool: &SqlitePool, draft: &RecurringRule) -> Result<Recurrin
     let freq_interval = i64::from(draft.frequency().interval());
     let segments = extra_segments(draft);
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
     let rec = sqlx::query!(
         r#"INSERT INTO recurring_rule
                (account_id, amount, kind, note, category_id, start_date,
@@ -213,11 +216,14 @@ where
 }
 
 /// Updates a recurring rule (base fields and full amount history) in one
-/// transaction. Returns `true` if the rule existed.
+/// transaction (a savepoint, given one). Returns `true` if the rule existed.
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn update(pool: &SqlitePool, rule: &RecurringRule) -> Result<bool, RepoError> {
+pub async fn update<'a, A>(conn: A, rule: &RecurringRule) -> Result<bool, RepoError>
+where
+    A: sqlx::Acquire<'a, Database = sqlx::Sqlite>,
+{
     let id = id_to_i64(rule.id().get())?;
     let account_id = id_to_i64(rule.account_id().get())?;
     let amount = rule.base_amount().to_string();
@@ -230,7 +236,7 @@ pub async fn update(pool: &SqlitePool, rule: &RecurringRule) -> Result<bool, Rep
     let freq_interval = i64::from(rule.frequency().interval());
     let segments = extra_segments(rule);
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
     let result = sqlx::query!(
         r#"UPDATE recurring_rule
            SET account_id = ?, amount = ?, kind = ?, note = ?, category_id = ?,
@@ -281,11 +287,14 @@ pub async fn update(pool: &SqlitePool, rule: &RecurringRule) -> Result<bool, Rep
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn belongs_to(
-    pool: &SqlitePool,
+pub async fn belongs_to<'e, E>(
+    executor: E,
     id: RecurringRuleId,
     account_id: AccountId,
-) -> Result<bool, RepoError> {
+) -> Result<bool, RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let id = id_to_i64(id.get())?;
     let account_id = id_to_i64(account_id.get())?;
     let row = sqlx::query!(
@@ -293,7 +302,7 @@ pub async fn belongs_to(
         id,
         account_id
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await?;
     Ok(row.is_some())
 }

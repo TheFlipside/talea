@@ -74,10 +74,13 @@ where
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn exists(pool: &SqlitePool, id: CategoryId) -> Result<bool, RepoError> {
+pub async fn exists<'e, E>(executor: E, id: CategoryId) -> Result<bool, RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let key = id_to_i64(id.get())?;
     let row = sqlx::query!(r#"SELECT 1 AS "one!" FROM category WHERE id = ?"#, key)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?;
     Ok(row.is_some())
 }

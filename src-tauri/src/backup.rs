@@ -355,10 +355,32 @@ fn try_read_config(app_data_dir: &Path) -> Option<NextcloudConfig> {
 fn save_config(app_data_dir: &Path, config: &NextcloudConfig) -> Result<(), CommandError> {
     let bytes = serde_json::to_vec_pretty(config)
         .map_err(|_| CommandError::Backup("Couldn't save the backup settings.".into()))?;
-    write_private(&config_path(app_data_dir), &bytes).map_err(|err| {
-        log::error!("nextcloud config write failed: {err}");
-        CommandError::Backup("Couldn't save the backup settings.".into())
-    })
+    let path = config_path(app_data_dir);
+    // Written beside it, synced, and renamed over it, so a crash mid-write
+    // leaves the old config whole instead of a truncated one without the
+    // password. A temporary file a crash left behind, the next save replaces.
+    let temp = path.with_extension("json.tmp");
+    write_private(&temp, &bytes)
+        .and_then(|()| {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&temp)?
+                .sync_all()
+        })
+        .and_then(|()| std::fs::rename(&temp, &path))
+        .map_err(|err| {
+            // A save that errors leaves no copy of the password behind.
+            let _ = std::fs::remove_file(&temp);
+            log::error!("nextcloud config write failed: {err}");
+            CommandError::Backup("Couldn't save the backup settings.".into())
+        })?;
+    // Best effort: until the directory is synced, a power cut can undo the
+    // rename and bring the old config back whole. Windows can't sync one.
+    #[cfg(unix)]
+    if let Ok(dir) = std::fs::File::open(app_data_dir) {
+        let _ = dir.sync_all();
+    }
+    Ok(())
 }
 
 /// Writes the `change` [`save_settings`] has checked, and confirmed if it

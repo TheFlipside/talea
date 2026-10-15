@@ -121,7 +121,10 @@ where
 ///
 /// # Errors
 /// [`RepoError`] on a database error.
-pub async fn update(pool: &SqlitePool, entry: &Entry) -> Result<bool, RepoError> {
+pub async fn update<'e, E>(executor: E, entry: &Entry) -> Result<bool, RepoError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let id = id_to_i64(entry.id().get())?;
     let account_id = id_to_i64(entry.account_id().get())?;
     let amount = entry.amount().to_string();
@@ -145,7 +148,7 @@ pub async fn update(pool: &SqlitePool, entry: &Entry) -> Result<bool, RepoError>
         category_id,
         id
     )
-    .execute(pool)
+    .execute(executor)
     .await?;
 
     Ok(result.rows_affected() > 0)

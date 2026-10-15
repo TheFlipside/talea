@@ -94,6 +94,18 @@ All notable changes to this project are documented in this file.
   and coming back, which enabled Save again) showed that backup as the new
   server's latest, though it is on the old one.
 
+- **A restore can no longer hand a summary account a record.** Adding or
+  editing an entry, recurring rule or budget, or skipping or editing one
+  occurrence, checked that its account wasn't a summary before it began
+  writing. A restore landing in between could bring that account back as a
+  summary, which would then own the record, and restore refuses every backup
+  of that. Each now checks and writes as one step.
+
+- **Saving the backup settings can no longer lose them.** The settings file
+  was rewritten in place, so the app stopping mid-save could leave it cut
+  short, the stored app password with it. It's now written in full beside the
+  old one and swapped in.
+
 ### Security
 
 - **Backups to Nextcloud use a TLS library without its known flaws.** rustls,

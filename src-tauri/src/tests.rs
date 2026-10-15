@@ -16,7 +16,7 @@ use talea_core::{
 };
 
 use crate::db;
-use crate::dto::{IsoDate, NewBudget, NewEntry, OccurrenceRef};
+use crate::dto::{IsoDate, NewBudget, NewEntry, NewRule, OccurrenceRef};
 use crate::error::{CommandError, RepoError};
 use crate::repo;
 
@@ -1296,6 +1296,149 @@ async fn a_transfer_checks_under_the_write_lock() {
         )
         .await
         .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+/// The summary account [`member_of_a_summary`] made.
+async fn the_summary(pool: &SqlitePool) -> Account {
+    repo::account::list(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|acc| acc.kind() == AccountKind::Summary)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn creating_an_entry_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    let refused = || async {
+        crate::commands::create_entry_inner(
+            &pool,
+            new_entry(summary.id(), 1_00, EntryKind::Expense),
+        )
+        .await
+        .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn creating_a_budget_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    let category = seed_category(&pool, "Food").await;
+    let refused = || async {
+        crate::commands::create_budget_inner(&pool, new_budget(summary.id(), category.id(), 1_00))
+            .await
+            .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn skipping_an_occurrence_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    // Refused for the summary before the rule is looked up, so none is needed.
+    let occurrence = || OccurrenceRef {
+        rule_id: RecurringRuleId::new(1),
+        date: date(2026, TMonth::February, 5),
+    };
+    let refused = || crate::commands::skip_occurrence_inner(&pool, summary.id(), occurrence());
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn detaching_an_occurrence_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    let occurrence = || OccurrenceRef {
+        rule_id: RecurringRuleId::new(1),
+        date: date(2026, TMonth::February, 5),
+    };
+    let refused = || async {
+        crate::commands::detach_occurrence_inner(
+            &pool,
+            summary.id(),
+            occurrence(),
+            new_entry(summary.id(), 1_00, EntryKind::Expense),
+        )
+        .await
+        .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn updating_an_entry_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    // Refused for the summary before the row is looked up, so none is needed.
+    let entry = new_entry(summary.id(), 1_00, EntryKind::Expense)
+        .build()
+        .unwrap();
+    let refused = || async {
+        crate::commands::update_entry_inner(&pool, entry.clone())
+            .await
+            .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+/// A monthly expense rule on `account_id`, as the frontend sends one.
+fn new_rule(account_id: AccountId) -> NewRule {
+    NewRule {
+        account_id,
+        amount: Money::from_minor_units(1_00, 2),
+        kind: EntryKind::Expense,
+        note: None,
+        category_id: None,
+        start_date: date(2026, TMonth::January, 5),
+        end: RuleEnd::Never,
+        frequency: Frequency::new(FreqUnit::Monthly, 1).unwrap(),
+    }
+}
+
+#[tokio::test]
+async fn creating_a_rule_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    let refused = || async {
+        crate::commands::create_rule_inner(&pool, new_rule(summary.id()))
+            .await
+            .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn updating_a_rule_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    let rule = new_rule(summary.id()).build().unwrap();
+    let refused = || async {
+        crate::commands::update_rule_inner(&pool, rule.clone())
+            .await
+            .map(drop)
+    };
+    checks_under_the_write_lock(pool.clone(), other, refused).await;
+}
+
+#[tokio::test]
+async fn updating_a_budget_checks_under_the_write_lock() {
+    let (_dir, pool, _member, other) = member_of_a_summary().await;
+    let summary = the_summary(&pool).await;
+    let category = seed_category(&pool, "Food").await;
+    let budget = new_budget(summary.id(), category.id(), 1_00)
+        .build()
+        .unwrap();
+    let refused = || async {
+        crate::commands::update_budget_inner(&pool, budget.clone())
+            .await
+            .map(drop)
     };
     checks_under_the_write_lock(pool.clone(), other, refused).await;
 }
@@ -2644,6 +2787,24 @@ async fn a_failed_upload_is_not_recorded() {
     .await;
     assert!(failed.is_err());
     assert_eq!(crate::backup::load_config(dir.path()).last_backup, None);
+}
+
+#[cfg(unix)]
+#[test]
+fn saving_the_settings_replaces_the_file_whole() {
+    // Written beside the config and renamed over it, so a crash mid-write
+    // can't truncate it; a temporary file a crash left behind is overwritten.
+    use std::os::unix::fs::MetadataExt;
+    let dir = nextcloud_dir();
+    let config = dir.path().join("nextcloud.json");
+    let before = std::fs::metadata(&config).unwrap().ino();
+    let temp = dir.path().join("nextcloud.json.tmp");
+    std::fs::write(&temp, b"half a write").unwrap();
+    save(dir.path(), "https://cloud.example.com", "max", "n3w").unwrap();
+    // A new file took the old one's place; an in-place write keeps the inode.
+    assert_ne!(std::fs::metadata(&config).unwrap().ino(), before);
+    assert!(!temp.exists());
+    assert_eq!(crate::backup::load_config(dir.path()).password, "n3w");
 }
 
 #[cfg(unix)]
